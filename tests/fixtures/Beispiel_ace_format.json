@@ -1,0 +1,156 @@
+{
+  "id": "http://www.viz-info.de/LMS-BR_r_LMS-BR_60517@2016-02-09T20:06:05.000+01:00",
+  "text": "Unfall\nAbschnitt: Marzahn (Berlin)\nGültig ab: 09.02.2016 20:06\ngesperrt, Unfall\n",
+  "tokens": [
+    "Unfall\n",
+    "Abschnitt:",
+    ": ",
+    "Marzahn ",
+    "(B",
+    "Berlin)",
+    ")\n",
+    "Gültig ",
+    "ab:",
+    ": ",
+    "09.02.2016 ",
+    "20:06\n",
+    "gesperrt,",
+    ", ",
+    "Unfall\n"
+  ],
+  "ner_tags": [
+    "B-TRIGGER",
+    "O",
+    "O",
+    "B-LOCATION",
+    "O",
+    "B-LOCATION_CITY",
+    "O",
+    "O",
+    "O",
+    "O",
+    "B-DATE",
+    "B-TIME",
+    "B-TRIGGER",
+    "O",
+    "O"
+  ],
+  "entities": [
+    {
+      "id": "c/e6ad8c7f-24a4-4742-a52d-90207de04f08",
+      "text": "Unfall\n",
+      "entity_type": "TRIGGER",
+      "start": 0,
+      "end": 1
+    },
+    {
+      "id": "c/cb2c9ebb-dce9-42f3-816c-d09f16935a5d",
+      "text": "Marzahn ",
+      "entity_type": "LOCATION",
+      "start": 3,
+      "end": 4
+    },
+    {
+      "id": "c/1b88cd4b-f6da-4ef1-8bfc-d6452607b6d4",
+      "text": "Berlin)",
+      "entity_type": "LOCATION_CITY",
+      "start": 5,
+      "end": 6
+    },
+    {
+      "id": "c/77a0f4fa-c206-4c9c-be92-ffcf87be1b29",
+      "text": "09.02.2016 ",
+      "entity_type": "DATE",
+      "start": 10,
+      "end": 11
+    },
+    {
+      "id": "c/76fb3fc6-24b7-45a7-973a-292c72f3b5d1",
+      "text": "20:06\n",
+      "entity_type": "TIME",
+      "start": 11,
+      "end": 12
+    },
+    {
+      "id": "c/677ad2f7-6d6e-4143-a3e8-935b1d531230",
+      "text": "gesperrt,",
+      "entity_type": "TRIGGER",
+      "start": 12,
+      "end": 13
+    }
+  ],
+  "events": [
+    {
+      "event_type": "Accident",
+      "trigger": {
+        "id": "r/a/179c0d7f-a44d-45cd-b456-ea0b2c72fea5",
+        "text": "Unfall\n",
+        "entity_type": "trigger",
+        "start": 0,
+        "end": 1
+      },
+      "arguments": [
+        {
+          "id": "c/1b88cd4b-f6da-4ef1-8bfc-d6452607b6d4",
+          "text": "Berlin)",
+          "entity_type": "location-city",
+          "start": 5,
+          "end": 6,
+          "role": "location"
+        },
+        {
+          "id": "c/cb2c9ebb-dce9-42f3-816c-d09f16935a5d",
+          "text": "Marzahn ",
+          "entity_type": "location",
+          "start": 3,
+          "end": 4,
+          "role": "location"
+        },
+        {
+          "id": "c/77a0f4fa-c206-4c9c-be92-ffcf87be1b29",
+          "text": "09.02.2016 ",
+          "entity_type": "date",
+          "start": 10,
+          "end": 11,
+          "role": "start_date"
+        }
+      ]
+    },
+    {
+      "event_type": "Obstruction",
+      "trigger": {
+        "id": "r/a/f8fde5d3-8b34-42c2-94a8-6b04dd69e070",
+        "text": "gesperrt,",
+        "entity_type": "trigger",
+        "start": 12,
+        "end": 13
+      },
+      "arguments": [
+        {
+          "id": "c/1b88cd4b-f6da-4ef1-8bfc-d6452607b6d4",
+          "text": "Berlin)",
+          "entity_type": "location-city",
+          "start": 5,
+          "end": 6,
+          "role": "location"
+        },
+        {
+          "id": "c/cb2c9ebb-dce9-42f3-816c-d09f16935a5d",
+          "text": "Marzahn ",
+          "entity_type": "location",
+          "start": 3,
+          "end": 4,
+          "role": "location"
+        },
+        {
+          "id": "c/77a0f4fa-c206-4c9c-be92-ffcf87be1b29",
+          "text": "09.02.2016 ",
+          "entity_type": "date",
+          "start": 10,
+          "end": 11,
+          "role": "start_date"
+        }
+      ]
+    }
+  ]
+}
