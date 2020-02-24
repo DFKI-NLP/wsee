@@ -2,22 +2,12 @@ import argparse
 from pathlib import Path
 
 import pandas as pd
-import numpy as np
 from fastavro import reader
 from tqdm import tqdm
 from typing import Dict
 
-NEGATIVE_TRIGGER_LABEL = 'O'
-NEGATIVE_ARGUMENT_LABEL = 'no_arg'
-
-SD4M_RELATION_TYPES = ['Accident', 'CanceledRoute', 'CanceledStop', 'Delay',
-                       'Obstruction', 'RailReplacementService', 'TrafficJam',
-                       NEGATIVE_TRIGGER_LABEL]
-# if we use their indices (-1), we might want to move 'Other' to the beginning
-ROLE_LABELS = ['location', 'delay', 'direction',
-               'start_loc', 'end_loc',
-               'start_date', 'end_date', 'cause',
-               'jam_length', 'route', NEGATIVE_ARGUMENT_LABEL]
+from wsee import NEGATIVE_ARGUMENT_LABEL, NEGATIVE_TRIGGER_LABEL, SD4M_RELATION_TYPES, ROLE_LABELS
+from wsee.utils import encode
 
 
 def main(args):
@@ -121,8 +111,8 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False):
     # TODO check how to handle this for predict task
     # I initially set the fillers to None in case the document did not have relationMentions
     if one_hot:
-        trigger_filler = one_hot_encode(NEGATIVE_TRIGGER_LABEL, SD4M_RELATION_TYPES)
-        arg_role_filler = one_hot_encode(NEGATIVE_ARGUMENT_LABEL, ROLE_LABELS)
+        trigger_filler = encode.one_hot_encode(NEGATIVE_TRIGGER_LABEL, SD4M_RELATION_TYPES)
+        arg_role_filler = encode.one_hot_encode(NEGATIVE_ARGUMENT_LABEL, ROLE_LABELS)
     else:
         trigger_filler = NEGATIVE_TRIGGER_LABEL
         arg_role_filler = NEGATIVE_ARGUMENT_LABEL
@@ -167,7 +157,7 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False):
             try:
                 trigger_idx = get_index_for_id(trigger_id, event_triggers)
                 if one_hot:
-                    event_triggers[trigger_idx]['event_type_probs'] = one_hot_encode(
+                    event_triggers[trigger_idx]['event_type_probs'] = encode.one_hot_encode(
                         rm['name'],
                         SD4M_RELATION_TYPES,
                         NEGATIVE_TRIGGER_LABEL
@@ -185,7 +175,7 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False):
                                      if arg['conceptMention']['id'] == event_role['argument']),
                                     NEGATIVE_ARGUMENT_LABEL)
                     if one_hot:
-                        event_role['event_argument_probs'] = one_hot_encode(
+                        event_role['event_argument_probs'] = encode.one_hot_encode(
                             arg_role,
                             ROLE_LABELS,
                             NEGATIVE_ARGUMENT_LABEL
@@ -201,18 +191,6 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False):
 
 def convert_ner_tag(ner):
     return ner.replace('-', '_').upper()
-
-
-def one_hot_encode(label, label_names, negative_label='O'):
-    label = label if label in label_names else negative_label
-    class_probs = [1.0 if label_name == label else 0.0 for label_name in label_names]
-    return class_probs
-
-
-def one_hot_decode(class_probs, label_names):
-    class_probs_array = np.asarray(class_probs)
-    class_name = label_names[class_probs_array.argmax()]
-    return class_name
 
 
 if __name__ == '__main__':
