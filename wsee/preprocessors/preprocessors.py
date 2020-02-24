@@ -57,31 +57,36 @@ def get_between_tokens(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
     argument = get_entity(cand.argument_id, cand.entities)
 
-    # TODO: what if they overlap
     if trigger['end'] <= argument['start']:
         start = trigger['end']
         end = argument['start']
-    else:
+    elif argument['end'] <= trigger['start']:
         start = argument['end']
         end = trigger['start']
+    else:
+        print(f"Trigger {trigger['text']}({trigger['start']}, {trigger['end']}) and "
+              f"argument {argument['text']}({argument['start']}, {argument['end']}) are overlapping.")
+        cand.between_tokens = []
+        return cand
 
     cand.between_tokens = cand.tokens[start:end]
     return cand
 
 
-def get_entity_distance(entities, entity1_id, entity2_id) -> int:
-    entity1 = get_entity(entity1_id, entities)
-    entity1_start = entity1['start']
-    entity1_end = entity1['end']
+@preprocessor()
+def get_between_distance(cand: DataPoint) -> DataPoint:
+    trigger = get_entity(cand.trigger_id, cand.entities)
+    argument = get_entity(cand.argument_id, cand.entities)
+    cand.between_distance = get_entity_distance(trigger, argument)
+    return cand
 
-    entity2 = get_entity(entity2_id, entities)
-    entity2_start = entity2['start']
-    entity2_end = entity2['end']
+
+def get_entity_distance(entity1, entity2) -> int:
     # TODO can entities overlap?
-    if entity1_end <= entity2_start:
-        return entity2_start - entity1_end
-    elif entity2_end <= entity1_start:
-        return entity1_start - entity2_end
+    if entity1['end'] <= entity2['start']:
+        return entity2['start'] - entity1['end']
+    elif entity2['end'] <= entity1['start']:
+        return entity1['start'] - entity2['end']
     else:
         print(f"Overlapping entities {entity1} and {entity2}")
         return 0
