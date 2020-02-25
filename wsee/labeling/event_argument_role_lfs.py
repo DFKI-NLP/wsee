@@ -28,3 +28,15 @@ def lf_date_type(x):
             # TODO look at positional distance/preceding words to determine whether it is a start or a end date
             return start_date
     return ABSTAIN
+
+
+@nlp_labeling_function(pre=[get_trigger, get_argument], text_field="text", doc_field="doc", language="de")
+def lf_dependency(x):
+    # proof of concept that makes use of spaCy dependency parsing feature
+    # see: https://github.com/explosion/spaCy/blob/master/examples/information_extraction/entity_relations.py
+    for token in x.doc:
+        # TODO match tokenization and fix spans
+        if token.text in x.trigger['text']:
+            # MAGIC
+            return ABSTAIN
+    return ABSTAIN
