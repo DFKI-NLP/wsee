@@ -30,7 +30,7 @@ def lf_date_type(x):
     return ABSTAIN
 
 
-@nlp_labeling_function(pre=[get_trigger, get_argument], text_field="text", doc_field="doc", language="de")
+@nlp_labeling_function(pre=[get_trigger, get_argument], text_field="text", doc_field="doc", language="de_core_news_md")
 def lf_dependency(x):
     # proof of concept that makes use of spaCy dependency parsing feature
     # see: https://github.com/explosion/spaCy/blob/master/examples/information_extraction/entity_relations.py
