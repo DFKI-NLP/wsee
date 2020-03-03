@@ -33,56 +33,15 @@ def convert_file(file_path, one_hot=False):
     with open(file_path, 'rb') as input_file:
         avro_reader = reader(input_file)
         for doc in tqdm(avro_reader):
-            is_smart_data_doc = 'fileName' in doc['refids'] and doc['refids']['fileName'].startswith('smartdata')
-            if is_smart_data_doc:
-                converted_doc = convert_doc(doc=doc, one_hot=one_hot)
-                if converted_doc:
+            converted_doc = convert_doc(doc=doc, one_hot=one_hot)
+            if converted_doc:
+                if _is_smart_data_doc(doc):
                     sd_list.append(converted_doc)
-            else:
-                converted_doc = convert_doc(doc=doc, one_hot=one_hot)
-                if converted_doc:
+                else:
                     daystream_list.append(converted_doc)
     smart_data = pd.DataFrame(sd_list)
     daystream = pd.DataFrame(daystream_list)
     return smart_data, daystream
-
-
-def convert_entity(text, tokens, entity):
-    try:
-        start_token_idx, end_token_idx = span_to_token_idxs(tokens, entity['span'])
-        return {
-            'id': entity['id'],
-            'text': span_to_text(text, entity['span']),
-            'entity_type': entity['type'],
-            'start': start_token_idx,
-            'end': end_token_idx + 1  # Generate exclusive token spans
-        }
-    except StopIteration:
-        print('Token offset issue')
-        print(tokens, '\n', entity)
-        print('Does this information help?')
-        return None
-
-
-def span_to_text(text, span):
-    return text[span['start']:span['end']]
-
-
-def span_to_token_idxs(tokens, span):
-    start_idx = next(idx
-                     for idx, token in enumerate(tokens)
-                     if token['span']['start'] == span['start'])
-    end_idx = next(idx
-                   for idx, token in enumerate(tokens)
-                   if token['span']['end'] == span['end'])
-    return start_idx, end_idx
-
-
-def get_index_for_id(obj_id, obj_list):
-    for idx, obj in enumerate(obj_list):
-        if obj['id'] == obj_id:
-            return idx
-    raise Exception(f'obj_id was not found in obj_list. The value of obj_id was: {obj_id}.\nThe obj_list: {obj_list}.')
 
 
 def convert_doc(doc: Dict, doc_text: str = None, one_hot=False):
@@ -96,8 +55,7 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False):
     text = span_to_text(doc_text, doc['span']) if 'span' in doc else doc_text
     tokens = [span_to_text(doc_text, token['span']) for token in
               doc['tokens']]
-    # pos_tags = [token['posTag'] for token in doc['tokens']]
-    ner_tags = [token['ner'] for token in doc['tokens']]
+    ner_tags = _convert_ner_tags([token['ner'] for token in doc['tokens']])
 
     entities = []
     for cm in doc['conceptMentions']:
@@ -109,6 +67,7 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False):
     event_roles = []
 
     # TODO check how to handle this for predict task
+    #  Throw out SmartData docs without SD4M events?
     # I initially set the fillers to None in case the document did not have relationMentions
     if one_hot:
         trigger_filler = encode.one_hot_encode(NEGATIVE_TRIGGER_LABEL, SD4M_RELATION_TYPES)
@@ -184,13 +143,61 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False):
                         event_role['event_argument'] = arg_role
 
     return {'id': s_id, 'text': text, 'tokens': tokens,
-            # 'pos-tag': pos_tag,
             'ner_tags': ner_tags, 'entities': entities,
             'event_triggers': event_triggers, 'event_roles': event_roles}
 
 
-def convert_ner_tag(ner):
-    return ner.replace('-', '_').upper()
+def _convert_ner_tags(ner_tags):
+    return [ner_tag[:2] + 'TRIGGER' if ner_tag != 'O' and ner_tag[2:] == 'DISASTER_TYPE' else ner_tag
+            for ner_tag in ner_tags]
+
+
+def convert_entity(text, tokens, entity):
+    try:
+        start_token_idx, end_token_idx = span_to_token_idxs(tokens, entity['span'])
+        # The disaster type relations are not annotated with a trigger but with a disaster type.
+        # However they can be used interchangeably, thus convert disaster types to triggers.
+        entity_type = entity['type'].lower()
+        if entity_type == 'disaster-type':
+            entity_type = 'trigger'
+        elif entity_type == 'disaster_type':
+            entity_type = 'trigger'
+        return {
+            'id': entity['id'],
+            'text': span_to_text(text, entity['span']),
+            'entity_type': entity_type,
+            'start': start_token_idx,
+            'end': end_token_idx + 1  # Generate exclusive token spans
+        }
+    except StopIteration:
+        print('Token offset issue')
+        print(tokens, '\n', entity)
+        return None
+
+
+def span_to_text(text, span):
+    return text[span['start']:span['end']]
+
+
+def span_to_token_idxs(tokens, span):
+    start_idx = next(idx
+                     for idx, token in enumerate(tokens)
+                     if token['span']['start'] == span['start'])
+    end_idx = next(idx
+                   for idx, token in enumerate(tokens)
+                   if token['span']['end'] == span['end'])
+    return start_idx, end_idx
+
+
+def get_index_for_id(obj_id, obj_list):
+    for idx, obj in enumerate(obj_list):
+        if obj['id'] == obj_id:
+            return idx
+    raise Exception(f'obj_id was not found in obj_list. The value of obj_id was: {obj_id}.\nThe obj_list: {obj_list}.')
+
+
+def _is_smart_data_doc(doc):
+    return 'fileName' in doc['refids'] and doc['refids']['fileName'].startswith('smartdata')
 
 
 if __name__ == '__main__':
