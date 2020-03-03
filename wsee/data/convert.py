@@ -14,26 +14,27 @@ def main(args):
     input_path = Path(args.input)
     assert input_path.exists(), 'Input not found: %s'.format(args.input)
 
-    one_hot = False if args.no_one_hot else True
+    one_hot = not args.no_one_hot
+    build_defaults = args.build_default_events
 
     daystream = []
     for split in ['train', 'dev', 'test']:
         input_file = input_path.joinpath(split, f'{split}.avro')
         output_file = input_path.joinpath(split, f'{split}_with_events.jsonl')
-        smart_data, daystream_part = convert_file(input_file, one_hot)
+        smart_data, daystream_part = convert_file(input_file, one_hot, build_defaults)
         smart_data.to_json(output_file, orient='records', lines=True, force_ascii=False)
         daystream.append(daystream_part)
     daystream = pd.concat(daystream, sort=False).reset_index(drop=True)
     daystream.to_json(input_path.joinpath('daystream.jsonl'), orient='records', lines=True, force_ascii=False)
 
 
-def convert_file(file_path, one_hot=False):
+def convert_file(file_path, one_hot=False, build_defaults=False):
     sd_list = []
     daystream_list = []
     with open(file_path, 'rb') as input_file:
         avro_reader = reader(input_file)
         for doc in tqdm(avro_reader):
-            converted_doc = convert_doc(doc=doc, one_hot=one_hot)
+            converted_doc = convert_doc(doc=doc, one_hot=one_hot, build_defaults=build_defaults)
             if converted_doc:
                 if _is_smart_data_doc(doc):
                     sd_list.append(converted_doc)
@@ -44,7 +45,7 @@ def convert_file(file_path, one_hot=False):
     return smart_data, daystream
 
 
-def convert_doc(doc: Dict, doc_text: str = None, one_hot=False):
+def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults=False):
     if doc_text is None:
         try:
             doc_text = str(doc['text'])
@@ -63,11 +64,80 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False):
         if converted_entity:
             entities.append(converted_entity)
 
+    if _is_smart_data_doc(doc):
+        if build_defaults:
+            # 1. Does it make sense to build default events and update them, i.e. create negative examples?
+            event_triggers, event_roles = build_default_events(entities, one_hot)
+            if doc['relationMentions']:
+                event_triggers, event_roles = update_events(event_triggers, event_roles, doc['relationMentions'],
+                                                            one_hot)
+        else:
+            # 2. Or does it make more sense to only create events for corresponding relation mentions in doc?
+            event_triggers, event_roles = get_events(doc['relationMentions'], one_hot)
+
+    else:
+        # Daystream documents do not have relation mention annotation
+        event_triggers, event_roles = build_default_events(entities, one_hot)
+
+    return {'id': s_id, 'text': text, 'tokens': tokens,
+            'ner_tags': ner_tags, 'entities': entities,
+            'event_triggers': event_triggers, 'event_roles': event_roles}
+
+
+def get_events(relations, one_hot):
+    """
+    Only creates event_triggers and event_roles for relation mentions in document
+
+    :param relations: relation mentions in document
+    :param one_hot: whether to one hot encode labels
+    :return: event_triggers and event_roles for relation mentions in document
+    """
     event_triggers = []
     event_roles = []
 
-    # TODO check how to handle this for predict task
-    #  Throw out SmartData docs without SD4M events?
+    filtered_relations = [
+        rm for rm in relations if rm['name'] in SD4M_RELATION_TYPES
+    ]
+    for rm in filtered_relations:
+        # collect trigger(s) in relation mention
+        trigger = next((arg for arg in rm['args'] if arg['role'] == 'trigger'), None)
+        if trigger is None or trigger['conceptMention']['type'] not in ['TRIGGER', 'trigger']:
+            print('Skipping invalid event')
+            continue
+        trigger_id = trigger['conceptMention']['id']
+        event_trigger = {'id': trigger_id}
+        if one_hot:
+            event_trigger['event_type_probs'] = encode.one_hot_encode(rm['name'], SD4M_RELATION_TYPES)
+        else:
+            event_trigger['event_type'] = rm['name']
+        event_triggers.append(event_trigger)
+
+        args = [arg for arg in rm['args'] if arg['role'] != 'trigger']
+        for arg in args:
+            event_role = {
+                'trigger': trigger_id,
+                'argument': arg['conceptMention']['id'],
+            }
+            if one_hot:
+                event_role['event_argument_probs'] = encode.one_hot_encode(arg['role'], ROLE_LABELS)
+            else:
+                event_role['event_argument'] = arg['role']
+            event_roles.append(event_role)
+
+    return event_triggers, event_roles
+
+
+def build_default_events(entities, one_hot):
+    """
+    Builds event triggers for every entity of type 'trigger' and event roles for every trigger-entity pair
+    with default label (negative trigger/ role label)
+
+    :param entities: Concept mentions in document
+    :param one_hot: Whether to one hot encode labels
+    :return: All possible event_triggers and event_roles with default labels
+    """
+    event_triggers = []
+    event_roles = []
     # I initially set the fillers to None in case the document did not have relationMentions
     if one_hot:
         trigger_filler = encode.one_hot_encode(NEGATIVE_TRIGGER_LABEL, SD4M_RELATION_TYPES)
@@ -79,72 +149,80 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False):
     # Set up all possible triggers with default trigger label
     for entity in entities:
         if entity['entity_type'] in ['TRIGGER', 'trigger']:
+            event_trigger = {'id': entity['id']}
             if one_hot:
-                event_triggers.append({'id': entity['id'],
-                                       'event_type_probs': trigger_filler})
+                event_trigger['event_type_probs'] = encode.one_hot_encode(trigger_filler, SD4M_RELATION_TYPES)
             else:
-                event_triggers.append({'id': entity['id'], 'event_type': trigger_filler})
+                event_trigger['event_type'] = trigger_filler
+            event_triggers.append(event_trigger)
 
     # Build all possible pairs of triggers and entities with default argument role label
     for trigger in event_triggers:
         for entity in entities:
             if trigger['id'] != entity['id']:
+                event_role = {
+                    'trigger': trigger['id'],
+                    'argument': entity['id']
+                }
                 if one_hot:
-                    event_roles.append({
-                        'trigger': trigger['id'],
-                        'argument': entity['id'],
-                        'event_argument_probs': arg_role_filler})
+                    event_role['event_argument_probs'] = arg_role_filler
                 else:
-                    event_roles.append({
-                        'trigger': trigger['id'],
-                        'argument': entity['id'],
-                        'event_argument': arg_role_filler})
+                    event_role['event_argument'] = arg_role_filler
+                event_roles.append(event_role)
 
-    # Update event types and event argument roles
-    if doc['relationMentions']:
-        filtered_relations = [
-            rm for rm in doc['relationMentions'] if rm['name'] in SD4M_RELATION_TYPES
-        ]
-        for rm in filtered_relations:
-            # collect trigger(s) in relation mention
-            trigger = next((arg for arg in rm['args'] if arg['role'] == 'trigger'), None)
-            if trigger is None or trigger['conceptMention']['type'] not in ['TRIGGER', 'trigger']:
-                print('Skipping invalid event')
-                continue
-            trigger_id = trigger['conceptMention']['id']
-            # update event type (probs) in event_triggers
-            try:
-                trigger_idx = get_index_for_id(trigger_id, event_triggers)
+    return event_triggers, event_roles
+
+
+def update_events(event_triggers, event_roles, relations, one_hot):
+    """
+    Assumes preceding build_defaults_events step and uses relationMentions of the document
+    to update the event_type/ event_role attributes.
+
+    :param event_triggers: Entities of type 'trigger'
+    :param event_roles: trigger-entity pairs
+    :param relations: relation mentions in document
+    :param one_hot: whether to one hot encode labels
+    :return: updated event_triggers and event_roles
+    """
+    filtered_relations = [
+        rm for rm in relations if rm['name'] in SD4M_RELATION_TYPES
+    ]
+    for rm in filtered_relations:
+        # collect trigger(s) in relation mention
+        trigger = next((arg for arg in rm['args'] if arg['role'] == 'trigger'), None)
+        if trigger is None or trigger['conceptMention']['type'] not in ['TRIGGER', 'trigger']:
+            print('Skipping invalid event')
+            continue
+        trigger_id = trigger['conceptMention']['id']
+        # update event type (probs) in event_triggers
+        try:
+            trigger_idx = get_index_for_id(trigger_id, event_triggers)
+            if one_hot:
+                event_triggers[trigger_idx]['event_type_probs'] = encode.one_hot_encode(
+                    rm['name'],
+                    SD4M_RELATION_TYPES
+                )
+            else:
+                event_triggers[trigger_idx]['event_type'] = rm['name']
+        except Exception as e:
+            print(f'{e}\n Did not find {trigger_id} in: {event_triggers}.')
+            continue
+
+        role_args = [arg for arg in rm['args'] if arg['role'] != 'trigger']
+        for event_role in event_roles:
+            if event_role['trigger'] == trigger_id:
+                arg_role = next((arg['role'] for arg in role_args
+                                 if arg['conceptMention']['id'] == event_role['argument']),
+                                NEGATIVE_ARGUMENT_LABEL)
                 if one_hot:
-                    event_triggers[trigger_idx]['event_type_probs'] = encode.one_hot_encode(
-                        rm['name'],
-                        SD4M_RELATION_TYPES,
-                        NEGATIVE_TRIGGER_LABEL
+                    event_role['event_argument_probs'] = encode.one_hot_encode(
+                        arg_role,
+                        ROLE_LABELS
                     )
                 else:
-                    event_triggers[trigger_idx]['event_type'] = rm['name']
-            except Exception as e:
-                print(f'{e}\n See entity list: {entities}.')
-                continue
+                    event_role['event_argument'] = arg_role
 
-            role_args = [arg for arg in rm['args'] if arg['role'] != 'trigger']
-            for event_role in event_roles:
-                if event_role['trigger'] == trigger_id:
-                    arg_role = next((arg['role'] for arg in role_args
-                                     if arg['conceptMention']['id'] == event_role['argument']),
-                                    NEGATIVE_ARGUMENT_LABEL)
-                    if one_hot:
-                        event_role['event_argument_probs'] = encode.one_hot_encode(
-                            arg_role,
-                            ROLE_LABELS,
-                            NEGATIVE_ARGUMENT_LABEL
-                        )
-                    else:
-                        event_role['event_argument'] = arg_role
-
-    return {'id': s_id, 'text': text, 'tokens': tokens,
-            'ner_tags': ner_tags, 'entities': entities,
-            'event_triggers': event_triggers, 'event_roles': event_roles}
+    return event_triggers, event_roles
 
 
 def _convert_ner_tags(ner_tags):
@@ -205,6 +283,7 @@ if __name__ == '__main__':
         description='Smartdata avro schema to jsonl converter')
     parser.add_argument('--input', type=str, help='Directory of avro file structure')
     parser.add_argument("--no_one_hot", action="store_true", help='Do not one hot encode labels')
+    parser.add_argument("--build_default_events", action="store_true", help='Build default events and update them')
     parser.add_argument('-f', dest='force_output', action='store_true',
                         help='Force creation of new output folder')
     arguments = parser.parse_args()
