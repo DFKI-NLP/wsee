@@ -3,6 +3,11 @@ from typing import Dict, List
 
 from snorkel.preprocess import preprocessor
 from snorkel.types import DataPoint
+from wsee.preprocessors.pattern_event_processor import escape_regex_chars
+
+
+punctuation_marks = ["<", "(", "[", "{", "\\", "^", "-", "=", "$", "!", "|",
+                     "]", "}", ")", "?", "*", "+", ".", ",", ":", ";", ">"]
 
 
 def get_entity_idx(entity_id, entities):
@@ -176,8 +181,8 @@ def check_spans(tokens, entity_span, match_span):
     e_start, e_end = entity_span  # token based
     m_start, m_end = match_span  # char based
     glued_tokens = " ".join(tokens[:e_end])
-    # allow for some tolerance for wrong whitespaces, maybe somewhat less than len(tokens)
-    tolerance = min(len(tokens[:e_end]), 4)
+    # allow for some tolerance for wrong whitespaces: number of punctuation marks for now
+    tolerance = len([token for token in tokens[:e_end] if token in punctuation_marks])
     return abs(len(glued_tokens) - m_end) < tolerance
 
 
@@ -196,8 +201,8 @@ def get_mixed_ner(cand: DataPoint) -> DataPoint:
     for idx, entity in enumerate(cand.entities):
         # type_position = entity_types[:idx + 1].count(entity['entity_type'])
         # simple text replace with search for entity text + check with token span?
-        entity_text = re.compile(entity['text'])
-        matches = entity_text.finditer(cand.text)
+        entity_text = re.compile(escape_regex_chars(entity['text']))
+        matches = list(entity_text.finditer(cand.text))
         relevant_match = next((match for match in matches if check_spans(cand.tokens, (entity['start'], entity['end']),
                                                                          (match.start(), match.end()))), None)
         if relevant_match is None:
@@ -206,7 +211,7 @@ def get_mixed_ner(cand: DataPoint) -> DataPoint:
             mixed_ner = ''
             entity_spans = []
             break
-        mixed_ner += cand.text[offset:relevant_match.start()] + entity['entity_type']
+        mixed_ner += cand.text[offset:relevant_match.start()] + entity['entity_type'].upper()
         entity_spans.append((relevant_match.start(), relevant_match.start() + len(entity['entity_type'])))
         offset = relevant_match.end()
     mixed_ner += cand.text[offset:]
