@@ -1,8 +1,9 @@
 from snorkel.labeling import labeling_function
 from snorkel.labeling.lf.nlp import nlp_labeling_function
 from fuzzywuzzy import process
-from wsee.preprocessors.preprocessors import get_trigger, get_argument, get_left_tokens, get_right_tokens, \
-    get_entity_type_freqs, get_between_distance
+from wsee.preprocessors.preprocessors import get_trigger, get_trigger_idx, get_argument, get_argument_idx, \
+    get_left_tokens, get_right_tokens, get_entity_type_freqs, get_between_distance, get_mixed_ner
+from wsee.preprocessors.pattern_event_processor import parse_pattern_file, find_best_pattern_match
 
 
 location = 0
@@ -17,6 +18,8 @@ jam_length = 8
 route = 9
 no_arg = 10
 ABSTAIN = -1
+
+rules = parse_pattern_file('/Users/phuc/develop/python/wsee/data/event-patterns-annotated-britta-olli.txt')
 
 
 @labeling_function(pre=[get_trigger, get_argument, get_between_distance])
@@ -39,4 +42,47 @@ def lf_dependency(x):
         if token.text in x.trigger['text']:
             # MAGIC
             return ABSTAIN
+    return ABSTAIN
+
+
+@labeling_function(resources=rules, pre=[get_trigger_idx, get_argument_idx, get_mixed_ner])
+def lf_event_patterns(x):
+    # find best matching pattern and use corresponding rule (slots) to return role label
+    # need to find range of match
+    if x.entity_spans and x.mixed_ner:
+        trigger_spans = x.entity_spans[x.trigger_idx]
+        argument_spans = x.entity_spans[x.argument_idx]
+
+        best_rule, best_match = find_best_pattern_match(x.mixed_ner, rules, trigger_spans, argument_spans)
+
+        if best_rule and best_match:
+            # within span of the best match
+            entities_subset = [entity for span, entity in zip(x.entity_spans, x.entities) if
+                               span[0] >= best_match.start() and span[1] <= best_match.end()]
+            trigger_position = next(
+                (idx for idx, entity in enumerate(entities_subset) if entity['id'] == x.trigger), None)
+            argument_position = next(
+                (idx for idx, entity in enumerate(entities_subset) if entity['id'] == x.argument), None)
+
+            entity_types = [entity['entity_type'] for entity in entities_subset]
+            trigger_pos = entity_types[:trigger_position + 1].count(
+                entities_subset[trigger_position]['entity_type'])
+            argument_pos = entity_types[:argument_position + 1].count(
+                entities_subset[argument_position]['entity_type'])
+
+            trigger_match = False
+            argument_match = False
+            role = None
+            # obv check beforehand if sample_trigger_position and sample_argument_position are None, ABSTAIN
+            # or check during search for best pattern
+            for slot in best_rule.slots:
+                if slot.entity_type == 'TRIGGER' and slot.position == trigger_pos:
+                    trigger_match = True
+                if slot.entity_type == entities_subset[argument_position]['entity_type'] \
+                        and slot.position == argument_pos:
+                    role = slot.role
+                    argument_match = True
+            if trigger_match and argument_match:
+                return role.upper()  # mapping to correct label (simple uppercase)
+
     return ABSTAIN
