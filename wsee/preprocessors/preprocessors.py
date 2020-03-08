@@ -5,12 +5,18 @@ from snorkel.preprocess import preprocessor
 from snorkel.types import DataPoint
 
 
-def get_entity(entity_id, entities):
-    entity = next((x for x in entities if x['id'] == entity_id), None)
-    if entity is None:
+def get_entity_idx(entity_id, entities):
+    entity_idx = next((idx for idx, x in enumerate(entities) if x['id'] == entity_id), None)
+    if entity_idx is None:
         raise Exception(f'The entity_id {entity_id} was not found in:\n {entities}')
     else:
-        return entity
+        return entity_idx
+
+
+def get_entity(entity_id, entities):
+    entity_idx = get_entity_idx(entity_id, entities)
+    entity = entities[entity_idx]
+    return entity
 
 
 @preprocessor()
@@ -21,9 +27,23 @@ def get_trigger(cand: DataPoint) -> DataPoint:
 
 
 @preprocessor()
+def get_trigger_idx(cand: DataPoint) -> DataPoint:
+    trigger_idx = get_entity_idx(cand.trigger_id, cand.entities)
+    cand.trigger_idx = trigger_idx
+    return cand
+
+
+@preprocessor()
 def get_argument(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
     cand.argument = argument
+    return cand
+
+
+@preprocessor()
+def get_argument_idx(cand: DataPoint) -> DataPoint:
+    argument_idx = get_entity_idx(cand.argument_id, cand.entities)
+    cand.argument_idx = argument_idx
     return cand
 
 
@@ -190,6 +210,6 @@ def get_mixed_ner(cand: DataPoint) -> DataPoint:
         entity_spans.append((relevant_match.start(), relevant_match.start() + len(entity['entity_type'])))
         offset = relevant_match.end()
     mixed_ner += cand.text[offset:]
-    cand['mixed_ner'] = mixed_ner
-    cand['mixed_ner_spans'] = entity_spans
+    cand.mixed_ner = mixed_ner
+    cand.mixed_ner_spans = entity_spans
     return cand
