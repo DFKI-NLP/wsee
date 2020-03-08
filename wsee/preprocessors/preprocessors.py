@@ -1,3 +1,4 @@
+import re
 from typing import Dict, List
 
 from snorkel.preprocess import preprocessor
@@ -138,3 +139,57 @@ def get_windowed_entity_type_freqs(entities, entity=None, window_size: int = Non
         else:
             entity_type_freqs[entity_type] = 1
     return entity_type_freqs
+
+
+def check_spans(tokens, entity_span, match_span):
+    """
+    Checks token based entity span with character based text match span to see if
+    it is plausible for the match to be at that particular position.
+        Example: Berliner in Berlin sind besorgt
+    If we only look at a text match without checking the span, we may end up replacing the
+    first occurrence of "Berlin", resulting in
+        LOCATION_CITYer in Berlin sind besorgt
+    instead of
+        Berliner in LOCATION_CITY sind besorgt
+    RegExes could help, but we would have to look at whitespaces, special symbols, etc.
+    """
+    e_start, e_end = entity_span  # token based
+    m_start, m_end = match_span  # char based
+    glued_tokens = " ".join(tokens[:e_end])
+    # allow for some tolerance for wrong whitespaces, maybe somewhat less than len(tokens)
+    tolerance = min(len(tokens[:e_end]), 4)
+    return abs(len(glued_tokens) - m_end) < tolerance
+
+
+@preprocessor()
+def get_mixed_ner(cand: DataPoint) -> DataPoint:
+    """
+    Builds mixed NER patterns from text and entities.
+    :param cand:
+    :return:
+    """
+    # simple solution with additional token span check
+    mixed_ner = ''
+    offset = 0
+    entity_spans = []
+    # TODO: ensure that entities are sorted according to their spans
+    for idx, entity in enumerate(cand.entities):
+        # type_position = entity_types[:idx + 1].count(entity['entity_type'])
+        # simple text replace with search for entity text + check with token span?
+        entity_text = re.compile(entity['text'])
+        matches = entity_text.finditer(cand.text)
+        relevant_match = next((match for match in matches if check_spans(cand.tokens, (entity['start'], entity['end']),
+                                                                         (match.start(), match.end()))), None)
+        if relevant_match is None:
+            print("Something went wrong")
+            print(entity)
+            mixed_ner = ''
+            entity_spans = []
+            break
+        mixed_ner += cand.text[offset:relevant_match.start()] + entity['entity_type']
+        entity_spans.append((relevant_match.start(), relevant_match.start() + len(entity['entity_type'])))
+        offset = relevant_match.end()
+    mixed_ner += cand.text[offset:]
+    cand['mixed_ner'] = mixed_ner
+    cand['mixed_ner_spans'] = entity_spans
+    return cand
