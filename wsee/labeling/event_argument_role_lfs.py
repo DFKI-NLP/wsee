@@ -19,6 +19,20 @@ route = 9
 no_arg = 10
 ABSTAIN = -1
 
+labels = {
+    'location': 0,
+    'delay': 1,
+    'direction': 2,
+    'start_loc': 3,
+    'end_loc': 4,
+    'start_date': 5,
+    'end_date': 6,
+    'cause': 7,
+    'jam_length': 8,
+    'route': 9,
+    'no_arg': 10
+}
+
 rules = parse_pattern_file('/Users/phuc/develop/python/wsee/data/event-patterns-annotated-britta-olli.txt')
 
 
@@ -45,24 +59,29 @@ def lf_dependency(x):
     return ABSTAIN
 
 
-@labeling_function(resources=rules, pre=[get_trigger_idx, get_argument_idx, get_mixed_ner])
-def lf_event_patterns(x):
+@labeling_function(resources=dict(rules=rules), pre=[get_trigger_idx, get_argument_idx, get_mixed_ner])
+def lf_event_patterns(x, rules):
     # find best matching pattern and use corresponding rule (slots) to return role label
     # need to find range of match
-    if x.entity_spans and x.mixed_ner:
-        trigger_spans = x.entity_spans[x.trigger_idx]
-        argument_spans = x.entity_spans[x.argument_idx]
+    if x.mixed_ner_spans and x.mixed_ner:
+        trigger_spans = x.mixed_ner_spans[x.trigger_idx]
+        argument_spans = x.mixed_ner_spans[x.argument_idx]
 
         best_rule, best_match = find_best_pattern_match(x.mixed_ner, rules, trigger_spans, argument_spans)
 
         if best_rule and best_match:
+            """
+            Idea here is to match the slots of the best rule with the trigger and argument via entity type and
+            their position in the subset of entities that are within the spans of the best match.
+            Position here refers to the n-th occurrence of the entity type within the entities. 
+            """
             # within span of the best match
-            entities_subset = [entity for span, entity in zip(x.entity_spans, x.entities) if
+            entities_subset = [entity for span, entity in zip(x.mixed_ner_spans, x.entities) if
                                span[0] >= best_match.start() and span[1] <= best_match.end()]
             trigger_position = next(
-                (idx for idx, entity in enumerate(entities_subset) if entity['id'] == x.trigger), None)
+                (idx for idx, entity in enumerate(entities_subset) if entity['id'] == x.trigger_id), None)
             argument_position = next(
-                (idx for idx, entity in enumerate(entities_subset) if entity['id'] == x.argument), None)
+                (idx for idx, entity in enumerate(entities_subset) if entity['id'] == x.argument_id), None)
 
             entity_types = [entity['entity_type'] for entity in entities_subset]
             trigger_pos = entity_types[:trigger_position + 1].count(
@@ -72,7 +91,7 @@ def lf_event_patterns(x):
 
             trigger_match = False
             argument_match = False
-            role = None
+            role = ''
             # obv check beforehand if sample_trigger_position and sample_argument_position are None, ABSTAIN
             # or check during search for best pattern
             for slot in best_rule.slots:
@@ -82,7 +101,8 @@ def lf_event_patterns(x):
                         and slot.position == argument_pos:
                     role = slot.role
                     argument_match = True
-            if trigger_match and argument_match:
-                return role.upper()  # mapping to correct label (simple uppercase)
+            if trigger_match and argument_match and role:
+                assert role in labels
+                return labels[role]  # mapping to correct label index
 
     return ABSTAIN
