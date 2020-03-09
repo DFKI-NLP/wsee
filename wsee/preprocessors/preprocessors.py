@@ -214,6 +214,8 @@ def get_mixed_ner(cand: DataPoint) -> DataPoint:
             mixed_ner = ''
             mixed_ner_spans = []
             break
+        # TODO: handle new line character differently
+        #  replace with whitespace character adjust spans
         mixed_ner += cand.text[offset:relevant_match.start()] + entity['entity_type'].upper()
         mixed_ner_spans.append((relevant_match.start(), relevant_match.start() + len(entity['entity_type'])))
         offset = relevant_match.end()
