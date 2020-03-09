@@ -57,6 +57,7 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults=F
     tokens = [span_to_text(doc_text, token['span']) for token in
               doc['tokens']]
     ner_tags = _convert_ner_tags([token['ner'] for token in doc['tokens']])
+    pos_tags = [token['posTag'] for token in doc['tokens']]
 
     entities = []
     for cm in doc['conceptMentions']:
@@ -80,6 +81,7 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults=F
         event_triggers, event_roles = build_default_events(entities, one_hot)
 
     return {'id': s_id, 'text': text, 'tokens': tokens,
+            'pos_tags': pos_tags,
             'ner_tags': ner_tags, 'entities': entities,
             'event_triggers': event_triggers, 'event_roles': event_roles}
 
