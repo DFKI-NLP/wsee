@@ -3,7 +3,7 @@ from snorkel.labeling.lf.nlp import nlp_labeling_function
 from fuzzywuzzy import process
 from wsee.preprocessors.preprocessors import get_trigger, get_trigger_idx, get_argument, get_argument_idx, \
     get_left_tokens, get_right_tokens, get_entity_type_freqs, get_between_distance, get_mixed_ner
-from wsee.preprocessors.pattern_event_processor import parse_pattern_file, find_best_pattern_match
+from wsee.preprocessors.pattern_event_processor import parse_pattern_file, find_best_pattern_match, location_subtypes
 
 
 location = 0
@@ -34,6 +34,7 @@ labels = {
 }
 
 rules = parse_pattern_file('/Users/phuc/develop/python/wsee/data/event-patterns-annotated-britta-olli.txt')
+general_location_rules = parse_pattern_file('/Users/phuc/develop/python/wsee/data/event-patterns-phuc.txt')
 
 
 @labeling_function(pre=[get_trigger, get_argument, get_between_distance])
@@ -59,9 +60,7 @@ def lf_dependency(x):
     return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=rules), pre=[get_trigger, get_trigger_idx, get_argument, get_argument_idx,
-                                                     get_mixed_ner])
-def lf_event_patterns(x, rules):
+def event_patterns_helper(x, rules, general_location=False):
     # find best matching pattern and use corresponding rule (slots) to return role label
     # need to find range of match
     if x.mixed_ner_spans and x.mixed_ner:
@@ -69,8 +68,11 @@ def lf_event_patterns(x, rules):
         argument_spans = x.mixed_ner_spans[x.argument_idx]
 
         # Change formatting to match the formatting used for the converter rule slots
-        trigger_entity_type = x.trigger['entity_type'].upper().replace('-', '_')
+        trigger_entity_type = x.trigger['entity_type'].upper()
         argument_entity_type = x.argument['entity_type'].upper().replace('-', '_')
+
+        if general_location and argument_entity_type in location_subtypes:
+            argument_entity_type = 'LOCATION'
 
         best_rule, best_match = find_best_pattern_match(x.mixed_ner, rules, trigger_spans, argument_spans)
 
@@ -88,11 +90,15 @@ def lf_event_patterns(x, rules):
             argument_position = next(
                 (idx for idx, entity in enumerate(entities_subset) if entity['id'] == x.argument_id), None)
 
-            entity_types = [entity['entity_type'] for entity in entities_subset]
-            trigger_pos = entity_types[:trigger_position + 1].count(
-                entities_subset[trigger_position]['entity_type'])
-            argument_pos = entity_types[:argument_position + 1].count(
-                entities_subset[argument_position]['entity_type'])
+            entity_types = []
+            for entity in entities_subset:
+                entity_type = entity['entity_type'].upper().replace('-', '_')
+                if general_location and entity_type in location_subtypes:
+                    entity_type = 'LOCATION'
+                entity_types.append(entity_type)
+
+            trigger_pos = entity_types[:trigger_position + 1].count(trigger_entity_type)
+            argument_pos = entity_types[:argument_position + 1].count(argument_entity_type)
 
             trigger_match = False
             argument_match = False
@@ -110,3 +116,16 @@ def lf_event_patterns(x, rules):
                 return labels[role]  # mapping to correct label index
 
     return ABSTAIN
+
+
+@labeling_function(resources=dict(rules=rules), pre=[get_trigger, get_trigger_idx, get_argument, get_argument_idx,
+                                                     get_mixed_ner])
+def lf_event_patterns(x, rules):
+    return event_patterns_helper(x, rules)
+
+
+@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger, get_trigger_idx,
+                                                                      get_argument, get_argument_idx,
+                                                                      get_mixed_ner])
+def lf_event_patterns_general_location(x, rules):
+    return event_patterns_helper(x, rules, general_location=True)
