@@ -7,7 +7,8 @@ from wsee.preprocessors.pattern_event_processor import escape_regex_chars
 
 
 punctuation_marks = ["<", "(", "[", "{", "\\", "^", "-", "=", "$", "!", "|",
-                     "]", "}", ")", "?", "*", "+", ".", ",", ":", ";", ">"]
+                     "]", "}", ")", "?", "*", "+", ".", ",", ":", ";", ">",
+                     "_", "#", "/"]
 
 
 def get_entity_idx(entity_id, entities):
@@ -27,40 +28,40 @@ def get_entity(entity_id, entities):
 @preprocessor()
 def get_trigger(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
-    cand.trigger = trigger
+    cand['trigger'] = trigger
     return cand
 
 
 @preprocessor()
 def get_trigger_idx(cand: DataPoint) -> DataPoint:
     trigger_idx = get_entity_idx(cand.trigger_id, cand.entities)
-    cand.trigger_idx = trigger_idx
+    cand['trigger_idx'] = trigger_idx
     return cand
 
 
 @preprocessor()
 def get_argument(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
-    cand.argument = argument
+    cand['argument'] = argument
     return cand
 
 
 @preprocessor()
 def get_argument_idx(cand: DataPoint) -> DataPoint:
     argument_idx = get_entity_idx(cand.argument_id, cand.entities)
-    cand.argument_idx = argument_idx
+    cand['argument_idx'] = argument_idx
     return cand
 
 
 @preprocessor()
 def get_left_tokens(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
-    cand.trigger_left_tokens = get_windowed_left_tokens(trigger, cand.tokens)
+    cand['trigger_left_tokens'] = get_windowed_left_tokens(trigger, cand.tokens)
 
     # Only relevant for event argument role classification
     if 'argument_id' in cand:
         argument = get_entity(cand.argument_id, cand.entities)
-        cand.argument_left_tokens = get_windowed_left_tokens(argument, cand.tokens)
+        cand['argument_left_tokens'] = get_windowed_left_tokens(argument, cand.tokens)
     return cand
 
 
@@ -77,12 +78,12 @@ def get_windowed_left_tokens(entity, tokens, window_size: int = None) -> List[st
 @preprocessor()
 def get_right_tokens(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
-    cand.trigger_left_tokens = get_windowed_right_tokens(trigger, cand.tokens)
+    cand['trigger_right_tokens'] = get_windowed_right_tokens(trigger, cand.tokens)
 
     # Only relevant for event argument role classification
     if 'argument_id' in cand:
         argument = get_entity(cand.argument_id, cand.entities)
-        cand.argument_left_tokens = get_windowed_right_tokens(argument, cand.tokens)
+        cand['argument_right_tokens'] = get_windowed_right_tokens(argument, cand.tokens)
     return cand
 
 
@@ -110,10 +111,10 @@ def get_between_tokens(cand: DataPoint) -> DataPoint:
     else:
         print(f"Trigger {trigger['text']}({trigger['start']}, {trigger['end']}) and "
               f"argument {argument['text']}({argument['start']}, {argument['end']}) are overlapping.")
-        cand.between_tokens = []
+        cand['between_tokens'] = []
         return cand
 
-    cand.between_tokens = cand.tokens[start:end]
+    cand['between_tokens'] = cand.tokens[start:end]
     return cand
 
 
@@ -121,7 +122,7 @@ def get_between_tokens(cand: DataPoint) -> DataPoint:
 def get_between_distance(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
     argument = get_entity(cand.argument_id, cand.entities)
-    cand.between_distance = get_entity_distance(trigger, argument)
+    cand['between_distance'] = get_entity_distance(trigger, argument)
     return cand
 
 
@@ -139,7 +140,7 @@ def get_entity_distance(entity1, entity2) -> int:
 @preprocessor()
 def get_entity_type_freqs(cand: DataPoint) -> DataPoint:
     entity_type_freqs = get_windowed_entity_type_freqs(entities=cand.entities)
-    cand.entity_type_freqs = entity_type_freqs
+    cand['entity_type_freqs'] = entity_type_freqs
     return cand
 
 
@@ -166,7 +167,7 @@ def get_windowed_entity_type_freqs(entities, entity=None, window_size: int = Non
     return entity_type_freqs
 
 
-def check_spans(tokens, entity_span, match_span):
+def check_spans(tokens, text, entity_span, match_span):
     """
     Checks token based entity span with character based text match span to see if
     it is plausible for the match to be at that particular position.
@@ -181,9 +182,10 @@ def check_spans(tokens, entity_span, match_span):
     e_start, e_end = entity_span  # token based
     m_start, m_end = match_span  # char based
     glued_tokens = " ".join(tokens[:e_end])
-    # allow for some tolerance for wrong whitespaces: number of punctuation marks for now
-    tolerance = len([token for token in tokens[:e_end] if token in punctuation_marks])
-    return abs(len(glued_tokens) - m_end) < tolerance
+    # allow for some tolerance for wrong whitespaces: number of punctuation marks, new lines  for now
+    # factor 2 because for each punctuation marks we are adding at most 2 wrong whitespaces
+    tolerance = 2 * len([token for token in tokens[:e_end] if token in punctuation_marks]) + text.count('\n')
+    return abs(len(glued_tokens) - m_end) <= tolerance
 
 
 @preprocessor()
@@ -196,25 +198,26 @@ def get_mixed_ner(cand: DataPoint) -> DataPoint:
     # simple solution with additional token span check
     mixed_ner = ''
     offset = 0
-    entity_spans = []
+    mixed_ner_spans = []
     # TODO: ensure that entities are sorted according to their spans
     for idx, entity in enumerate(cand.entities):
         # type_position = entity_types[:idx + 1].count(entity['entity_type'])
         # simple text replace with search for entity text + check with token span?
-        entity_text = re.compile(escape_regex_chars(entity['text']))
+        entity_text = re.compile(escape_regex_chars(entity['text'], optional_hashtag=False))
         matches = list(entity_text.finditer(cand.text))
-        relevant_match = next((match for match in matches if check_spans(cand.tokens, (entity['start'], entity['end']),
+        relevant_match = next((match for match in matches if check_spans(cand.tokens, cand.text,
+                                                                         (entity['start'], entity['end']),
                                                                          (match.start(), match.end()))), None)
         if relevant_match is None:
             print("Something went wrong")
             print(entity)
             mixed_ner = ''
-            entity_spans = []
+            mixed_ner_spans = []
             break
         mixed_ner += cand.text[offset:relevant_match.start()] + entity['entity_type'].upper()
-        entity_spans.append((relevant_match.start(), relevant_match.start() + len(entity['entity_type'])))
+        mixed_ner_spans.append((relevant_match.start(), relevant_match.start() + len(entity['entity_type'])))
         offset = relevant_match.end()
     mixed_ner += cand.text[offset:]
-    cand.mixed_ner = mixed_ner
-    cand.mixed_ner_spans = entity_spans
+    cand['mixed_ner'] = mixed_ner
+    cand['mixed_ner_spans'] = mixed_ner_spans
     return cand
