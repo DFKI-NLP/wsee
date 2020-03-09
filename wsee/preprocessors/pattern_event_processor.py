@@ -82,7 +82,7 @@ def parse_pattern_file(pattern_file):
                 if tmp.rfind('#') == index:
                     index += 1
 
-                entity_type = tmp[index:]
+                entity_type = fix_ner_tags(tmp[index:])
 
                 # add mapping for slots
                 position = line[:start_pos].count(entity_type)

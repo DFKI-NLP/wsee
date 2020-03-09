@@ -59,13 +59,18 @@ def lf_dependency(x):
     return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=rules), pre=[get_trigger_idx, get_argument_idx, get_mixed_ner])
+@labeling_function(resources=dict(rules=rules), pre=[get_trigger, get_trigger_idx, get_argument, get_argument_idx,
+                                                     get_mixed_ner])
 def lf_event_patterns(x, rules):
     # find best matching pattern and use corresponding rule (slots) to return role label
     # need to find range of match
     if x.mixed_ner_spans and x.mixed_ner:
         trigger_spans = x.mixed_ner_spans[x.trigger_idx]
         argument_spans = x.mixed_ner_spans[x.argument_idx]
+
+        # Change formatting to match the formatting used for the converter rule slots
+        trigger_entity_type = x.trigger['entity_type'].upper().replace('-', '_')
+        argument_entity_type = x.argument['entity_type'].upper().replace('-', '_')
 
         best_rule, best_match = find_best_pattern_match(x.mixed_ner, rules, trigger_spans, argument_spans)
 
@@ -95,10 +100,9 @@ def lf_event_patterns(x, rules):
             # obv check beforehand if sample_trigger_position and sample_argument_position are None, ABSTAIN
             # or check during search for best pattern
             for slot in best_rule.slots:
-                if slot.entity_type == 'TRIGGER' and slot.position == trigger_pos:
+                if slot.entity_type == trigger_entity_type and slot.position == trigger_pos:
                     trigger_match = True
-                if slot.entity_type == entities_subset[argument_position]['entity_type'] \
-                        and slot.position == argument_pos:
+                if slot.entity_type == argument_entity_type and slot.position == argument_pos:
                     role = slot.role
                     argument_match = True
             if trigger_match and argument_match and role:
