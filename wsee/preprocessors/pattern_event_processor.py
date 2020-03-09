@@ -1,5 +1,7 @@
 import re
+import pickle
 from typing import List
+from pathlib import Path
 
 
 escaped_chars = ["<", "(", "[", "{", "\\", "^", "-", "=", "$", "!", "|",
@@ -44,8 +46,16 @@ class ConverterRule:
 
 
 def parse_pattern_file(pattern_file):
+    # first check if we have pickled the rules before
+    pickled_pattern_file = Path(pattern_file + '.pkl')
+
+    if pickled_pattern_file.exists():
+        with open(pickled_pattern_file, 'rb') as pickled_rules:
+            return pickle.load(pickled_rules)
+
     tag_pattern = re.compile('\\[.*?]')
     rules = {}
+
     with open(pattern_file, 'r') as pattern_reader:
         for idx, line in enumerate(pattern_reader.readlines()):
             rule: ConverterRule = ConverterRule()
@@ -94,6 +104,8 @@ def parse_pattern_file(pattern_file):
 
             rules[rule.pattern] = rule
 
+    with open(pickled_pattern_file, 'wb') as pickled_rules:
+        pickle.dump(rules, pickled_rules)
     return rules
 
 
@@ -129,7 +141,7 @@ def find_best_pattern_match(pattern, rules, trigger_spans, argument_spans):
         for match in matches:
             if match.start() <= min(trigger_spans[0], argument_spans[0]) \
                     and match.end() >= max(trigger_spans[1], argument_spans[1]):
-                if len(match.group()) > len(best_match.group()):
+                if best_match is None or len(match.group()) > len(best_match.group()):
                     best_match = match
                     best_rule = rules[p]
     return best_rule, best_match
