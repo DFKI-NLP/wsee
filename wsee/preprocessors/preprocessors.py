@@ -11,9 +11,6 @@ punctuation_marks = ["<", "(", "[", "{", "\\", "^", "-", "=", "$", "!", "|",
                      "]", "}", ")", "?", "*", "+", ".", ",", ":", ";", ">",
                      "_", "#", "/"]
 
-nlp_stanford = stanfordnlp.Pipeline(lang='de')
-nlp_spacy = spacy.load('de_core_news_md')
-
 
 def get_entity_idx(entity_id, entities):
     entity_idx = next((idx for idx, x in enumerate(entities) if x['id'] == entity_id), None)
@@ -237,13 +234,23 @@ def get_mixed_ner(cand: DataPoint) -> DataPoint:
     return cand
 
 
+def get_stanford_model():
+    return stanfordnlp.Pipeline(lang='de')
+
+
+def get_spacy_model():
+    return spacy.load('de_core_news_md')
+
+
 @preprocessor()
 def get_stanford_doc(cand: DataPoint) -> DataPoint:
+    nlp_stanford = get_stanford_model()
     cand['stanford_doc'] = nlp_stanford(cand.text)
     return cand
 
 
 @preprocessor()
 def get_spacy_doc(cand: DataPoint) -> DataPoint:
+    nlp_spacy = get_spacy_model()
     cand['spacy_doc'] = nlp_spacy(cand.text)
     return cand
