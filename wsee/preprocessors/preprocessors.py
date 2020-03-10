@@ -1,14 +1,18 @@
 import re
+import stanfordnlp
+import spacy
 from typing import Dict, List
 
 from snorkel.preprocess import preprocessor
 from snorkel.types import DataPoint
 from wsee.preprocessors.pattern_event_processor import escape_regex_chars
 
-
 punctuation_marks = ["<", "(", "[", "{", "\\", "^", "-", "=", "$", "!", "|",
                      "]", "}", ")", "?", "*", "+", ".", ",", ":", ";", ">",
                      "_", "#", "/"]
+
+nlp_stanford = stanfordnlp.Pipeline(lang='de')
+nlp_spacy = spacy.load('de_core_news_md')
 
 
 def get_entity_idx(entity_id, entities):
@@ -149,7 +153,7 @@ def get_windowed_entity_type_freqs(entities, entity=None, window_size: int = Non
 
     # Token based start, end numbers
     if entity is not None and window_size is not None:
-        window_start = max(entity['start']-window_size, 0)
+        window_start = max(entity['start'] - window_size, 0)
         window_end = min(entity['end'] + window_size, len(entities))
     else:
         window_start = 0
@@ -201,25 +205,45 @@ def get_mixed_ner(cand: DataPoint) -> DataPoint:
     mixed_ner_spans = []
     # TODO: ensure that entities are sorted according to their spans
     for idx, entity in enumerate(cand.entities):
-        # type_position = entity_types[:idx + 1].count(entity['entity_type'])
-        # simple text replace with search for entity text + check with token span?
-        entity_text = re.compile(escape_regex_chars(entity['text'], optional_hashtag=False))
-        matches = list(entity_text.finditer(cand.text))
-        relevant_match = next((match for match in matches if check_spans(cand.tokens, cand.text,
-                                                                         (entity['start'], entity['end']),
-                                                                         (match.start(), match.end()))), None)
-        if relevant_match is None:
-            print("Something went wrong")
-            print(entity)
-            mixed_ner = ''
-            mixed_ner_spans = []
-            break
+        if 'char_start' and 'char_end' in entity.keys():
+            match_start = entity['char_start']
+            match_end = entity['char_end']
+            assert cand.text[match_start:match_end] == entity['text']
+        else:
+            # simple text replace with search for entity text + check with token span?
+            entity_text = re.compile(escape_regex_chars(entity['text'], optional_hashtag=False))
+            matches = list(entity_text.finditer(cand.text))
+            relevant_match = next((match for match in matches if check_spans(cand.tokens, cand.text,
+                                                                             (entity['start'], entity['end']),
+                                                                             (match.start(), match.end()))), None)
+
+            if relevant_match is None:
+                print("Something went wrong")
+                print(entity)
+                mixed_ner = ''
+                mixed_ner_spans = []
+                break
+            else:
+                match_start = relevant_match.start()
+                match_end = relevant_match.end()
         # TODO: handle new line character differently
         #  replace with whitespace character adjust spans
-        mixed_ner += cand.text[offset:relevant_match.start()] + entity['entity_type'].upper()
-        mixed_ner_spans.append((relevant_match.start(), relevant_match.start() + len(entity['entity_type'])))
-        offset = relevant_match.end()
+        mixed_ner += cand.text[offset:match_start] + entity['entity_type'].upper()
+        mixed_ner_spans.append((match_start, match_start + len(entity['entity_type'])))
+        offset = match_end
     mixed_ner += cand.text[offset:]
     cand['mixed_ner'] = mixed_ner
     cand['mixed_ner_spans'] = mixed_ner_spans
+    return cand
+
+
+@preprocessor()
+def get_stanford_doc(cand: DataPoint) -> DataPoint:
+    cand['stanford_doc'] = nlp_stanford(cand.text)
+    return cand
+
+
+@preprocessor()
+def get_spacy_doc(cand: DataPoint) -> DataPoint:
+    cand['spacy_doc'] = nlp_spacy(cand.text)
     return cand
