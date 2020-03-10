@@ -18,6 +18,12 @@ ner_mapping = {
 
 
 def fix_ner_tags(sequence, mapping):
+    """
+    Replace hyphens in entity types with underscores.
+    :param sequence: Event pattern.
+    :param mapping: Replacement mapping.
+    :return: Sequence with correct entity type formatting.
+    """
     for key in mapping.keys():
         sequence = re.sub(key, mapping[key], sequence)
     return sequence
@@ -46,6 +52,11 @@ class ConverterRule:
 
 
 def parse_pattern_file(pattern_file):
+    """
+    Reads an event pattern file and converts each line into a ConverterRule.
+    :param pattern_file: Path to event pattern file.
+    :return: List of ConverterRules.
+    """
     # first check if we have pickled the rules before
     pickled_pattern_file = Path(pattern_file + '.pkl')
 
@@ -82,7 +93,7 @@ def parse_pattern_file(pattern_file):
                 if tmp.rfind('#') == index:
                     index += 1
 
-                entity_type = fix_ner_tags(tmp[index:])
+                entity_type = fix_ner_tags(tmp[index:], ner_mapping)
 
                 # add mapping for slots
                 position = line[:start_pos].count(entity_type)
@@ -110,6 +121,12 @@ def parse_pattern_file(pattern_file):
 
 
 def escape_regex_chars(pattern, optional_hashtag=True):
+    """
+    Adds escape backslashes to special characters.
+    :param pattern: Event pattern.
+    :param optional_hashtag: Whether to make hashtags optional.
+    :return: Pattern with escaped regex characters.
+    """
     escaped_pattern = ''
     for idx, char in enumerate(pattern):
         if char in escaped_chars:
@@ -122,17 +139,47 @@ def escape_regex_chars(pattern, optional_hashtag=True):
 
 
 def add_location_subtypes(pattern):
+    """
+    Replaces all general location types with or concatenated location subtypes.
+    :param pattern: Event pattern.
+    :return: Pattern with general location type replaced.
+    """
     loc_pattern = re.compile('LOCATION(?!_)')
     return loc_pattern.sub("(" + '|'.join(location_subtypes) + ")", pattern)
 
 
+def replace_whitespace(pattern):
+    """
+    Replaces all whitespace characters in the pattern with general whitespace character class.
+    :param pattern: Event pattern.
+    :return: Pattern with whitespaces replaced.
+    """
+    whitespaces = re.compile('[\\s]')
+    return whitespaces.sub('[\\s]', pattern)
+
+
 def convert_to_regex(pattern):
+    """
+    Takes raw event pattern and uses several preprocessing steps in order to convert it to a regular expression.
+    :param pattern: Event pattern.
+    :return: Regular expression for event pattern.
+    """
     converted_rule_pattern = escape_regex_chars(pattern)
     converted_rule_pattern = add_location_subtypes(converted_rule_pattern)
+    converted_rule_pattern = replace_whitespace(converted_rule_pattern)
     return re.compile(converted_rule_pattern)
 
 
 def find_best_pattern_match(pattern, rules, trigger_spans, argument_spans):
+    """
+    Tries to find best matching rule for pattern while ensuring that the trigger and argument
+    are within the match.
+    :param pattern: Document text, where each entity has been replaced with its entity type.
+    :param rules: List of rules from the event pattern file.
+    :param trigger_spans: Character based spans of the trigger.
+    :param argument_spans: Character based spans of the argument.
+    :return: Best matching rule and best match.
+    """
     # pattern has to be mixed ner pattern from text containing the relevant trigger/trigger-arg pair
     best_match = None
     best_rule = None
