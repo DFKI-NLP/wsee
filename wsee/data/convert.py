@@ -251,7 +251,9 @@ def convert_entity(text, tokens, entity):
             'text': span_to_text(text, entity['span']),
             'entity_type': entity_type,
             'start': start_token_idx,
-            'end': end_token_idx + 1  # Generate exclusive token spans
+            'end': end_token_idx + 1,  # Generate exclusive token spans
+            'char_start': entity['span']['start'],
+            'char_end': entity['span']['end']
         }
     except StopIteration:
         print('Token offset issue')
