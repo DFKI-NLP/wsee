@@ -1,8 +1,8 @@
 from snorkel.labeling import labeling_function
-from snorkel.labeling.lf.nlp import nlp_labeling_function
 from fuzzywuzzy import process
 from wsee.preprocessors.preprocessors import get_trigger, get_trigger_idx, get_argument, get_argument_idx, \
-    get_left_tokens, get_right_tokens, get_entity_type_freqs, get_between_distance, get_mixed_ner
+    get_left_tokens, get_right_tokens, get_entity_type_freqs, get_between_distance, get_mixed_ner, \
+    get_stanford_doc, get_spacy_doc
 from wsee.preprocessors.pattern_event_processor import parse_pattern_file, find_best_pattern_match, location_subtypes
 
 
@@ -33,31 +33,64 @@ labels = {
     'no_arg': 10
 }
 
-rules = parse_pattern_file('/Users/phuc/develop/python/wsee/data/event-patterns-annotated-britta-olli.txt')
+original_rules = parse_pattern_file('/Users/phuc/develop/python/wsee/data/event-patterns-annotated-britta-olli.txt')
 general_location_rules = parse_pattern_file('/Users/phuc/develop/python/wsee/data/event-patterns-phuc.txt')
 
 
-@labeling_function(pre=[get_trigger, get_argument, get_between_distance])
+@labeling_function(pre=[get_trigger, get_argument, get_between_distance, get_left_tokens])
 def lf_date_type(x):
     # purely distance based for now: could use dependency parsing/ context words
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['DATE', 'TIME', 'date', 'time']:
-        if x.between_distance < 10:
+        if x.between_distance < 5:
             # TODO look at positional distance/preceding words to determine whether it is a start or a end date
             return start_date
     return ABSTAIN
 
 
-@nlp_labeling_function(pre=[get_trigger, get_argument], text_field="text", doc_field="doc", language="de_core_news_md")
+@labeling_function(pre=[get_trigger, get_argument, get_spacy_doc])
 def lf_dependency(x):
     # proof of concept that makes use of spaCy dependency parsing feature
     # see: https://github.com/explosion/spaCy/blob/master/examples/information_extraction/entity_relations.py
-    for token in x.doc:
+    for token in x.spacy_doc:
         # TODO match tokenization and fix spans
         if token.text in x.trigger['text']:
             # MAGIC
             return ABSTAIN
     return ABSTAIN
+
+
+@labeling_function(pre=[get_trigger, get_argument, get_spacy_doc])
+def lf_spacy_separate_sentence(x):
+    # proof of concept that makes use of spaCy sentence splitter parsing feature
+    # see: https://github.com/explosion/spaCy/blob/master/examples/information_extraction/entity_relations.py
+    same_sentence = False
+    for sentence in x.spacy_doc.sents:
+        if x.trigger['text'] in sentence.text and x.argument['text'] in sentence.text:
+            same_sentence = True
+            break
+    if same_sentence:
+        return ABSTAIN
+    else:
+        return no_arg
+
+
+@labeling_function(pre=[get_trigger, get_argument, get_stanford_doc])
+def lf_stanford_separate_sentence(x):
+    # proof of concept that makes use of spaCy sentence splitter parsing feature
+    # see: https://github.com/explosion/spaCy/blob/master/examples/information_extraction/entity_relations.py
+    same_sentence = False
+
+    sentences = [" ".join([t.text for t in s.tokens]) for s in x.stanford_doc.sentences]
+
+    for sentence in sentences:
+        if x.trigger['text'] in sentence and x.argument['text'] in sentence:
+            same_sentence = True
+            break
+    if same_sentence:
+        return ABSTAIN
+    else:
+        return no_arg
 
 
 def event_patterns_helper(x, rules, general_location=False):
@@ -118,8 +151,9 @@ def event_patterns_helper(x, rules, general_location=False):
     return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=rules), pre=[get_trigger, get_trigger_idx, get_argument, get_argument_idx,
-                                                     get_mixed_ner])
+@labeling_function(resources=dict(rules=original_rules), pre=[get_trigger, get_trigger_idx,
+                                                              get_argument, get_argument_idx,
+                                                              get_mixed_ner])
 def lf_event_patterns(x, rules):
     return event_patterns_helper(x, rules)
 

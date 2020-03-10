@@ -1,3 +1,4 @@
+stanfordnlp
 pandas
 numpy
 tqdm
