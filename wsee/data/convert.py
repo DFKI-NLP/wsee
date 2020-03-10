@@ -14,18 +14,22 @@ def main(args):
     input_path = Path(args.input)
     assert input_path.exists(), 'Input not found: %s'.format(args.input)
 
-    one_hot = not args.no_one_hot
+    one_hot = args.one_hot
     build_defaults = args.build_default_events
 
     daystream = []
     for split in ['train', 'dev', 'test']:
         input_file = input_path.joinpath(split, f'{split}.avro')
-        output_file = input_path.joinpath(split, f'{split}_with_events.jsonl')
+        if build_defaults:
+            output_file = input_path.joinpath(split, f'{split}_with_events_and_defaults.jsonl')
+        else:
+            output_file = input_path.joinpath(split, f'{split}_with_events.jsonl')
         smart_data, daystream_part = convert_file(input_file, one_hot, build_defaults)
         smart_data.to_json(output_file, orient='records', lines=True, force_ascii=False)
         daystream.append(daystream_part)
     daystream = pd.concat(daystream, sort=False).reset_index(drop=True)
-    daystream.to_json(input_path.joinpath('daystream.jsonl'), orient='records', lines=True, force_ascii=False)
+    daystream_output_file = input_path.joinpath('daystream.jsonl')
+    daystream.to_json(daystream_output_file, orient='records', lines=True, force_ascii=False)
 
 
 def convert_file(file_path, one_hot=False, build_defaults=False):
@@ -284,9 +288,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Smartdata avro schema to jsonl converter')
     parser.add_argument('--input', type=str, help='Directory of avro file structure')
-    parser.add_argument("--no_one_hot", action="store_true", help='Do not one hot encode labels')
+    parser.add_argument("--one_hot", action="store_true", help='Do not one hot encode labels')
+    parser.add_argument("--no_one_hot", dest='one_hot', action="store_false", help='Do not one hot encode labels')
     parser.add_argument("--build_default_events", action="store_true", help='Build default events and update them')
+    parser.add_argument("--no_default_events", dest='build_default_events', action="store_false",
+                        help='Build default events and update them')
     parser.add_argument('-f', dest='force_output', action='store_true',
                         help='Force creation of new output folder')
+    parser.set_defaults(feature=True)
     arguments = parser.parse_args()
     main(arguments)
