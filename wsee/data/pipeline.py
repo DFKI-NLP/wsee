@@ -12,8 +12,8 @@ def load_data(path, use_build_defaults=True):
     :param path: Path to corpus directory.
     :param use_build_defaults: Whether to use data with defaults (trigger-entity pairs without
     annotation in the data are assigned a negative label) or only the data where only the original
-    avro annotation was used
-    :return: output_dict containing train, dev, test, daystream data
+    avro annotation was used.
+    :return: output_dict containing train, dev, test, daystream data.
     """
     input_path = Path(path)
     assert input_path.exists(), 'Input not found: %s'.format(path)
@@ -40,8 +40,8 @@ def build_event_trigger_examples(dataframe):
     """
     Takes a dataframe containing one document per row with all its annotations
     (event triggers are of interest here) and creates one row for each event trigger.
-    :param dataframe: Annotated documents
-    :return: DataFrame containing event trigger examples and NumPy array containing labels
+    :param dataframe: Annotated documents.
+    :return: DataFrame containing event trigger examples and NumPy array containing labels.
     """
     event_trigger_rows = []
     event_trigger_rows_y = []
@@ -70,8 +70,8 @@ def build_event_role_examples(dataframe):
     Takes a dataframe containing one document per row with all its annotations
     (event roles are of interest here) and creates one row for each trigger-entity
     (event role) pair.
-    :param dataframe: Annotated documents
-    :return: DataFrame containing event role examples and NumPy array containing labels
+    :param dataframe: Annotated documents.
+    :return: DataFrame containing event role examples and NumPy array containing labels.
     """
     event_role_rows_list = []
     event_role_rows_y = []
@@ -99,8 +99,8 @@ def build_event_role_examples(dataframe):
 def build_labeled_event_trigger(x):
     """
     Builds event_trigger for example.
-    :param x: DataFrame row containing one event trigger example
-    :return: DataFrame row with filled event_triggers column
+    :param x: DataFrame row containing one event trigger example.
+    :return: DataFrame row with filled event_triggers column.
     """
     event_trigger = {
         'id': x.trigger_id,
@@ -115,7 +115,7 @@ def merge_event_trigger_examples(event_trigger_rows, event_trigger_probs):
     Merges event trigger examples belonging to the same document.
     :param event_trigger_rows: DataFrame containing the event trigger examples.
     :param event_trigger_probs: NumPy array containing the event trigger class probabilities.
-    :return: DataFrame containing one document per row
+    :return: DataFrame containing one document per row.
     """
     # add event_trigger_probs to dataframe as additional column
     event_trigger_rows['event_type_probs'] = list(event_trigger_probs)
@@ -136,8 +136,8 @@ def merge_event_trigger_examples(event_trigger_rows, event_trigger_probs):
 def build_labeled_event_role(x):
     """
     Builds event_role for example.
-    :param x: DataFrame row containing one event role example
-    :return: DataFrame row with filled event_roles column
+    :param x: DataFrame row containing one event role example.
+    :return: DataFrame row with filled event_roles column.
     """
     event_role = {
         'trigger': x.trigger_id,
@@ -148,12 +148,12 @@ def build_labeled_event_role(x):
     return x
 
 
-def merge_event_role_examples(event_role_rows, event_argument_probs):
+def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_probs) -> pd.DataFrame:
     """
     Merges event role examples belonging to the same document.
     :param event_role_rows: DataFrame containing the event role examples.
     :param event_argument_probs: NumPy array containing the event role class probabilities.
-    :return: DataFrame containing one document per row
+    :return: DataFrame containing one document per row.
     """
     # add event_trigger_probs to dataframe as additional column
     event_role_rows['event_argument_probs'] = list(event_argument_probs)
@@ -168,3 +168,26 @@ def merge_event_role_examples(event_role_rows, event_argument_probs):
         'event_roles': 'sum'  # expects list of one event role per row
     }
     return event_role_rows.groupby('id').agg(aggregation_functions)
+
+
+def build_training_data(original_dataframe: pd.DataFrame, merged_event_trigger_examples: pd.DataFrame,
+                        merged_event_role_examples: pd.DataFrame) -> pd.DataFrame:
+    """
+    Merges event_trigger_examples and event_role examples to build training data.
+    :param original_dataframe: DataFrame with original data.
+    :param merged_event_trigger_examples: DataFrame with event_trigger_examples.
+    :param merged_event_role_examples: DataFrame with event_role_examples.
+    :return: Original DataFrame updated with event triggers and event roles.
+    """
+    merged_examples: pd.DataFrame = utils.get_deep_copy(original_dataframe)
+    if 'id' in merged_examples:
+        merged_examples.set_index('id', inplace=True)
+
+    # Only keep relevant columns to speed up update
+    event_trigger_df = merged_event_trigger_examples[['event_triggers']]
+    merged_examples.update(event_trigger_df)
+
+    event_role_df = merged_event_role_examples[['event_roles']]
+    merged_examples.update(event_role_df)
+
+    return merged_examples
