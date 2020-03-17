@@ -27,6 +27,13 @@ def get_entity(entity_id, entities):
 
 
 @preprocessor()
+def get_trigger_text(cand: DataPoint) -> DataPoint:
+    trigger = get_entity(cand.trigger_id, cand.entities)
+    cand['trigger_text'] = trigger['text']
+    return cand
+
+
+@preprocessor()
 def get_trigger(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
     cand['trigger'] = trigger
@@ -37,6 +44,13 @@ def get_trigger(cand: DataPoint) -> DataPoint:
 def get_trigger_idx(cand: DataPoint) -> DataPoint:
     trigger_idx = get_entity_idx(cand.trigger_id, cand.entities)
     cand['trigger_idx'] = trigger_idx
+    return cand
+
+
+@preprocessor()
+def get_argument_text(cand: DataPoint) -> DataPoint:
+    argument = get_entity(cand.argument_id, cand.entities)
+    cand['argument_text'] = argument['text']
     return cand
 
 
