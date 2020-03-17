@@ -17,7 +17,7 @@ def apply_preprocessors(x: pd.DataFrame, pre: List[BasePreprocessor]):
     :return:
     """
     for pre_func in pre:
-        x = pre_func(x)
+        x = x.apply(pre_func, axis=1)
         if x is None:
             raise ValueError("Preprocessor should not return None")
     return x
