@@ -1,4 +1,5 @@
 import pandas as pd
+from tqdm import tqdm
 from snorkel.preprocess import BasePreprocessor
 from wsee.preprocessors.preprocessors import *
 
@@ -16,7 +17,7 @@ def apply_preprocessors(x: pd.DataFrame, pre: List[BasePreprocessor]):
     :param pre: Preprocessors to run on data points.
     :return:
     """
-    for pre_func in pre:
+    for pre_func in tqdm(pre):
         x = x.apply(pre_func, axis=1)
         if x is None:
             raise ValueError("Preprocessor should not return None")
