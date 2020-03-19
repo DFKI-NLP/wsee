@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 from pathlib import Path
-from snorkel.labeling import LabelModel, labeling_function, PandasLFApplier
+from snorkel.labeling import LabelModel, PandasLFApplier
 from wsee.utils import utils
 from wsee.labeling.event_trigger_lfs import *
 from wsee.labeling.event_argument_role_lfs import *
@@ -162,7 +162,8 @@ def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_prob
     return event_role_rows.groupby('id').agg(aggregation_functions)
 
 
-def get_trigger_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]], label_model: LabelModel):
+def get_trigger_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]] = None,
+                      label_model: LabelModel = None):
     """
     Takes "raw" data frame, builds trigger examples, (trains LabelModel), calculates event_trigger_probs
     and returns merged trigger examples with event_trigger_probs.
@@ -191,7 +192,8 @@ def get_trigger_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_functio
     return merge_event_trigger_examples(event_trigger_examples, event_trigger_probs)
 
 
-def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]], label_model: LabelModel):
+def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]] = None,
+                   label_model: LabelModel = None):
     """
 
     :param l_train:
@@ -218,16 +220,16 @@ def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]]
     return merge_event_trigger_examples(event_role_examples, event_role_probs)
 
 
-def build_training_data(original_dataframe: pd.DataFrame, merged_event_trigger_examples: pd.DataFrame,
-                        merged_event_role_examples: pd.DataFrame) -> pd.DataFrame:
+def build_training_data(lf_train: pd.DataFrame) -> pd.DataFrame:
     """
     Merges event_trigger_examples and event_role examples to build training data.
-    :param original_dataframe: DataFrame with original data.
-    :param merged_event_trigger_examples: DataFrame with event_trigger_examples.
-    :param merged_event_role_examples: DataFrame with event_role_examples.
+    :param lf_train: DataFrame with original data.
     :return: Original DataFrame updated with event triggers and event roles.
     """
-    merged_examples: pd.DataFrame = utils.get_deep_copy(original_dataframe)
+    merged_event_trigger_examples = get_trigger_probs(lf_train)
+    merged_event_role_examples = get_role_probs(lf_train)
+
+    merged_examples: pd.DataFrame = utils.get_deep_copy(lf_train)
     if 'id' in merged_examples:
         merged_examples.set_index('id', inplace=True)
 
