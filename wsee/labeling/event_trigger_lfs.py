@@ -18,40 +18,47 @@ ABSTAIN = -1
 # Keyword-based LFs
 public_transport_keywords = [
         'Oberleitungsschaden', 'Signalstörung', 'Weichenstörung', 'Stellwerksstörung', 'Bahnstreik',
-        'Fahrzeugstörung', 'Bahnübergangsstörung', 'Stellwerksausfall', 'Teilausfall', 'Teilausfällen',  'Ampelstörung', 'Triebwagenstörung'
+        'Fahrzeugstörung', 'Bahnübergangsstörung', 'Stellwerksausfall', 'Teilausfall', 'Teilausfällen',  'Ampelstörung',
+        'Triebwagenstörung'
 ]
 intervention_keywords = [
         'Intervention', 'Notarzteinsatz', 'Notarzt', 'Notarzteinsatzes', 'Polizeieinsatz',
         'Polizeieinsatzes', 'Feuerwehreinsatz', 'Feuerwehreinsatzes'
 ]
 accident_keywords = [
-        'Unfall', 'Unfälle', 'Verkehrsunfall', 'Verkehrsunfälle', 'Autounfall', 'Autounfälle', 'Massenkarambolage', 'Auffahrunfall',
-        'Zusammenstoß', 'Geisterfahrer', 'Falschfahrer', 'Unfallstelle', 'Zugkollision', 'Zugkollisionen', 'Zugunglück',
-        'Personenschaden', 'Bergungsarbeit', 'Bergungsarbeiten', 'Unfalles', 'Verkehrsunfalls'
+        'Unfall', 'Unfälle', 'Verkehrsunfall', 'Verkehrsunfälle', 'Autounfall', 'Autounfälle', 'Massenkarambolage',
+        'Auffahrunfall', 'Zusammenstoß', 'Geisterfahrer', 'Falschfahrer', 'Unfallstelle', 'Zugkollision',
+        'Zugkollisionen', 'Zugunglück', 'Personenschaden', 'Bergungsarbeit', 'Bergungsarbeiten', 'Unfalles',
+        'Verkehrsunfalls'
 ]
 canceledroute_keywords = [
-        'Zugausfall', 'Zugausfälle', 'Zugausfällen', 'S-Bahn-Ausfall'
+        'Zugausfall', 'Zugausfälle', 'Zugausfällen', 'S-Bahn-Ausfall', 'fällt aus', 'ausgefallen', 'gesperrt',
+        'Umleitung', 'umgeleitet', 'Einstellung', 'Teilausfall', 'Ausfall', 'streichen', 'gestrichen',
+        'Streckensperrung'
 ]
 canceledstop_keywords = [
-        'Bob'
+        'hält nicht', 'halten nicht', 'hält', 'geschlossen', 'gesperrt'
 ]
 delay_keywords = [
-        #'Zugausfall', 'Zugausfälle', 'Zugausfällen',
         'Verspätung', 'Verspätungen', 'Verzögerung', 'Verzögerungen', '#Störung',
         'Technische Störung', 'Technische_Störung', 'Folgeverspätung', 'Folgeverspätungen',
-        'Fahrplanabweichung', 'unregelmäßiger Zugverkehr', 'unregelmäßigem Zugverkehr', 'unregelmäßigen Zugverkehr', 'Verspätungskürzung',
-        'verspäten', 'verspäten sich', 'Störung', 'Störungsinformation', 'verzögert'
+        'Fahrplanabweichung', 'unregelmäßiger Zugverkehr', 'unregelmäßigem Zugverkehr', 'unregelmäßigen Zugverkehr',
+        'Verspätungskürzung', 'verspäten', 'verspäten sich', 'Störung', 'Störungsinformation', 'verzögert',
+        'verspätet', 'später', 'Wartezeit', 'warten'
 ]
 obstruction_keywords = [
-        'Umleitung', 'Umleitungen', 'umgeleitet',  'Sperrung', 'gesperrt', 'Großbaustelle', 'Nachtbaustelle', 'Tagesbaustelle',
-        'Baustelle', 'Bauarbeiten', 'Straßenbauarbeiten', 'Straßenbau', 'Fliegerbombe', 'Fliegerbomben', 'Bombenentschärfung',
-        'Vollsperrung', 'Verkehrsbehinderung'
+        'Umleitung', 'Umleitungen', 'umgeleitet',  'Sperrung', 'gesperrt', 'Großbaustelle', 'Nachtbaustelle',
+        'Tagesbaustelle', 'Baustelle', 'Bauarbeiten', 'Straßenbauarbeiten', 'Straßenbau', 'Fliegerbombe',
+        'Fliegerbomben', 'Bombenentschärfung', 'Vollsperrung', 'Verkehrsbehinderung', 'Behinderung', 'behindern',
+        'blockiert', 'Blockade', 'unterbrochen'
 ]
 railreplacementservice_keywords = [
-        'Schienenersatzverkehr', '#SEV', 'Ersatzverkehr', 'Busnotverkehr', 'Pendelverkehr', 'durch Busse ersetzt', 'Ersatzzug', 'entgleist'
+        'Schienenersatzverkehr', '#SEV', 'Ersatzverkehr', 'Busnotverkehr', 'Pendelverkehr', 'durch Busse ersetzt',
+        'Ersatzzug', 'Ersatzbus'
 ]
 trafficjam_keywords = [
-        'Stau', 'Staus', 'Staumeldung', 'Stauwarnung', 'Blechlawine', 'Blechlawinen', 'stockender Verkehr', '#stautweet', 'Verkehrsüberlastung', 'Rückstau'
+        'Stau', 'Staus', 'Staumeldung', 'Stauwarnung', 'Blechlawine', 'Blechlawinen', 'stockender Verkehr',
+        '#stautweet', 'Verkehrsüberlastung', 'Rückstau', 'Verkehrsüberlastung', 'Hohes Verkehrsaufkommen'
 ]
 
 
