@@ -1,9 +1,14 @@
 import os
+from typing import Optional, List
+
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
 from pathlib import Path
+from snorkel.labeling import LabelModel, labeling_function, PandasLFApplier
 from wsee.utils import utils
+from wsee.labeling.event_trigger_lfs import *
+from wsee.labeling.event_argument_role_lfs import *
 
 
 def load_data(path, use_build_defaults=True):
@@ -121,14 +126,7 @@ def merge_event_trigger_examples(event_trigger_rows, event_trigger_probs):
     event_trigger_rows['event_type_probs'] = list(event_trigger_probs)
     event_trigger_rows = event_trigger_rows.apply(build_labeled_event_trigger, axis=1)
     aggregation_functions = {
-        'text': 'first',
-        'tokens': 'first',
-        # 'pos_tags': 'first',
-        'ner_tags': 'first',
-        'entities': 'first',
         'event_triggers': 'sum',  # expects list of one trigger per row
-        'event_roles': 'first'  # debatable
-
     }
     return event_trigger_rows.groupby('id').agg(aggregation_functions)
 
@@ -159,15 +157,65 @@ def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_prob
     event_role_rows['event_argument_probs'] = list(event_argument_probs)
     event_role_rows = event_role_rows.apply(build_labeled_event_role, axis=1)
     aggregation_functions = {
-        'text': 'first',
-        'tokens': 'first',
-        # 'pos_tags': 'first',
-        'ner_tags': 'first',
-        'entities': 'first',
-        'event_triggers': 'first',  # debatable
         'event_roles': 'sum'  # expects list of one event role per row
     }
     return event_role_rows.groupby('id').agg(aggregation_functions)
+
+
+def get_trigger_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]], label_model: LabelModel):
+    """
+    Takes "raw" data frame, builds trigger examples, (trains LabelModel), calculates event_trigger_probs
+    and returns merged trigger examples with event_trigger_probs.
+    :param l_train:
+    :param lfs:
+    :param label_model:
+    :return:
+    """
+    event_trigger_examples, _ = build_event_trigger_examples(l_train)
+    if lfs is None:
+        lfs = [
+            lf_accident_cat,
+            lf_canceledroute_cat,
+            lf_canceledstop_cat,
+            lf_delay_cat,
+            lf_obstruction_cat,
+            lf_railreplacementservice_cat,
+            lf_trafficjam_cat
+        ]
+    applier = PandasLFApplier(lfs)
+    df_train = applier.apply(event_trigger_examples)
+    if label_model is None:
+        label_model = LabelModel(cardinality=7, verbose=True)
+        label_model.fit(L_train=df_train, n_epochs=500, log_freq=100, seed=123)
+    event_trigger_probs = label_model.predict_proba(df_train)
+    return merge_event_trigger_examples(event_trigger_examples, event_trigger_probs)
+
+
+def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]], label_model: LabelModel):
+    """
+
+    :param l_train:
+    :param lfs:
+    :param label_model:
+    :return:
+    """
+    event_role_examples, _ = build_event_role_examples(l_train)
+    if lfs is None:
+        lfs = [
+            lf_event_patterns,
+            lf_event_patterns_general_location,
+            lf_date_type,
+            lf_dependency,
+            lf_spacy_separate_sentence,
+            lf_stanford_separate_sentence
+        ]
+    applier = PandasLFApplier(lfs)
+    df_train = applier.apply(event_role_examples)
+    if label_model is None:
+        label_model = LabelModel(cardinality=10, verbose=True)
+        label_model.fit(L_train=df_train, n_epochs=500, log_freq=100, seed=123)
+    event_role_probs = label_model.predict_proba(df_train)
+    return merge_event_trigger_examples(event_role_examples, event_role_probs)
 
 
 def build_training_data(original_dataframe: pd.DataFrame, merged_event_trigger_examples: pd.DataFrame,
@@ -183,11 +231,7 @@ def build_training_data(original_dataframe: pd.DataFrame, merged_event_trigger_e
     if 'id' in merged_examples:
         merged_examples.set_index('id', inplace=True)
 
-    # Only keep relevant columns to speed up update
-    event_trigger_df = merged_event_trigger_examples[['event_triggers']]
-    merged_examples.update(event_trigger_df)
-
-    event_role_df = merged_event_role_examples[['event_roles']]
-    merged_examples.update(event_role_df)
+    merged_examples.update(merged_event_trigger_examples)
+    merged_examples.update(merged_event_role_examples)
 
     return merged_examples
