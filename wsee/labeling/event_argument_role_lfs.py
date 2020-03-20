@@ -48,6 +48,26 @@ def lf_date_type(x):
     return ABSTAIN
 
 
+@labeling_function(pre=[get_trigger, get_argument, get_between_distance, get_left_tokens])
+def lf_location_type(x):
+    # purely distance based for now: could use dependency parsing/ context words
+    arg_entity_type = x.argument['entity_type']
+    if arg_entity_type in ['LOCATION', 'LOCATION_STREET', 'LOCATION_ROUTE', 'LOCATION_CITY', 'LOCATION_STOP']:
+        if x.between_distance < 5:
+            return location
+    return ABSTAIN
+
+
+@labeling_function(pre=[get_trigger, get_argument, get_between_distance, get_left_tokens])
+def lf_distance_type(x):
+    # purely distance based for now: could use dependency parsing/ context words
+    arg_entity_type = x.argument['entity_type']
+    if arg_entity_type in ['distance', 'DISTANCE']:
+        if x.between_distance < 5:
+            return jam_length
+    return ABSTAIN
+
+
 @labeling_function(pre=[get_trigger, get_argument, get_spacy_doc])
 def lf_dependency(x):
     # proof of concept that makes use of spaCy dependency parsing feature

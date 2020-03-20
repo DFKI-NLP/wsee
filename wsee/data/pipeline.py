@@ -207,9 +207,11 @@ def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]]
             lf_event_patterns,
             lf_event_patterns_general_location,
             lf_date_type,
-            lf_dependency,
-            lf_spacy_separate_sentence,
-            lf_stanford_separate_sentence
+            lf_location_type,
+            lf_distance_type,
+            # lf_dependency,
+            # lf_spacy_separate_sentence,
+            # lf_stanford_separate_sentence
         ]
     applier = PandasLFApplier(lfs)
     df_train = applier.apply(event_role_examples)
