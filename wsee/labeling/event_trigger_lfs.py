@@ -1,7 +1,6 @@
 from snorkel.labeling import labeling_function
-from snorkel.labeling.lf.nlp import nlp_labeling_function
 from fuzzywuzzy import process
-from wsee.preprocessors.preprocessors import get_trigger, get_left_tokens, get_right_tokens, get_entity_type_freqs
+from wsee.preprocessors.preprocessors import *
 
 
 Accident = 0
