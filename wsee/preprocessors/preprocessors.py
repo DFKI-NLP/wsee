@@ -69,14 +69,16 @@ def get_argument_idx(cand: DataPoint) -> DataPoint:
 
 
 @preprocessor()
-def get_left_tokens(cand: DataPoint) -> DataPoint:
+def get_trigger_left_tokens(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
     cand['trigger_left_tokens'] = get_windowed_left_tokens(trigger, cand.tokens)
+    return cand
 
-    # Only relevant for event argument role classification
-    if 'argument_id' in cand:
-        argument = get_entity(cand.argument_id, cand.entities)
-        cand['argument_left_tokens'] = get_windowed_left_tokens(argument, cand.tokens)
+
+@preprocessor()
+def get_argument_left_tokens(cand: DataPoint) -> DataPoint:
+    argument = get_entity(cand.argument_id, cand.entities)
+    cand['argument_left_tokens'] = get_windowed_left_tokens(argument, cand.tokens)
     return cand
 
 
@@ -91,14 +93,16 @@ def get_windowed_left_tokens(entity, tokens, window_size: int = None) -> List[st
 
 
 @preprocessor()
-def get_right_tokens(cand: DataPoint) -> DataPoint:
+def get_trigger_right_tokens(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
     cand['trigger_right_tokens'] = get_windowed_right_tokens(trigger, cand.tokens)
+    return cand
 
-    # Only relevant for event argument role classification
-    if 'argument_id' in cand:
-        argument = get_entity(cand.argument_id, cand.entities)
-        cand['argument_right_tokens'] = get_windowed_right_tokens(argument, cand.tokens)
+
+@preprocessor()
+def get_argument_right_tokens(cand: DataPoint) -> DataPoint:
+    argument = get_entity(cand.argument_id, cand.entities)
+    cand['argument_right_tokens'] = get_windowed_right_tokens(argument, cand.tokens)
     return cand
 
 

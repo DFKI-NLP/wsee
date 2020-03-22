@@ -1,8 +1,5 @@
 from snorkel.labeling import labeling_function
-from fuzzywuzzy import process
-from wsee.preprocessors.preprocessors import get_trigger, get_trigger_idx, get_argument, get_argument_idx, \
-    get_left_tokens, get_right_tokens, get_entity_type_freqs, get_between_distance, get_mixed_ner, \
-    get_stanford_doc, get_spacy_doc
+from wsee.preprocessors.preprocessors import *
 from wsee.preprocessors.pattern_event_processor import parse_pattern_file, find_best_pattern_match, location_subtypes
 
 
@@ -37,7 +34,7 @@ original_rules = parse_pattern_file('/Users/phuc/develop/python/wsee/data/event-
 general_location_rules = parse_pattern_file('/Users/phuc/develop/python/wsee/data/event-patterns-phuc.txt')
 
 
-@labeling_function(pre=[get_trigger, get_argument, get_between_distance, get_left_tokens])
+@labeling_function(pre=[get_trigger, get_argument, get_between_distance, get_trigger_left_tokens])
 def lf_date_type(x):
     # purely distance based for now: could use dependency parsing/ context words
     arg_entity_type = x.argument['entity_type']
@@ -48,7 +45,7 @@ def lf_date_type(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_argument, get_between_distance, get_left_tokens])
+@labeling_function(pre=[get_trigger, get_argument, get_between_distance])
 def lf_location_type(x):
     # purely distance based for now: could use dependency parsing/ context words
     arg_entity_type = x.argument['entity_type']
@@ -58,7 +55,7 @@ def lf_location_type(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_argument, get_between_distance, get_left_tokens])
+@labeling_function(pre=[get_trigger, get_argument, get_between_distance])
 def lf_distance_type(x):
     # purely distance based for now: could use dependency parsing/ context words
     arg_entity_type = x.argument['entity_type']
