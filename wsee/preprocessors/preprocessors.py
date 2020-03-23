@@ -76,9 +76,25 @@ def get_trigger_left_tokens(cand: DataPoint) -> DataPoint:
 
 
 @preprocessor()
+def get_trigger_left_pos(cand: DataPoint) -> DataPoint:
+    trigger = get_entity(cand.trigger_id, cand.entities)
+    if 'pos' in cand:
+        cand['trigger_left_pos'] = get_windowed_left_pos(trigger, cand.pos)
+    return cand
+
+
+@preprocessor()
 def get_argument_left_tokens(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
     cand['argument_left_tokens'] = get_windowed_left_tokens(argument, cand.tokens)
+    return cand
+
+
+@preprocessor()
+def get_argument_left_pos(cand: DataPoint) -> DataPoint:
+    argument = get_entity(cand.argument_id, cand.entities)
+    if 'pos' in cand:
+        cand['argument_left_pos'] = get_windowed_left_pos(argument, cand.pos)
     return cand
 
 
@@ -92,6 +108,10 @@ def get_windowed_left_tokens(entity, tokens, window_size: int = None) -> List[st
     return tokens[window_start:window_end]
 
 
+def get_windowed_left_pos(entity, pos, window_size: int = None) -> List[str]:
+    return get_windowed_left_tokens(entity, pos, window_size)
+
+
 @preprocessor()
 def get_trigger_right_tokens(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
@@ -100,9 +120,25 @@ def get_trigger_right_tokens(cand: DataPoint) -> DataPoint:
 
 
 @preprocessor()
+def get_trigger_right_pos(cand: DataPoint) -> DataPoint:
+    trigger = get_entity(cand.trigger_id, cand.entities)
+    if 'pos' in cand:
+        cand['trigger_right_pos'] = get_windowed_right_pos(trigger, cand.pos)
+    return cand
+
+
+@preprocessor()
 def get_argument_right_tokens(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
     cand['argument_right_tokens'] = get_windowed_right_tokens(argument, cand.tokens)
+    return cand
+
+
+@preprocessor()
+def get_argument_right_pos(cand: DataPoint) -> DataPoint:
+    argument = get_entity(cand.argument_id, cand.entities)
+    if 'pos' in cand:
+        cand['argument_right_pos'] = get_windowed_right_pos(argument, cand.pos)
     return cand
 
 
@@ -114,6 +150,10 @@ def get_windowed_right_tokens(entity, tokens, window_size: int = None) -> List[s
         window_end = min(len(tokens), window_start + window_size)
 
     return tokens[window_start:window_end]
+
+
+def get_windowed_right_pos(entity, pos, window_size: int = None) -> List[str]:
+    return get_windowed_right_tokens(entity, pos, window_size)
 
 
 @preprocessor()
@@ -170,13 +210,11 @@ def get_windowed_entity_type_freqs(entities, entity=None, window_size: int = Non
     if entity is not None and window_size is not None:
         window_start = max(entity['start'] - window_size, 0)
         window_end = min(entity['end'] + window_size, len(entities))
+        # Reduce entities list to entities within token based window
+        relevant_entity_types = [entity['entity_type'] for entity in entities
+                                 if entity['start'] >= window_start and entity['end'] <= window_end]
     else:
-        window_start = 0
-        window_end = len(entities)
-
-    # Reduce entities list to entities within token based window
-    relevant_entity_types = [entity['entity_type'] for entity in entities
-                             if entity['start'] >= window_start and entity['end'] <= window_end]
+        relevant_entity_types = [entity['entity_type'] for entity in entities]
 
     for entity_type in relevant_entity_types:
         if entity_type in entity_type_freqs:
