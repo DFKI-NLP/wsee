@@ -9,6 +9,18 @@ def add_labels(dataframe: pd.DataFrame, labels):
     return dataframe
 
 
+def add_event_types(dataframe: pd.DataFrame):
+    """
+    If the dataframe contains gold labels for the events, add a column containing the sequence of events in the form of
+    (trigger text, event type label).
+    :param dataframe: DataFrame.
+    :return: DataFrame with event types column.
+    """
+    if 'event_triggers' in dataframe:
+        dataframe = dataframe.apply(get_event_types, axis=1)
+    return dataframe
+
+
 def apply_preprocessors(x: pd.DataFrame, pre: List[BasePreprocessor]):
     """
     Applies preprocessors to dataframe. (Essentially _preprocess_data_point function

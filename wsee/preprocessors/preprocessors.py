@@ -1,8 +1,9 @@
 import re
 import stanfordnlp
 import spacy
-from typing import Dict, List
+import numpy as np
 
+from typing import Dict, List
 from snorkel.preprocess import preprocessor
 from snorkel.types import DataPoint
 from wsee.preprocessors.pattern_event_processor import escape_regex_chars
@@ -309,4 +310,13 @@ def get_stanford_doc(cand: DataPoint) -> DataPoint:
 def get_spacy_doc(cand: DataPoint) -> DataPoint:
     nlp_spacy = get_spacy_model()
     cand['spacy_doc'] = nlp_spacy(cand.text)
+    return cand
+
+
+def get_event_types(cand: DataPoint) -> DataPoint:
+    if 'event_triggers' in cand:
+        event_types = [(get_entity(event_trigger['id'], cand.entities)['text'],
+                        np.asarray(event_trigger['event_type_probs']).argmax())
+                       for event_trigger in cand.event_triggers]
+        cand['event_types'] = event_types
     return cand
