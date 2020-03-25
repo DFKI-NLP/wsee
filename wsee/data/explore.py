@@ -34,3 +34,10 @@ def apply_preprocessors(x: pd.DataFrame, pre: List[BasePreprocessor]):
         if x is None:
             raise ValueError("Preprocessor should not return None")
     return x
+
+
+def sample_data(x: pd.DataFrame, sample_size: int = 10,
+                columns: List[str] = (
+                        'trigger_left_tokens', 'trigger_text', 'trigger_right_tokens', 'entity_type_freqs',
+                        'mixed_ner', 'label', 'event_types')):
+    return x.sample(sample_size)[List(columns)]
