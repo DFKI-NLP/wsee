@@ -1,3 +1,4 @@
+import string
 from snorkel.labeling import labeling_function
 from fuzzywuzzy import process
 from wsee.preprocessors.preprocessors import *
@@ -33,7 +34,8 @@ accident_keywords = [
 canceledroute_keywords = [
         'Zugausfall', 'Zugausfälle', 'Zugausfällen', 'S-Bahn-Ausfall', 'fällt aus', 'ausgefallen', 'gesperrt',
         'Umleitung', 'umgeleitet', 'Einstellung', 'Teilausfall', 'Ausfall', 'streichen', 'gestrichen',
-        'Streckensperrung'
+        'Streckensperrung',
+        'aus', 'fällt', 'fallen', 'unterbrochen', 'Ausfälle', 'Einstellung'
 ]
 canceledstop_keywords = [
         'hält nicht', 'halten nicht', 'hält', 'geschlossen', 'gesperrt'
@@ -49,11 +51,12 @@ obstruction_keywords = [
         'Umleitung', 'Umleitungen', 'umgeleitet',  'Sperrung', 'gesperrt', 'Großbaustelle', 'Nachtbaustelle',
         'Tagesbaustelle', 'Baustelle', 'Bauarbeiten', 'Straßenbauarbeiten', 'Straßenbau', 'Fliegerbombe',
         'Fliegerbomben', 'Bombenentschärfung', 'Vollsperrung', 'Verkehrsbehinderung', 'Behinderung', 'behindern',
-        'blockiert', 'Blockade', 'unterbrochen'
+        'blockiert', 'Blockade', 'unterbrochen',
+        'Behinderungen', 'Schwertransport', 'Vorsicht', 'brennender PKW', 'Störung'
 ]
 railreplacementservice_keywords = [
         'Schienenersatzverkehr', '#SEV', 'Ersatzverkehr', 'Busnotverkehr', 'Pendelverkehr', 'durch Busse ersetzt',
-        'Ersatzzug', 'Ersatzbus'
+        'Ersatzzug', 'Ersatzbus', 'Bus ersetzt'
 ]
 trafficjam_keywords = [
         'Stau', 'Staus', 'Staumeldung', 'Stauwarnung', 'Blechlawine', 'Blechlawinen', 'stockender Verkehr',
@@ -64,15 +67,65 @@ trafficjam_keywords = [
 @labeling_function(pre=[get_trigger])
 def lf_accident_cat(x):
     highest = process.extractOne(x.trigger['text'], accident_keywords)
-    if highest[1] > 90:
+    if highest[1] >= 90:
         return Accident
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger])
+@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_trigger_left_tokens])
+def lf_accident_context(x):
+    highest = process.extractOne(x.trigger['text'], accident_keywords)
+    if highest[1] >= 90:
+        if (check_cause_keywords(x.trigger_left_tokens[-4:]) or check_in_parentheses(x.trigger['text'])) \
+                and x.entity_type_freqs['trigger'] > 1:
+            return O
+        else:
+            return Accident
+    return ABSTAIN
+
+
+def check_cause_keywords(tokens):
+    """
+    Checks the tokens (usually the ones left to the trigger) for causal keywords that would
+    indicate that the trigger is not the event of the sentence, but rather a cause for the actual event.
+    :param tokens: Context tokens of the trigger.
+    :return: True or False depending on a match with any of the causal keywords.
+    """
+    cause_keywords = ['nach', 'wegen', 'bei', 'grund']
+    if any(token.lower() in cause_keywords for token in tokens):
+        return True
+    else:
+        return False
+
+
+def check_in_parentheses(trigger_text):
+    """
+    Checks if the trigger text contains parentheses (is surrounded by parentheses),
+    which indicates that the trigger is not the event in the sentence.
+    :param trigger_text: Trigger text.
+    :return: True or False depending on whether the trigger text contains parentheses.
+    """
+    parentheses = re.compile('\\(.*\\)')
+    if parentheses.match(trigger_text):
+        return True
+    else:
+        return False
+
+
+@labeling_function(pre=[get_trigger, get_trigger_right_tokens, get_entity_type_freqs])
 def lf_canceledroute_cat(x):
+    """
+    Checks for canceled route keywords. Does not handle special case of split trigger "fällt ... aus".
+    The annotators only annotated one of the two words as an event.
+    :param x:
+    :return:
+    """
     highest = process.extractOne(x.trigger['text'], canceledroute_keywords)
-    if highest[1] > 90:
+    if highest[1] >= 90 and 'location_route' in x.entity_type_freqs:
+        # TODO handle special case?
+        # if x.trigger['text'] in ['fällt', 'fallen'] and 'aus' in x.trigger_right_tokens:
+        # if x.trigger['text'] == 'aus' and any(fall in x.trigger_left_tokens for fall in ['fällt', 'fallen']):
+        #    return ABSTAIN
         return CanceledRoute
     return ABSTAIN
 
@@ -80,7 +133,7 @@ def lf_canceledroute_cat(x):
 @labeling_function(pre=[get_trigger])
 def lf_canceledstop_cat(x):
     highest = process.extractOne(x.trigger['text'], canceledstop_keywords)
-    if highest[1] > 90:
+    if highest[1] >= 90:
         return CanceledStop
     return ABSTAIN
 
@@ -88,7 +141,7 @@ def lf_canceledstop_cat(x):
 @labeling_function(pre=[get_trigger])
 def lf_delay_cat(x):
     highest = process.extractOne(x.trigger['text'], delay_keywords)
-    if highest[1] > 90:
+    if highest[1] >= 90:
         return Delay
     return ABSTAIN
 
@@ -96,7 +149,7 @@ def lf_delay_cat(x):
 @labeling_function(pre=[get_trigger])
 def lf_obstruction_cat(x):
     highest = process.extractOne(x.trigger['text'], obstruction_keywords)
-    if highest[1] > 90:
+    if highest[1] >= 90:
         return Obstruction
     return ABSTAIN
 
@@ -104,7 +157,7 @@ def lf_obstruction_cat(x):
 @labeling_function(pre=[get_trigger])
 def lf_railreplacementservice_cat(x):
     highest = process.extractOne(x.trigger['text'], railreplacementservice_keywords)
-    if highest[1] > 90:
+    if highest[1] >= 90:
         return RailReplacementService
     return ABSTAIN
 
@@ -112,6 +165,6 @@ def lf_railreplacementservice_cat(x):
 @labeling_function(pre=[get_trigger])
 def lf_trafficjam_cat(x):
     highest = process.extractOne(x.trigger['text'], trafficjam_keywords)
-    if highest[1] > 90:
+    if highest[1] >= 90:
         return TrafficJam
     return ABSTAIN
