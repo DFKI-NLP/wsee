@@ -130,12 +130,21 @@ def lf_canceledroute_cat(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs])
+@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_trigger_left_tokens])
 def lf_canceledstop_cat(x):
     highest = process.extractOne(x.trigger['text'], canceledstop_keywords)
     if highest[1] >= 90 and 'location_stop' in x.entity_type_freqs:
-        return CanceledStop
+        if not check_route_keywords(x.trigger_left_tokens[-7:]):
+            return CanceledStop
     return ABSTAIN
+
+
+def check_route_keywords(tokens):
+    route_keywords = ['Strecke', 'Streckenabschnitt', 'Abschnitt', 'Linie', 'zwischen']
+    if any(route_keyword in tokens for route_keyword in route_keywords):
+        return True
+    else:
+        return False
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_entity_type_freqs])
@@ -176,3 +185,21 @@ def lf_trafficjam_cat(x):
     if highest[1] >= 90 and x.trigger['text'] not in ['aus', 'aus.']:
         return TrafficJam
     return ABSTAIN
+
+
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs])
+def lf_negative(x):
+    lfs = [
+        lf_accident_cat,
+        lf_accident_context,
+        lf_canceledroute_cat,
+        lf_canceledstop_cat,
+        lf_delay_cat,
+        lf_obstruction_cat,
+        lf_railreplacementservice_cat,
+        lf_trafficjam_cat
+    ]
+    if any(lf(x) != ABSTAIN for lf in lfs):
+        return ABSTAIN
+    else:
+        return O
