@@ -91,7 +91,7 @@ def check_cause_keywords(tokens):
     :param tokens: Context tokens of the trigger.
     :return: True or False depending on a match with any of the causal keywords.
     """
-    cause_keywords = ['nach', 'wegen', 'bei', 'grund']
+    cause_keywords = ['nach', 'wegen', 'bei', 'grund', 'aufgrund']
     if any(token.lower() in cause_keywords for token in tokens):
         return True
     else:
@@ -130,27 +130,35 @@ def lf_canceledroute_cat(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger])
+@labeling_function(pre=[get_trigger, get_entity_type_freqs])
 def lf_canceledstop_cat(x):
     highest = process.extractOne(x.trigger['text'], canceledstop_keywords)
-    if highest[1] >= 90:
+    if highest[1] >= 90 and 'location_stop' in x.entity_type_freqs:
         return CanceledStop
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger])
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_entity_type_freqs])
 def lf_delay_cat(x):
     highest = process.extractOne(x.trigger['text'], delay_keywords)
     if highest[1] >= 90:
-        return Delay
+        if (check_cause_keywords(x.trigger_left_tokens[-4:]) or check_in_parentheses(x.trigger['text'])) \
+                and x.entity_type_freqs['trigger'] > 1:
+            return O
+        else:
+            return Delay
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger])
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_entity_type_freqs])
 def lf_obstruction_cat(x):
     highest = process.extractOne(x.trigger['text'], obstruction_keywords)
-    if highest[1] >= 90:
-        return Obstruction
+    if highest[1] >= 90 and x.trigger['text'] not in ['aus', 'aus.']:
+        if (check_cause_keywords(x.trigger_left_tokens[-4:]) or check_in_parentheses(x.trigger['text'])) \
+                and x.entity_type_freqs['trigger'] > 1:
+            return O
+        else:
+            return Obstruction
     return ABSTAIN
 
 
@@ -165,6 +173,6 @@ def lf_railreplacementservice_cat(x):
 @labeling_function(pre=[get_trigger])
 def lf_trafficjam_cat(x):
     highest = process.extractOne(x.trigger['text'], trafficjam_keywords)
-    if highest[1] >= 90:
+    if highest[1] >= 90 and x.trigger['text'] not in ['aus', 'aus.']:
         return TrafficJam
     return ABSTAIN
