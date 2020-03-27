@@ -1,4 +1,3 @@
-import string
 from snorkel.labeling import labeling_function
 from fuzzywuzzy import process
 from wsee.preprocessors.preprocessors import *
@@ -59,8 +58,11 @@ railreplacementservice_keywords = [
         'Ersatzzug', 'Ersatzbus', 'Bus ersetzt'
 ]
 trafficjam_keywords = [
-        'Stau', 'Staus', 'Staumeldung', 'Stauwarnung', 'Blechlawine', 'Blechlawinen', 'stockender Verkehr',
+        'Stau', 'Staus', 'Staumeldung', 'Stauwarnung', 'stockender Verkehr',
         '#stautweet', 'Verkehrsüberlastung', 'Rückstau', 'Verkehrsüberlastung', 'Hohes Verkehrsaufkommen'
+]
+trafficjam_exact_keywords = [
+        'Blechlawine', 'Blechlawinen'
 ]
 
 
@@ -72,11 +74,12 @@ def lf_accident_cat(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_trigger_left_tokens])
+@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_trigger_left_tokens, get_trigger_right_tokens])
 def lf_accident_context(x):
     highest = process.extractOne(x.trigger['text'], accident_keywords)
     if highest[1] >= 90:
-        if (check_cause_keywords(x.trigger_left_tokens[-4:]) or check_in_parentheses(x.trigger['text'])) \
+        if (check_cause_keywords(x.trigger_left_tokens[-4:]) or
+            check_in_parentheses(x.trigger['text'], x.trigger_left_tokens, x.trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
             return O
         else:
@@ -98,16 +101,21 @@ def check_cause_keywords(tokens):
         return False
 
 
-def check_in_parentheses(trigger_text):
+def check_in_parentheses(trigger_text, left_tokens=None, right_tokens=None):
     """
     Checks if the trigger text contains parentheses (is surrounded by parentheses),
     which indicates that the trigger is not the event in the sentence.
     :param trigger_text: Trigger text.
+    :param left_tokens: Tokens left of the trigger.
+    :param right_tokens: Tokens right of the trigger.
     :return: True or False depending on whether the trigger text contains parentheses.
     """
     parentheses = re.compile('\\(.*\\)')
     if parentheses.match(trigger_text):
         return True
+    elif left_tokens and right_tokens:
+        if parentheses.match(''.join([left_tokens[-1], trigger_text, right_tokens[0]])):
+            return True
     else:
         return False
 
@@ -147,11 +155,12 @@ def check_route_keywords(tokens):
         return False
 
 
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_entity_type_freqs])
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs])
 def lf_delay_cat(x):
     highest = process.extractOne(x.trigger['text'], delay_keywords)
     if highest[1] >= 90:
-        if (check_cause_keywords(x.trigger_left_tokens[-4:]) or check_in_parentheses(x.trigger['text'])) \
+        if (check_cause_keywords(x.trigger_left_tokens[-4:]) or
+            check_in_parentheses(x.trigger['text'], x.trigger_left_tokens, x.trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
             return O
         else:
@@ -159,11 +168,12 @@ def lf_delay_cat(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_entity_type_freqs])
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs])
 def lf_obstruction_cat(x):
     highest = process.extractOne(x.trigger['text'], obstruction_keywords)
     if highest[1] >= 90 and x.trigger['text'] not in ['aus', 'aus.']:
-        if (check_cause_keywords(x.trigger_left_tokens[-4:]) or check_in_parentheses(x.trigger['text'])) \
+        if (check_cause_keywords(x.trigger_left_tokens[-4:]) or
+            check_in_parentheses(x.trigger['text'], x.trigger_left_tokens, x.trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
             return O
         else:
@@ -171,19 +181,24 @@ def lf_obstruction_cat(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger])
+@labeling_function(pre=[get_trigger, get_entity_type_freqs])
 def lf_railreplacementservice_cat(x):
     highest = process.extractOne(x.trigger['text'], railreplacementservice_keywords)
-    if highest[1] >= 90:
+    if highest[1] >= 90 and 'location_route' in x.entity_type_freqs:
         return RailReplacementService
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger])
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs])
 def lf_trafficjam_cat(x):
     highest = process.extractOne(x.trigger['text'], trafficjam_keywords)
-    if highest[1] >= 90 and x.trigger['text'] not in ['aus', 'aus.']:
-        return TrafficJam
+    if (highest[1] >= 90 or x.trigger['text'] in trafficjam_exact_keywords) and \
+            x.trigger['text'] not in ['aus', 'aus.']:
+        if check_in_parentheses(x.trigger['text'], x.trigger_left_tokens, x.trigger_right_tokens) and \
+                x.entity_type_freqs['trigger'] > 1:
+            return O
+        else:
+            return TrafficJam
     return ABSTAIN
 
 
