@@ -21,6 +21,18 @@ def add_event_types(dataframe: pd.DataFrame):
     return dataframe
 
 
+def add_event_arg_roles(dataframe: pd.DataFrame):
+    """
+    If the dataframe contains gold labels for the events, add a column containing the events and their arguments in the
+    form of (trigger text, event type label, argument text, event argument label).
+    :param dataframe: DataFrame.
+    :return: DataFrame with event types column.
+    """
+    if 'event_roles' in dataframe:
+        dataframe = dataframe.apply(get_event_arg_roles, axis=1)
+    return dataframe
+
+
 def apply_preprocessors(x: pd.DataFrame, pre: List[BasePreprocessor]):
     """
     Applies preprocessors to dataframe. (Essentially _preprocess_data_point function
@@ -36,11 +48,14 @@ def apply_preprocessors(x: pd.DataFrame, pre: List[BasePreprocessor]):
     return x
 
 
-def sample_data(x: pd.DataFrame, sample_size: int = 10,
-                columns: List[str] = (
-                        'trigger_left_tokens', 'trigger_text', 'trigger_right_tokens', 'entity_type_freqs',
-                        'mixed_ner', 'label', 'event_types')):
-    if len(x) < sample_size:
-        return x[list(columns)]
+def sample_data(x: pd.DataFrame, sample_size: int = 10, columns: List[str] = None):
+    if columns is not None:
+        cols = [col for col in columns if col in x]
+        if len(x) < sample_size:
+            return x[cols]
+        else:
+            return x.sample(sample_size)[cols]
+    elif len(x) < sample_size:
+        return x
     else:
-        return x.sample(sample_size)[list(columns)]
+        return x.sample(sample_size)
