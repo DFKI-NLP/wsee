@@ -1,7 +1,7 @@
 from snorkel.labeling import labeling_function
 from wsee.preprocessors.preprocessors import *
 from wsee.preprocessors.pattern_event_processor import parse_pattern_file, find_best_pattern_match, location_subtypes
-
+from wsee.labeling import event_trigger_lfs
 
 location = 0
 delay = 1
@@ -34,47 +34,184 @@ original_rules = parse_pattern_file('/Users/phuc/develop/python/wsee/data/event-
 general_location_rules = parse_pattern_file('/Users/phuc/develop/python/wsee/data/event-patterns-phuc.txt')
 
 
-@labeling_function(pre=[get_trigger, get_argument, get_between_distance, get_trigger_left_tokens])
-def lf_date_type(x):
-    # purely distance based for now: could use dependency parsing/ context words
-    arg_entity_type = x.argument['entity_type']
-    if arg_entity_type in ['DATE', 'TIME', 'date', 'time']:
-        if x.between_distance < 5:
-            # TODO look at positional distance/preceding words to determine whether it is a start or a end date
-            return start_date
-    return ABSTAIN
+def parse_gaz_file(path):
+    cause_consequence_mapping = {}
+    with open(path, 'r') as gaz_reader:
+        for line in gaz_reader.readlines():
+            cols = line.split(' | ')
+            cause_event = cols[0]
+            consequence = re.findall('"([^"]*)"', cols[2])
+            assert len(consequence) > 0
+            cause_consequence_mapping[cause_event] = consequence[0]
+    return cause_consequence_mapping
 
 
-@labeling_function(pre=[get_trigger, get_argument, get_between_distance])
+traffic_event_causes = parse_gaz_file('/Users/phuc/develop/python/wsee/data/traffic_event_causes.gaz')
+
+
+# utility function
+def check_required_args(entitiy_freqs):
+    if any(loc_type in entitiy_freqs
+           for loc_type in ['location', 'location_route', 'location_street', 'location_stop', 'location_city']) and \
+            'trigger' in entitiy_freqs:
+        return True
+    else:
+        return False
+
+
+# location role
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
+                        get_argument, get_somajo_doc])
 def lf_location_type(x):
     # purely distance based for now: could use dependency parsing/ context words
     arg_entity_type = x.argument['entity_type']
-    if arg_entity_type in ['LOCATION', 'LOCATION_STREET', 'LOCATION_ROUTE', 'LOCATION_CITY', 'LOCATION_STOP']:
-        if x.between_distance < 5:
+    if arg_entity_type in ['location', 'location_street', 'location_route', 'location_city', 'location_stop']:
+        if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN:
             return location
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_argument, get_between_distance])
+# delay role
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
+                        get_argument, get_somajo_doc])
+def lf_delay_type(x):
+    if check_required_args(x.entity_type_freqs):
+        arg_entity_type = x.argument['entity_type']
+        if arg_entity_type in ['duration']:
+            if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN:
+                return delay
+    return ABSTAIN
+
+
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
+                        get_argument, get_somajo_doc])
+def lf_delay_event_type(x):
+    if check_required_args(x.entity_type_freqs):
+        arg_entity_type = x.argument['entity_type']
+        if arg_entity_type in ['duration']:
+            if lf_somajo_separate_sentence(x) == ABSTAIN and \
+                    (event_trigger_lfs.lf_delay_cat(x) == event_trigger_lfs.Delay or
+                     event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam):
+                return delay
+    return ABSTAIN
+
+
+# direction role
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
+                        get_argument, get_argument_left_tokens, get_somajo_doc])
+def lf_direction_type(x):
+    if check_required_args(x.entity_type_freqs):
+        arg_entity_type = x.argument['entity_type']
+        if arg_entity_type in ['location', 'location_city', 'location_stop']:
+            if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
+                    any(token.lower() in ['nach', 'richtung'] for token in x.argument_left_tokens[-1:]):
+                return direction
+    return ABSTAIN
+
+
+# start_loc
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
+                        get_argument, get_somajo_doc])
+def lf_start_location_type(x):
+    arg_entity_type = x.argument['entity_type']
+    if arg_entity_type in ['location', 'location_street', 'location_route', 'location_city', 'location_stop']:
+        if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN:
+            return start_loc
+    return ABSTAIN
+
+
+# end_loc
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
+                        get_argument, get_somajo_doc])
+def lf_end_location_type(x):
+    arg_entity_type = x.argument['entity_type']
+    if arg_entity_type in ['location', 'location_street', 'location_route', 'location_city', 'location_stop']:
+        if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN:
+            return end_loc
+    return ABSTAIN
+
+
+# start_date
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
+                        get_argument, get_somajo_doc])
+def lf_start_date_type(x):
+    if check_required_args(x.entity_type_freqs):
+        arg_entity_type = x.argument['entity_type']
+        if arg_entity_type in ['date', 'time']:
+            if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN:
+                # TODO look at positional distance/preceding words to determine whether it is a start or a end date
+                return start_date
+    return ABSTAIN
+
+
+# end_date
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
+                        get_argument, get_somajo_doc])
+def lf_end_date_type(x):
+    if check_required_args(x.entity_type_freqs):
+        arg_entity_type = x.argument['entity_type']
+        if arg_entity_type in ['date', 'time']:
+            if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN:
+                # TODO look at positional distance/preceding words to determine whether it is a start or a end date
+                return end_date
+    return ABSTAIN
+
+
+# cause
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
+                        get_argument, get_argument_left_tokens, get_somajo_doc])
+def lf_cause_type(x):
+    if check_required_args(x.entity_type_freqs):
+        arg_entity_type = x.argument['entity_type']
+        if arg_entity_type in ['trigger']:
+            if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and\
+                    event_trigger_lfs.check_cause_keywords(x.argument_left_tokens[-4:]):
+                return cause
+    return ABSTAIN
+
+
+@labeling_function(pre=[get_trigger_text, get_argument_text])
+def lf_cause_gaz_file(x):
+    if x.argument_text in traffic_event_causes:
+        if traffic_event_causes[x.argument_text] == x.trigger_text:
+            return cause
+    else:
+        return ABSTAIN
+
+
+# jam_length
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
+                        get_argument, get_somajo_doc])
 def lf_distance_type(x):
+    if check_required_args(x.entity_type_freqs):
+        arg_entity_type = x.argument['entity_type']
+        if arg_entity_type in ['distance']:
+            if lf_somajo_separate_sentence(x) == ABSTAIN and \
+                    event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam:
+                return jam_length
+    return ABSTAIN
+
+
+# route
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
+                        get_argument, get_somajo_doc])
+def lf_route_type(x):
     # purely distance based for now: could use dependency parsing/ context words
     arg_entity_type = x.argument['entity_type']
-    if arg_entity_type in ['distance', 'DISTANCE']:
-        if x.between_distance < 5:
-            return jam_length
+    if arg_entity_type in ['location_route']:
+        if lf_somajo_separate_sentence(x) == ABSTAIN and \
+                event_trigger_lfs.lf_canceledstop_cat(x) == event_trigger_lfs.CanceledStop:
+            return route
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_argument, get_spacy_doc])
-def lf_dependency(x):
-    # proof of concept that makes use of spaCy dependency parsing feature
-    # see: https://github.com/explosion/spaCy/blob/master/examples/information_extraction/entity_relations.py
-    for token in x.spacy_doc:
-        # TODO match tokenization and fix spans
-        if token.text in x.trigger['text']:
-            # MAGIC
-            return ABSTAIN
-    return ABSTAIN
+# no_args
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs])
+def lf_not_an_event(x):
+    if event_trigger_lfs.lf_negative(x) == event_trigger_lfs.O:
+        return no_arg
+    else:
+        return ABSTAIN
 
 
 @labeling_function(pre=[get_trigger, get_argument, get_spacy_doc])
@@ -82,8 +219,9 @@ def lf_spacy_separate_sentence(x):
     # proof of concept that makes use of spaCy sentence splitter parsing feature
     # see: https://github.com/explosion/spaCy/blob/master/examples/information_extraction/entity_relations.py
     same_sentence = False
-    for sentence in x.spacy_doc.sents:
-        if x.trigger['text'] in sentence.text and x.argument['text'] in sentence.text:
+    for sentence in x.spacy_doc['sentences']:
+        # edge case: two very similar sentences that both contain trigger text and arg text
+        if x.spacy_doc['trigger'] in sentence and x.spacy_doc['argument'] in sentence:
             same_sentence = True
             break
     if same_sentence:
@@ -94,20 +232,45 @@ def lf_spacy_separate_sentence(x):
 
 @labeling_function(pre=[get_trigger, get_argument, get_stanford_doc])
 def lf_stanford_separate_sentence(x):
-    # proof of concept that makes use of spaCy sentence splitter parsing feature
-    # see: https://github.com/explosion/spaCy/blob/master/examples/information_extraction/entity_relations.py
     same_sentence = False
 
-    sentences = [" ".join([t.text for t in s.tokens]) for s in x.stanford_doc.sentences]
-
-    for sentence in sentences:
-        if x.trigger['text'] in sentence and x.argument['text'] in sentence:
+    for sentence in x.stanford_doc['sentences']:
+        # edge case: two very similar sentences that both contain trigger text and arg text
+        if x.stanford_doc['trigger'] in sentence and x.stanford_doc['argument'] in sentence:
             same_sentence = True
             break
     if same_sentence:
         return ABSTAIN
     else:
         return no_arg
+
+
+@labeling_function(pre=[get_trigger, get_argument, get_somajo_doc])
+def lf_somajo_separate_sentence(x):
+    same_sentence = False
+
+    for sentence in x.somajo_doc['sentences']:
+        # edge case: two very similar sentences that both contain trigger text and arg text
+        if x.somajo_doc['trigger'] in sentence and x.somajo_doc['argument'] in sentence:
+            same_sentence = True
+            break
+    if same_sentence:
+        return ABSTAIN
+    else:
+        return no_arg
+
+
+# general
+@labeling_function(pre=[get_trigger, get_argument, get_spacy_doc])
+def lf_dependency(x):
+    # proof of concept that makes use of spaCy dependency parsing feature
+    # see: https://github.com/explosion/spaCy/blob/master/examples/information_extraction/entity_relations.py
+    for token in x.spacy_doc:
+        # TODO match tokenization and fix spans
+        if token.text in x.trigger['text']:
+            # MAGIC
+            return ABSTAIN
+    return ABSTAIN
 
 
 def event_patterns_helper(x, rules, general_location=False):
