@@ -214,7 +214,10 @@ def lf_negative(x):
         lf_railreplacementservice_cat,
         lf_trafficjam_cat
     ]
-    if any(lf(x) != ABSTAIN for lf in lfs):
-        return ABSTAIN
-    else:
-        return O
+    for lf in lfs:
+        if lf(x) != ABSTAIN:
+            if lf(x) == O:
+                return O
+            else:
+                return ABSTAIN
+    return O
