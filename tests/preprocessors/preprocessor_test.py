@@ -32,10 +32,35 @@ class TestMixedNer(unittest.TestCase):
             actual_cand = preprocessors.get_mixed_ner(actual_cand)
             self.assertEqual(expected_mixed_ner_spans, actual_cand['mixed_ner_spans'])
 
-    def test_apply_preprocessors(self):
+    def test_applypreprocessors(self):
         event_type_rows, event_type_rows_y = pipeline.build_event_trigger_examples(self.pd_df)
         labeled_rows = explore.add_labels(event_type_rows, event_type_rows_y)
-        processed_rows = explore.apply_preprocessors(labeled_rows, pre=[preprocessors.get_trigger])
+        processed_rows = explore.apply_preprocessors(labeled_rows, pre=[preprocessors.get_trigger,
+                                                                        preprocessors.get_mixed_ner])
+        self.assertIsNotNone(processed_rows)
+
+
+class TestComplexPreprocessors(unittest.TestCase):
+    def setUp(self):
+        dataframes_path = '/Users/phuc/develop/python/wsee/tests/fixtures/dataframes.jsonl'
+        self.pd_df: pd.DataFrame = pd.read_json(dataframes_path, lines=True)
+
+    def test_stanford_preprocessor(self):
+        event_type_rows, event_type_rows_y = pipeline.build_event_trigger_examples(self.pd_df)
+        labeled_rows = explore.add_labels(event_type_rows, event_type_rows_y)
+        processed_rows = explore.apply_preprocessors(labeled_rows, pre=[preprocessors.get_stanford_doc])
+        self.assertIsNotNone(processed_rows)
+
+    def test_spacy_preprocessor(self):
+        event_type_rows, event_type_rows_y = pipeline.build_event_trigger_examples(self.pd_df)
+        labeled_rows = explore.add_labels(event_type_rows, event_type_rows_y)
+        processed_rows = explore.apply_preprocessors(labeled_rows, pre=[preprocessors.get_spacy_doc])
+        self.assertIsNotNone(processed_rows)
+
+    def test_somajo_preprocessor(self):
+        event_type_rows, event_type_rows_y = pipeline.build_event_trigger_examples(self.pd_df)
+        labeled_rows = explore.add_labels(event_type_rows, event_type_rows_y)
+        processed_rows = explore.apply_preprocessors(labeled_rows, pre=[preprocessors.get_somajo_doc])
         self.assertIsNotNone(processed_rows)
 
 
