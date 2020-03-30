@@ -3,7 +3,8 @@ import stanfordnlp
 import spacy
 import numpy as np
 
-from typing import Dict, List
+from typing import Dict, List, Optional, Callable
+from somajo import SoMaJo
 from snorkel.preprocess import preprocessor
 from snorkel.types import DataPoint
 from wsee.preprocessors.pattern_event_processor import escape_regex_chars
@@ -11,6 +12,29 @@ from wsee.preprocessors.pattern_event_processor import escape_regex_chars
 punctuation_marks = ["<", "(", "[", "{", "\\", "^", "-", "=", "$", "!", "|",
                      "]", "}", ")", "?", "*", "+", ".", ",", ":", ";", ">",
                      "_", "#", "/"]
+
+
+nlp_stanford: Optional[stanfordnlp.Pipeline] = None
+nlp_spacy: Optional[Callable] = None
+nlp_somajo: Optional[SoMaJo] = None
+
+
+def load_stanford_model():
+    global nlp_stanford
+    if nlp_stanford is None:
+        nlp_stanford = stanfordnlp.Pipeline(lang='de')
+
+
+def load_spacy_model():
+    global nlp_spacy
+    if nlp_spacy is None:
+        nlp_spacy = spacy.load('de_core_news_md')
+
+
+def load_somajo_model():
+    global nlp_somajo
+    if nlp_somajo is None:
+        nlp_somajo = SoMaJo("de_CMC", split_camel_case=True)
 
 
 def get_entity_idx(entity_id, entities):
@@ -25,6 +49,11 @@ def get_entity(entity_id, entities):
     entity_idx = get_entity_idx(entity_id, entities)
     entity = entities[entity_idx]
     return entity
+
+
+def get_entity_text_and_type(entity_id, entities):
+    entity = get_entity(entity_id, entities)
+    return entity['text'], entity['entity_type']
 
 
 @preprocessor()
@@ -291,25 +320,87 @@ def get_mixed_ner(cand: DataPoint) -> DataPoint:
     return cand
 
 
-def get_stanford_model():
-    return stanfordnlp.Pipeline(lang='de')
+def get_spacy_doc_tokens(doc):
+    return [token.text for token in doc]
 
 
-def get_spacy_model():
-    return spacy.load('de_core_news_md')
+def get_stanford_doc_tokens(doc):
+    return [token.text for sentence in doc.sentences for token in sentence.tokens]
 
 
-@preprocessor()
-def get_stanford_doc(cand: DataPoint) -> DataPoint:
-    nlp_stanford = get_stanford_model()
-    cand['stanford_doc'] = nlp_stanford(cand.text)
-    return cand
+def get_somajo_doc_tokens(doc):
+    return [token.text for sentence in doc for token in sentence]
+
+
+def get_spacy_doc_sentences(doc):
+    return [s.text for s in doc.sents]
+
+
+def get_stanford_doc_sentences(doc):
+    # introduces whitespaces
+    # see: https://github.com/stanfordnlp/stanfordnlp/blob/dev/stanfordnlp/models/common/doc.py
+    # to get original sentence text
+    return [" ".join([token.text for token in sentence.tokens]) for sentence in doc.sentences]
+
+
+def get_somajo_doc_sentences(doc):
+    # introduces whitespaces
+    return [" ".join([token.text for token in sentence]) for sentence in doc]
 
 
 @preprocessor()
 def get_spacy_doc(cand: DataPoint) -> DataPoint:
-    nlp_spacy = get_spacy_model()
-    cand['spacy_doc'] = nlp_spacy(cand.text)
+    load_spacy_model()
+    spacy_doc = nlp_spacy(cand.text)
+    doc = {
+        'doc': spacy_doc,
+        'tokens': get_spacy_doc_tokens(spacy_doc),
+        'sentences': get_spacy_doc_sentences(spacy_doc),    # preserves sentence texts
+        'trigger_text': nlp_spacy(get_entity(cand.trigger_id, cand.entities)['text']),
+    }
+    if 'argument_id' in cand:
+        doc['argument_text'] = get_entity(cand.argument_id, cand.entities)['text']
+    cand['spacy_doc'] = doc
+    return cand
+
+
+@preprocessor()
+def get_stanford_doc(cand: DataPoint) -> DataPoint:
+    load_stanford_model()
+    stanford_doc = nlp_stanford(cand.text)
+    trigger_text = get_entity(cand.trigger_id, cand.entities)['text']
+    tokenized_trigger = get_stanford_doc_tokens(nlp_stanford(trigger_text))
+    doc = {
+        'doc': stanford_doc,
+        'tokens': get_stanford_doc_tokens(stanford_doc),
+        'sentences': get_stanford_doc_sentences(stanford_doc),
+        'trigger': " ".join(tokenized_trigger),
+    }
+    if 'argument_id' in cand:
+        argument_text = get_entity(cand.argument_id, cand.entities)['text']
+        tokenized_argument = get_stanford_doc_tokens(nlp_stanford(argument_text))
+        doc['argument'] = " ".join(tokenized_argument)
+    cand['stanford_doc'] = doc
+    return cand
+
+
+@preprocessor()
+def get_somajo_doc(cand: DataPoint) -> DataPoint:
+    load_somajo_model()
+    somajo_doc = list(nlp_somajo.tokenize_text([cand.text]))
+    trigger_text = get_entity(cand.trigger_id, cand.entities)['text']
+    tokenized_trigger = get_somajo_doc_tokens(nlp_somajo.tokenize_text([trigger_text]))
+    doc = {
+        'doc': somajo_doc,
+        'tokens': get_somajo_doc_tokens(somajo_doc),
+        'sentences': get_somajo_doc_sentences(somajo_doc),
+        'trigger': " ".join(tokenized_trigger),
+    }
+    if 'argument_id' in cand:
+        argument_text = get_entity(cand.argument_id, cand.entities)['text']
+        tokenized_argument = get_somajo_doc_tokens(nlp_somajo.tokenize_text([argument_text]))
+        doc['argument'] = " ".join(tokenized_argument)
+    cand['somajo_doc'] = doc
     return cand
 
 
@@ -319,4 +410,18 @@ def get_event_types(cand: DataPoint) -> DataPoint:
                         np.asarray(event_trigger['event_type_probs']).argmax())
                        for event_trigger in cand.event_triggers]
         cand['event_types'] = event_types
+    return cand
+
+
+def get_event_arg_roles(cand: DataPoint) -> DataPoint:
+    if 'event_triggers' and 'event_roles' in cand:
+        event_arg_roles = [(get_entity(event_role['trigger'], cand.entities)['text'],
+                            next((np.asarray(event_trigger['event_type_probs']).argmax()
+                                  for event_trigger in cand.event_triggers
+                                  if event_trigger['id'] == event_role['trigger']), 7),
+                            get_entity_text_and_type(event_role['argument'], cand.entities),
+                            np.asarray(event_role['event_argument_probs']).argmax())
+                           for event_role in cand.event_roles
+                           if np.asarray(event_role['event_argument_probs']).argmax() != 10]
+        cand['event_arg_roles'] = event_arg_roles
     return cand
