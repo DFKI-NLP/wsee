@@ -186,7 +186,7 @@ def get_trigger_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_functio
     applier = PandasLFApplier(lfs)
     df_train = applier.apply(event_trigger_examples)
     if label_model is None:
-        label_model = LabelModel(cardinality=7, verbose=True)
+        label_model = LabelModel(cardinality=8, verbose=True)
         label_model.fit(L_train=df_train, n_epochs=500, log_freq=100, seed=123)
     event_trigger_probs = label_model.predict_proba(df_train)
     return merge_event_trigger_examples(event_trigger_examples, event_trigger_probs)
@@ -204,11 +204,22 @@ def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]]
     event_role_examples, _ = build_event_role_examples(l_train)
     if lfs is None:
         lfs = [
-            lf_event_patterns,
-            lf_event_patterns_general_location,
-            lf_date_type,
             lf_location_type,
+            lf_delay_type,
+            lf_delay_event_type,
+            lf_direction_type,
+            lf_start_location_type,
+            lf_end_location_type,
+            lf_start_date_type,
+            lf_end_date_type,
+            lf_cause_type,
+            lf_cause_gaz_file,
             lf_distance_type,
+            lf_route_type,
+            lf_not_an_event,
+            lf_somajo_separate_sentence,
+            lf_event_patterns,
+            lf_event_patterns_general_location
             # lf_dependency,
             # lf_spacy_separate_sentence,
             # lf_stanford_separate_sentence
@@ -216,7 +227,7 @@ def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]]
     applier = PandasLFApplier(lfs)
     df_train = applier.apply(event_role_examples)
     if label_model is None:
-        label_model = LabelModel(cardinality=10, verbose=True)
+        label_model = LabelModel(cardinality=11, verbose=True)
         label_model.fit(L_train=df_train, n_epochs=500, log_freq=100, seed=123)
     event_role_probs = label_model.predict_proba(df_train)
     return merge_event_trigger_examples(event_role_examples, event_role_probs)
