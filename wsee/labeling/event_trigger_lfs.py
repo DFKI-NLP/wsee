@@ -78,7 +78,7 @@ def lf_accident_cat(x):
 def lf_accident_context(x):
     highest = process.extractOne(x.trigger['text'], accident_keywords)
     if highest[1] >= 90:
-        if (check_cause_keywords(x.trigger_left_tokens[-4:]) or
+        if (check_cause_keywords(x.trigger_left_tokens[-4:], x) or
             check_in_parentheses(x.trigger['text'], x.trigger_left_tokens, x.trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
             return O
@@ -87,15 +87,26 @@ def lf_accident_context(x):
     return ABSTAIN
 
 
-def check_cause_keywords(tokens):
+def check_cause_keywords(tokens, x):
     """
     Checks the tokens (usually the ones left to the trigger) for causal keywords that would
     indicate that the trigger is not the event of the sentence, but rather a cause for the actual event.
+    :param x: DataPoint.
     :param tokens: Context tokens of the trigger.
     :return: True or False depending on a match with any of the causal keywords.
     """
     cause_keywords = ['nach', 'wegen', 'bei', 'grund', 'aufgrund']
     if any(token.lower() in cause_keywords for token in tokens):
+        left_text = " ".join(tokens)
+        lower_left_text = left_text.lower()
+        cause_start = max([lower_left_text.find(cause_keyword) for cause_keyword in cause_keywords])
+        assert cause_start > -1
+        # make sure that no other trigger occurs after the causal keyword
+        if x.event_triggers:
+            rightest_trigger_start = max([left_text.find(get_entity(event_trigger['id'], x.entities)['text'])
+                                          for event_trigger in x.event_triggers])
+            if rightest_trigger_start > cause_start:
+                return False
         return True
     else:
         return False
@@ -159,7 +170,7 @@ def check_route_keywords(tokens):
 def lf_delay_cat(x):
     highest = process.extractOne(x.trigger['text'], delay_keywords)
     if highest[1] >= 90:
-        if (check_cause_keywords(x.trigger_left_tokens[-4:]) or
+        if (check_cause_keywords(x.trigger_left_tokens[-4:], x) or
             check_in_parentheses(x.trigger['text'], x.trigger_left_tokens, x.trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
             return O
@@ -172,7 +183,7 @@ def lf_delay_cat(x):
 def lf_obstruction_cat(x):
     highest = process.extractOne(x.trigger['text'], obstruction_keywords)
     if highest[1] >= 90 and x.trigger['text'] not in ['aus', 'aus.']:
-        if (check_cause_keywords(x.trigger_left_tokens[-4:]) or
+        if (check_cause_keywords(x.trigger_left_tokens[-4:], x) or
             check_in_parentheses(x.trigger['text'], x.trigger_left_tokens, x.trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
             return O
