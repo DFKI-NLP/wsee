@@ -215,6 +215,18 @@ def get_between_distance(cand: DataPoint) -> DataPoint:
     return cand
 
 
+@preprocessor()
+def get_all_trigger_distances(cand: DataPoint) -> DataPoint:
+    argument = get_entity(cand.argument_id, cand.entities)
+    all_trigger_distances = {}
+    for trigger_id in cand.event_triggers:
+        trigger = get_entity(trigger_id, cand.entities)
+        distance = get_entity_distance(trigger, argument)
+        all_trigger_distances[trigger_id] = distance
+    cand['all_trigger_distances'] = all_trigger_distances
+    return cand
+
+
 def get_entity_distance(entity1, entity2) -> int:
     if entity1['end'] <= entity2['start']:
         return entity2['start'] - entity1['end']
