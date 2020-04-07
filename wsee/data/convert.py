@@ -118,7 +118,7 @@ def get_events(relations, one_hot):
             event_trigger['event_type'] = rm['name']
         event_triggers.append(event_trigger)
 
-        args = [arg for arg in rm['args'] if arg['role'] != 'trigger']
+        args = [arg for arg in rm['args'] if arg['role'] != 'trigger' and arg['conceptMention']['id'] != trigger_id]
         for arg in args:
             event_role = {
                 'trigger': trigger_id,
