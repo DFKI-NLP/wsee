@@ -219,10 +219,12 @@ def get_between_distance(cand: DataPoint) -> DataPoint:
 def get_all_trigger_distances(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
     all_trigger_distances = {}
-    for trigger_id in cand.event_triggers:
-        trigger = get_entity(trigger_id, cand.entities)
-        distance = get_entity_distance(trigger, argument)
-        all_trigger_distances[trigger_id] = distance
+    for event_trigger in cand.event_triggers:
+        trigger_id = event_trigger['id']
+        if trigger_id != cand.argument_id:
+            trigger = get_entity(trigger_id, cand.entities)
+            distance = get_entity_distance(trigger, argument)
+            all_trigger_distances[trigger_id] = distance
     cand['all_trigger_distances'] = all_trigger_distances
     return cand
 
@@ -233,8 +235,8 @@ def get_entity_distance(entity1, entity2) -> int:
     elif entity2['end'] <= entity1['start']:
         return entity1['start'] - entity2['end']
     else:
-        print(f"Overlapping entities {entity1['text']}({entity1['start']}, {entity1['end']}) and "
-              f"{entity2['text']}({entity2['start']}, {entity2['end']})")
+        print(f"Overlapping entities {entity1['id']}:{entity1['text']}({entity1['start']}, {entity1['end']}) and "
+              f"{entity2['id']}:{entity2['text']}({entity2['start']}, {entity2['end']})")
         return 0
 
 
