@@ -1,6 +1,7 @@
 import re
 import stanfordnlp
 import spacy
+import logging
 import numpy as np
 
 from typing import Dict, List, Optional, Callable
@@ -8,11 +9,11 @@ from somajo import SoMaJo
 from snorkel.preprocess import preprocessor
 from snorkel.types import DataPoint
 from wsee.preprocessors.pattern_event_processor import escape_regex_chars
+from wsee.labeling import event_trigger_lfs
 
 punctuation_marks = ["<", "(", "[", "{", "\\", "^", "-", "=", "$", "!", "|",
                      "]", "}", ")", "?", "*", "+", ".", ",", ":", ";", ">",
                      "_", "#", "/"]
-
 
 nlp_stanford: Optional[stanfordnlp.Pipeline] = None
 nlp_spacy: Optional[Callable] = None
@@ -198,8 +199,8 @@ def get_between_tokens(cand: DataPoint) -> DataPoint:
         start = argument['end']
         end = trigger['start']
     else:
-        print(f"Trigger {trigger['text']}({trigger['start']}, {trigger['end']}) and "
-              f"argument {argument['text']}({argument['start']}, {argument['end']}) are overlapping.")
+        logging.debug(f"Trigger {trigger['text']}({trigger['start']}, {trigger['end']}) and "
+                      f"argument {argument['text']}({argument['start']}, {argument['end']}) are overlapping.")
         cand['between_tokens'] = []
         return cand
 
@@ -229,15 +230,46 @@ def get_all_trigger_distances(cand: DataPoint) -> DataPoint:
     return cand
 
 
+@preprocessor()
+def get_sentence_trigger_distances(cand: DataPoint) -> DataPoint:
+    argument = get_entity(cand.argument_id, cand.entities)
+
+    load_somajo_model()
+    somajo_doc = list(nlp_somajo.tokenize_text([cand.text]))
+
+    sentences = get_somajo_doc_sentences(somajo_doc)
+
+    argument_text = get_entity(cand.argument_id, cand.entities)['text']
+    tokenized_argument = get_somajo_doc_tokens(nlp_somajo.tokenize_text([argument_text]))
+    somajo_argument = " ".join(tokenized_argument)
+
+    sentence_trigger_distances = {}
+    for event_trigger in cand.event_triggers:
+        trigger_id = event_trigger['id']
+        if trigger_id != cand.argument_id:
+            trigger = get_entity(trigger_id, cand.entities)
+            trigger_text = trigger['text']
+            tokenized_trigger = get_somajo_doc_tokens(nlp_somajo.tokenize_text([trigger_text]))
+            somajo_trigger = " ".join(tokenized_trigger)
+            for sentence in sentences:
+                # edge case: two very similar sentences that both contain trigger text and arg text
+                if somajo_trigger in sentence and somajo_argument in sentence:
+                    distance = get_entity_distance(trigger, argument)
+                    sentence_trigger_distances[trigger_id] = distance
+                    break
+    cand['sentence_trigger_distances'] = sentence_trigger_distances
+    return cand
+
+
 def get_entity_distance(entity1, entity2) -> int:
     if entity1['end'] <= entity2['start']:
         return entity2['start'] - entity1['end']
     elif entity2['end'] <= entity1['start']:
         return entity1['start'] - entity2['end']
     else:
-        print(f"Overlapping entities {entity1['id']}:{entity1['text']}({entity1['start']}, {entity1['end']}) and "
-              f"{entity2['id']}:{entity2['text']}({entity2['start']}, {entity2['end']})")
-        return 0
+        logging.debug(f"Overlapping entities {entity1['id']}:{entity1['text']}({entity1['start']}, {entity1['end']}) "
+                      f"and {entity2['id']}:{entity2['text']}({entity2['start']}, {entity2['end']})")
+        return -1
 
 
 @preprocessor()
@@ -369,7 +401,7 @@ def get_spacy_doc(cand: DataPoint) -> DataPoint:
     doc = {
         'doc': spacy_doc,
         'tokens': get_spacy_doc_tokens(spacy_doc),
-        'sentences': get_spacy_doc_sentences(spacy_doc),    # preserves sentence texts
+        'sentences': get_spacy_doc_sentences(spacy_doc),  # preserves sentence texts
         'trigger_text': nlp_spacy(get_entity(cand.trigger_id, cand.entities)['text']),
     }
     if 'argument_id' in cand:
@@ -418,24 +450,45 @@ def get_somajo_doc(cand: DataPoint) -> DataPoint:
     return cand
 
 
+@preprocessor()
+def get_is_event(cand: DataPoint) -> DataPoint:
+    if 'trigger' not in cand:
+        cand = get_trigger(cand)
+    if 'trigger_left_tokens' not in cand:
+        cand = get_trigger_left_tokens(cand)
+    if 'trigger_right_tokens' not in cand:
+        cand = get_trigger_right_tokens(cand)
+    if 'entity_type_freqs' not in cand:
+        cand = get_entity_type_freqs(cand)
+    cand['is_event'] = event_trigger_lfs.lf_negative(cand)
+    return cand
+
+
 def get_event_types(cand: DataPoint) -> DataPoint:
     if 'event_triggers' in cand:
-        event_types = [(get_entity(event_trigger['id'], cand.entities)['text'],
-                        np.asarray(event_trigger['event_type_probs']).argmax())
-                       for event_trigger in cand.event_triggers]
+        event_types = []
+        for event_trigger in cand.event_triggers:
+            entity = get_entity(event_trigger['id'], cand.entities)
+            label = np.asarray(event_trigger['event_type_probs']).argmax()
+            event_types.append((entity['text'], (entity['char_start'], entity['char_end']), label))
         cand['event_types'] = event_types
     return cand
 
 
 def get_event_arg_roles(cand: DataPoint) -> DataPoint:
     if 'event_triggers' and 'event_roles' in cand:
-        event_arg_roles = [(get_entity(event_role['trigger'], cand.entities)['text'],
-                            next((np.asarray(event_trigger['event_type_probs']).argmax()
-                                  for event_trigger in cand.event_triggers
-                                  if event_trigger['id'] == event_role['trigger']), 7),
-                            get_entity_text_and_type(event_role['argument'], cand.entities),
-                            np.asarray(event_role['event_argument_probs']).argmax())
-                           for event_role in cand.event_roles
-                           if np.asarray(event_role['event_argument_probs']).argmax() != 10]
+        event_arg_roles = []
+        for event_role in cand.event_roles:
+            role_label = np.asarray(event_role['event_argument_probs']).argmax()
+            if role_label != 10:
+                trigger = get_entity(event_role['trigger'], cand.entities)
+                event_type = next((np.asarray(event_trigger['event_type_probs']).argmax()
+                                   for event_trigger in cand.event_triggers
+                                   if event_trigger['id'] == event_role['trigger']), 7)
+                argument = get_entity(event_role['argument'], cand.entities)
+                role_label = np.asarray(event_role['event_argument_probs']).argmax()
+                event_arg_roles.append(((trigger['text'], (trigger['char_start'], trigger['char_end']), event_type),
+                                        (argument['text'], argument['entity_type'],
+                                        (argument['char_start'], argument['char_end'])), role_label))
         cand['event_arg_roles'] = event_arg_roles
     return cand
