@@ -98,8 +98,12 @@ def lf_location(x, same_sentence=True, nearest=True, check_is_event=True, event_
         if lf_somajo_separate_sentence(x) != ABSTAIN:
             return ABSTAIN
     if nearest:
-        if not is_nearest_trigger(x.between_distance, x.all_trigger_distances):
-            return ABSTAIN
+        if same_sentence:
+            if not is_nearest_trigger(x.between_distance, x.sentence_trigger_distances):
+                return ABSTAIN
+        else:
+            if not is_nearest_trigger(x.between_distance, x.all_trigger_distances):
+                return ABSTAIN
     if check_is_event and event_type is None:
         if not lf_not_an_event(x) == ABSTAIN:
             return ABSTAIN
@@ -121,133 +125,133 @@ def lf_location(x, same_sentence=True, nearest=True, check_is_event=True, event_
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_location_same_sentence_is_event(x):
     return lf_location(x, nearest=False)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_location_same_sentence_nearest_is_event(x):
     return lf_location(x)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_location_nearest_is_event(x):
     return lf_location(x)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_location_same_sentence(x):
     return lf_location(x, nearest=False, check_is_event=False)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_location_same_sentence_nearest(x):
     return lf_location(x, check_is_event=False)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_accident_location_same_sentence_is_event(x):
     return lf_location(x, nearest=False, event_type=event_trigger_lfs.Accident)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_accident_location_same_sentence_nearest_is_event(x):
     return lf_location(x, event_type=event_trigger_lfs.Accident)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_accident_location_same_sentence(x):
     return lf_location(x, nearest=False, check_is_event=False, event_type=event_trigger_lfs.Accident)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_accident_location_same_sentence_nearest(x):
     return lf_location(x, check_is_event=False, event_type=event_trigger_lfs.CanceledRoute)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_canceled_route_location_same_sentence_is_event(x):
     return lf_location(x, nearest=False, event_type=event_trigger_lfs.CanceledRoute)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_canceled_route_location_same_sentence_nearest_is_event(x):
     return lf_location(x, event_type=event_trigger_lfs.CanceledRoute)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_canceled_route_location_same_sentence(x):
     return lf_location(x, nearest=False, check_is_event=False, event_type=event_trigger_lfs.CanceledRoute)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_canceled_route_location_same_sentence_nearest(x):
     return lf_location(x, check_is_event=False, event_type=event_trigger_lfs.CanceledRoute)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_canceled_stop_location_same_sentence_is_event(x):
     return lf_location(x, nearest=False, event_type=event_trigger_lfs.CanceledStop)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_canceled_stop_location_same_sentence_nearest_is_event(x):
     return lf_location(x, event_type=event_trigger_lfs.CanceledStop)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_canceled_stop_location_same_sentence(x):
     return lf_location(x, nearest=False, check_is_event=False, event_type=event_trigger_lfs.CanceledStop)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_canceled_stop_location_same_sentence_nearest(x):
     return lf_location(x, check_is_event=False, event_type=event_trigger_lfs.CanceledStop)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_delay_location_same_sentence_is_event(x):
     return lf_location(x, nearest=False, event_type=event_trigger_lfs.CanceledStop)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_delay_location_same_sentence_nearest_is_event(x):
     return lf_location(x, event_type=event_trigger_lfs.CanceledStop)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_delay_location_same_sentence(x):
     return lf_location(x, nearest=False, check_is_event=False, event_type=event_trigger_lfs.CanceledStop)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_delay_location_same_sentence_nearest(x):
     return lf_location(x, check_is_event=False, event_type=event_trigger_lfs.CanceledStop)
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_obstruction_location_type(x):
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_route']:
@@ -258,7 +262,7 @@ def lf_obstruction_location_type(x):
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_rrs_location_type(x):
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location_route']:
@@ -269,7 +273,7 @@ def lf_rrs_location_type(x):
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_trafficjam_location_type(x):
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_route']:
@@ -281,7 +285,7 @@ def lf_trafficjam_location_type(x):
 
 # delay role
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_delay_type(x):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
@@ -292,7 +296,7 @@ def lf_delay_type(x):
 
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_delay_event_type(x):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
@@ -431,7 +435,7 @@ def lf_cause_gaz_file(x, cause_mapping):
 
 # jam_length
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_distance_type(x):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
@@ -445,7 +449,7 @@ def lf_distance_type(x):
 
 # route
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances])
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
 def lf_route_type(x):
     # purely distance based for now: could use dependency parsing/ context words
     arg_entity_type = x.argument['entity_type']
@@ -509,6 +513,30 @@ def lf_somajo_separate_sentence(x):
         return ABSTAIN
     else:
         return no_arg
+
+
+@labeling_function(pre=[get_trigger, get_argument, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
+def lf_not_nearest_event(x):
+    if is_nearest_trigger(x.between_distance, x.all_trigger_distances):
+        return ABSTAIN
+    else:
+        return no_arg
+
+
+@labeling_function(pre=[get_trigger, get_argument, get_between_distance, get_sentence_trigger_distances])
+def lf_not_nearest_same_sentence_event(x):
+    if is_nearest_trigger(x.between_distance, x.sentence_trigger_distances):
+        return ABSTAIN
+    else:
+        return no_arg
+
+
+@labeling_function(pre=[get_trigger, get_argument, get_between_distance])
+def lf_overlapping(x):
+    if x.between_distance < 0:
+        return no_arg
+    else:
+        return ABSTAIN
 
 
 # general
