@@ -239,21 +239,25 @@ def get_sentence_trigger_distances(cand: DataPoint) -> DataPoint:
 
     sentences = get_somajo_doc_sentences(somajo_doc)
 
-    argument_text = get_entity(cand.argument_id, cand.entities)['text']
-    tokenized_argument = get_somajo_doc_tokens(nlp_somajo.tokenize_text([argument_text]))
-    somajo_argument = " ".join(tokenized_argument)
-
     sentence_trigger_distances = {}
     for event_trigger in cand.event_triggers:
         trigger_id = event_trigger['id']
         if trigger_id != cand.argument_id:
             trigger = get_entity(trigger_id, cand.entities)
-            trigger_text = trigger['text']
-            tokenized_trigger = get_somajo_doc_tokens(nlp_somajo.tokenize_text([trigger_text]))
-            somajo_trigger = " ".join(tokenized_trigger)
-            for sentence in sentences:
-                # edge case: two very similar sentences that both contain trigger text and arg text
-                if somajo_trigger in sentence and somajo_argument in sentence:
+
+            text = ""
+            tolerance = 0
+            for sentence, sent_tokens in zip(sentences, somajo_doc):
+                sentence_start = len(text)
+                text += sentence
+                sentence_end = len(text)
+                # allow for some tolerance for wrong whitespaces: number of punctuation marks, new lines  for now
+                # factor 2 because for each punctuation marks we are adding at most 2 wrong whitespaces
+                tolerance += 2 * len(
+                    [token for token in sent_tokens if token.text in punctuation_marks]) + sentence.count('\n')
+                m_start = min(trigger['char_start'], argument['char_start'])
+                m_end = max(trigger['char_end'], argument['char_end'])
+                if sentence_start <= m_start + tolerance and m_end <= sentence_end + tolerance:
                     distance = get_entity_distance(trigger, argument)
                     sentence_trigger_distances[trigger_id] = distance
                     break
@@ -434,18 +438,11 @@ def get_stanford_doc(cand: DataPoint) -> DataPoint:
 def get_somajo_doc(cand: DataPoint) -> DataPoint:
     load_somajo_model()
     somajo_doc = list(nlp_somajo.tokenize_text([cand.text]))
-    trigger_text = get_entity(cand.trigger_id, cand.entities)['text']
-    tokenized_trigger = get_somajo_doc_tokens(nlp_somajo.tokenize_text([trigger_text]))
     doc = {
         'doc': somajo_doc,
         'tokens': get_somajo_doc_tokens(somajo_doc),
         'sentences': get_somajo_doc_sentences(somajo_doc),
-        'trigger': " ".join(tokenized_trigger),
     }
-    if 'argument_id' in cand:
-        argument_text = get_entity(cand.argument_id, cand.entities)['text']
-        tokenized_argument = get_somajo_doc_tokens(nlp_somajo.tokenize_text([argument_text]))
-        doc['argument'] = " ".join(tokenized_argument)
     cand['somajo_doc'] = doc
     return cand
 

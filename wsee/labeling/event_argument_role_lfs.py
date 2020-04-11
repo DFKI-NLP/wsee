@@ -462,19 +462,6 @@ def lf_stanford_separate_sentence(x):
 @labeling_function(pre=[get_trigger, get_argument, get_somajo_doc])
 def lf_somajo_separate_sentence(x):
     same_sentence = False
-    for sentence, sent_tokens in zip(x.somajo_doc['sentences'], x.somajo_doc['doc']):
-        if x.somajo_doc['trigger'] in sentence and x.somajo_doc['argument'] in sentence:
-            same_sentence = True
-            break
-    if same_sentence:
-        return ABSTAIN
-    else:
-        return no_arg
-
-
-@labeling_function(pre=[get_trigger, get_argument, get_somajo_doc])
-def lf_somajo_spans_separate_sentence(x):
-    same_sentence = False
     text = ""
     tolerance = 0
     for sentence, sent_tokens in zip(x.somajo_doc['sentences'], x.somajo_doc['doc']):
@@ -483,7 +470,7 @@ def lf_somajo_spans_separate_sentence(x):
         sentence_end = len(text)
         # allow for some tolerance for wrong whitespaces: number of punctuation marks, new lines  for now
         # factor 2 because for each punctuation marks we are adding at most 2 wrong whitespaces
-        tolerance += 2 * len([token for token in sent_tokens if token in punctuation_marks]) + sentence.count('\n')
+        tolerance += 2 * len([token for token in sent_tokens if token.text in punctuation_marks]) + sentence.count('\n')
         m_start = min(x.trigger['char_start'], x.argument['char_start'])
         m_end = max(x.trigger['char_end'], x.argument['char_end'])
         if sentence_start <= m_start + tolerance and m_end <= sentence_end + tolerance:
