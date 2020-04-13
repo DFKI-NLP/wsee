@@ -1,14 +1,12 @@
 import os
-from typing import Optional, List
+from pathlib import Path
 
 import pandas as pd
-import numpy as np
-from tqdm import tqdm
-from pathlib import Path
 from snorkel.labeling import LabelModel, PandasLFApplier
-from wsee.utils import utils
-from wsee.labeling.event_trigger_lfs import *
+from tqdm import tqdm
+
 from wsee.labeling.event_argument_role_lfs import *
+from wsee.labeling.event_trigger_lfs import *
 
 
 def load_data(path, use_build_defaults=True):
@@ -154,12 +152,14 @@ def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_prob
     :return: DataFrame containing one document per row.
     """
     # add event_trigger_probs to dataframe as additional column
-    event_role_rows['event_argument_probs'] = list(event_argument_probs)
-    event_role_rows = event_role_rows.apply(build_labeled_event_role, axis=1)
+    # TODO fix: A value is trying to be set on a copy of a slice from a DataFrame
+    event_role_rows_copy = event_role_rows.copy()
+    event_role_rows_copy['event_argument_probs'] = list(event_argument_probs)
+    event_role_rows_copy = event_role_rows_copy.apply(build_labeled_event_role, axis=1)
     aggregation_functions = {
         'event_roles': 'sum'  # expects list of one event role per row
     }
-    return event_role_rows.groupby('id').agg(aggregation_functions)
+    return event_role_rows_copy.groupby('id').agg(aggregation_functions)
 
 
 def get_trigger_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]] = None,
@@ -204,9 +204,7 @@ def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]]
     event_role_examples, _ = build_event_role_examples(l_train)
     if lfs is None:
         lfs = [
-            lf_location_type,
             lf_delay_type,
-            lf_delay_event_type,
             lf_direction_type,
             lf_start_location_type,
             lf_end_location_type,
@@ -220,9 +218,6 @@ def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]]
             lf_somajo_separate_sentence,
             lf_event_patterns,
             lf_event_patterns_general_location
-            # lf_dependency,
-            # lf_spacy_separate_sentence,
-            # lf_stanford_separate_sentence
         ]
     applier = PandasLFApplier(lfs)
     df_train = applier.apply(event_role_examples)
