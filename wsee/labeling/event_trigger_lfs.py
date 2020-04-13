@@ -95,7 +95,7 @@ def check_cause_keywords(tokens, x):
     :param tokens: Context tokens of the trigger.
     :return: True or False depending on a match with any of the causal keywords.
     """
-    cause_keywords = ['nach', 'wegen', 'bei', 'grund', 'aufgrund']
+    cause_keywords = ['nach', 'wegen', 'bei', 'grund', 'aufgrund', 'durch']
     if any(token.lower() in cause_keywords for token in tokens):
         left_text = " ".join(tokens)
         lower_left_text = left_text.lower()
