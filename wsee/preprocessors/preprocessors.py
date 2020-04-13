@@ -114,6 +114,14 @@ def get_trigger_left_pos(cand: DataPoint) -> DataPoint:
 
 
 @preprocessor()
+def get_trigger_left_ner(cand: DataPoint) -> DataPoint:
+    trigger = get_entity(cand.trigger_id, cand.entities)
+    if 'ner' in cand:
+        cand['trigger_left_ner'] = get_windowed_left_ner(trigger, cand.ner)
+    return cand
+
+
+@preprocessor()
 def get_argument_left_tokens(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
     cand['argument_left_tokens'] = get_windowed_left_tokens(argument, cand.tokens)
@@ -125,6 +133,14 @@ def get_argument_left_pos(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
     if 'pos' in cand:
         cand['argument_left_pos'] = get_windowed_left_pos(argument, cand.pos)
+    return cand
+
+
+@preprocessor()
+def get_argument_left_ner(cand: DataPoint) -> DataPoint:
+    argument = get_entity(cand.argument_id, cand.entities)
+    if 'ner' in cand:
+        cand['argument_left_ner'] = get_windowed_left_ner(argument, cand.ner)
     return cand
 
 
@@ -140,6 +156,10 @@ def get_windowed_left_tokens(entity, tokens, window_size: int = None) -> List[st
 
 def get_windowed_left_pos(entity, pos, window_size: int = None) -> List[str]:
     return get_windowed_left_tokens(entity, pos, window_size)
+
+
+def get_windowed_left_ner(entity, ner, window_size: int = None) -> List[str]:
+    return get_windowed_left_tokens(entity, ner, window_size)
 
 
 @preprocessor()
@@ -158,6 +178,14 @@ def get_trigger_right_pos(cand: DataPoint) -> DataPoint:
 
 
 @preprocessor()
+def get_trigger_right_ner(cand: DataPoint) -> DataPoint:
+    trigger = get_entity(cand.trigger_id, cand.entities)
+    if 'ner' in cand:
+        cand['trigger_right_ner'] = get_windowed_right_ner(trigger, cand.ner)
+    return cand
+
+
+@preprocessor()
 def get_argument_right_tokens(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
     cand['argument_right_tokens'] = get_windowed_right_tokens(argument, cand.tokens)
@@ -169,6 +197,14 @@ def get_argument_right_pos(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
     if 'pos' in cand:
         cand['argument_right_pos'] = get_windowed_right_pos(argument, cand.pos)
+    return cand
+
+
+@preprocessor()
+def get_argument_right_ner(cand: DataPoint) -> DataPoint:
+    argument = get_entity(cand.argument_id, cand.entities)
+    if 'ner' in cand:
+        cand['argument_right_ner'] = get_windowed_right_ner(argument, cand.ner)
     return cand
 
 
@@ -184,6 +220,10 @@ def get_windowed_right_tokens(entity, tokens, window_size: int = None) -> List[s
 
 def get_windowed_right_pos(entity, pos, window_size: int = None) -> List[str]:
     return get_windowed_right_tokens(entity, pos, window_size)
+
+
+def get_windowed_right_ner(entity, ner, window_size: int = None) -> List[str]:
+    return get_windowed_right_tokens(entity, ner, window_size)
 
 
 @preprocessor()
