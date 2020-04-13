@@ -9,7 +9,6 @@ from somajo import SoMaJo
 from snorkel.preprocess import preprocessor
 from snorkel.types import DataPoint
 from wsee.preprocessors.pattern_event_processor import escape_regex_chars
-from wsee.labeling import event_trigger_lfs
 
 punctuation_marks = ["<", "(", "[", "{", "\\", "^", "-", "=", "$", "!", "|",
                      "]", "}", ")", "?", "*", "+", ".", ",", ":", ";", ">",
@@ -451,20 +450,6 @@ def get_somajo_doc(cand: DataPoint) -> DataPoint:
         tokenized_argument = get_somajo_doc_tokens(nlp_somajo.tokenize_text([argument_text]))
         doc['argument'] = " ".join(tokenized_argument)
     cand['somajo_doc'] = doc
-    return cand
-
-
-@preprocessor()
-def get_is_event(cand: DataPoint) -> DataPoint:
-    if 'trigger' not in cand:
-        cand = get_trigger(cand)
-    if 'trigger_left_tokens' not in cand:
-        cand = get_trigger_left_tokens(cand)
-    if 'trigger_right_tokens' not in cand:
-        cand = get_trigger_right_tokens(cand)
-    if 'entity_type_freqs' not in cand:
-        cand = get_entity_type_freqs(cand)
-    cand['is_event'] = event_trigger_lfs.lf_negative(cand)
     return cand
 
 
