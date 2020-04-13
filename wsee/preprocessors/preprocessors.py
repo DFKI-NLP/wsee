@@ -340,7 +340,8 @@ def get_mixed_ner(cand: DataPoint) -> DataPoint:
         if 'char_start' and 'char_end' in entity.keys():
             match_start = entity['char_start']
             match_end = entity['char_end']
-            assert cand.text[match_start:match_end] == entity['text']
+            assert cand.text[match_start:match_end] == entity['text'], \
+                f"Mismatch {cand.text[match_start:match_end]} {entity['text']} in:\n{cand.text}"
         else:
             # simple text replace with search for entity text + check with token span?
             entity_text = re.compile(escape_regex_chars(entity['text'], optional_hashtag=False))
