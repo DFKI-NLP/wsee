@@ -270,6 +270,37 @@ def get_all_trigger_distances(cand: DataPoint) -> DataPoint:
 
 
 @preprocessor()
+def get_trigger_entity_type_distances(cand: DataPoint) -> DataPoint:
+    """
+    Calculates distances from trigger to all other entities, grouped by their entity type.
+    :param cand: DataPoint, one example.
+    :return: DataPoint enriched with distances.
+    """
+    trigger = get_entity(cand.trigger_id, cand.entities)
+    entity_trigger_distances: Dict[str, List[int]] = {
+        'location': [],
+        'location_city': [],
+        'location_route': [],
+        'location_stop': [],
+        'location_street': [],
+        'date': [],
+        'time': [],
+        'duration': [],
+        'distance': [],
+        'trigger': []
+    }
+    for entity in cand.entities:
+        if entity['id'] != cand.trigger_id:
+            distance = get_entity_distance(trigger, entity)
+            if entity['entity_type'] in entity_trigger_distances:
+                entity_trigger_distances['entity_type'].append(distance)
+            else:
+                entity_trigger_distances['entity_type'] = [distance]
+    cand['entity_trigger_distances'] = entity_trigger_distances
+    return cand
+
+
+@preprocessor()
 def get_sentence_trigger_distances(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
 
