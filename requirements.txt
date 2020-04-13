@@ -1,11 +1,9 @@
 somajo
+python-Levenshtein
 fuzzywuzzy
 stanfordnlp
-pandas
-numpy
-tqdm
 fastavro
-snorkel
+snorkel==0.9.3
 spacy
 jupyter
 ipykernel
