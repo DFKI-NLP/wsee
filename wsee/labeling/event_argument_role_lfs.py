@@ -82,15 +82,14 @@ def is_nearest_trigger(between_distance: int, all_trigger_distances: Dict[str, i
 #  Obstruction (all except loc_stop), RailReplacementService (loc_route),
 #  TrafficJam (loc, loc_city, loc_street, loc_route)
 
-def lf_location(x, same_sentence=True, nearest=True, check_is_event=True, event_type: int = None,
+def lf_location(x, same_sentence=True, nearest=True, check_event_type=True,
                 entity_types=('location', 'location_street', 'location_route', 'location_city', 'location_stop')):
     """
     Generalized labeling function for location argument type.
     :param x: DataPoint containing additional columns defined via the preprocessors argument.
     :param same_sentence: Abstain if trigger and argument are not in the same sentence.
     :param nearest: Abstain if trigger is not the nearest trigger of the argument.
-    :param check_is_event: Check if trigger is an event according to trigger labeling functions.
-    :param event_type: Check if argument entity type matches trigger event type
+    :param check_event_type: Check if argument entity type matches trigger event type.
     :param entity_types: General list of allowed entity types for the argument.
     :return: location label or ABSTAIN
     """
@@ -104,22 +103,16 @@ def lf_location(x, same_sentence=True, nearest=True, check_is_event=True, event_
         else:
             if not is_nearest_trigger(x.between_distance, x.all_trigger_distances):
                 return ABSTAIN
-    if check_is_event and event_type is None:
-        if not lf_not_an_event(x) == ABSTAIN:
-            return ABSTAIN
 
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type not in entity_types:
         return ABSTAIN
 
-    if event_type is None:
+    if not check_event_type:
         return location
     else:
-        if event_type < event_trigger_lfs.Accident or event_type > event_trigger_lfs.TrafficJam:
-            return ABSTAIN
-        else:
-            if event_type_lf_map[event_type](x) == event_type and \
-                    arg_entity_type in event_type_location_type_map[event_type]:
+        for event_class, location_types in event_type_location_type_map.items():
+            if arg_entity_type in location_types and event_type_lf_map[event_class](x) == event_class:
                 return location
     return ABSTAIN
 
@@ -142,98 +135,6 @@ def lf_location_same_sentence_nearest_is_event(x):
         return lf_location(x)
     else:
         return ABSTAIN
-
-
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances,
-                        get_sentence_trigger_distances])
-def lf_accident_location_same_sentence_is_event(x):
-    return lf_location(x, nearest=False, event_type=event_trigger_lfs.Accident)
-
-
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances,
-                        get_sentence_trigger_distances])
-def lf_accident_location_same_sentence_nearest_is_event(x):
-    return lf_location(x, event_type=event_trigger_lfs.Accident)
-
-
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances,
-                        get_sentence_trigger_distances])
-def lf_canceled_route_location_same_sentence_is_event(x):
-    return lf_location(x, nearest=False, event_type=event_trigger_lfs.CanceledRoute)
-
-
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances,
-                        get_sentence_trigger_distances])
-def lf_canceled_route_location_same_sentence_nearest_is_event(x):
-    return lf_location(x, event_type=event_trigger_lfs.CanceledRoute)
-
-
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances,
-                        get_sentence_trigger_distances])
-def lf_canceled_stop_location_same_sentence_is_event(x):
-    return lf_location(x, nearest=False, event_type=event_trigger_lfs.CanceledStop)
-
-
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances,
-                        get_sentence_trigger_distances])
-def lf_canceled_stop_location_same_sentence_nearest_is_event(x):
-    return lf_location(x, event_type=event_trigger_lfs.CanceledStop)
-
-
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances,
-                        get_sentence_trigger_distances])
-def lf_delay_location_same_sentence_is_event(x):
-    return lf_location(x, nearest=False, event_type=event_trigger_lfs.CanceledStop)
-
-
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances,
-                        get_sentence_trigger_distances])
-def lf_delay_location_same_sentence_nearest_is_event(x):
-    return lf_location(x, event_type=event_trigger_lfs.CanceledStop)
-
-
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances,
-                        get_sentence_trigger_distances])
-def lf_obstruction_location_type(x):
-    arg_entity_type = x.argument['entity_type']
-    if arg_entity_type in ['location', 'location_street', 'location_city', 'location_route']:
-        if lf_somajo_separate_sentence(x) == ABSTAIN and \
-                event_trigger_lfs.lf_obstruction_cat(x) == event_trigger_lfs.Obstruction:
-            return location
-    return ABSTAIN
-
-
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances,
-                        get_sentence_trigger_distances])
-def lf_rrs_location_type(x):
-    arg_entity_type = x.argument['entity_type']
-    if arg_entity_type in ['location_route']:
-        if lf_somajo_separate_sentence(x) == ABSTAIN and \
-                event_trigger_lfs.lf_railreplacementservice_cat(x) == event_trigger_lfs.RailReplacementService:
-            return location
-    return ABSTAIN
-
-
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances,
-                        get_sentence_trigger_distances])
-def lf_trafficjam_location_type(x):
-    arg_entity_type = x.argument['entity_type']
-    if arg_entity_type in ['location', 'location_street', 'location_city', 'location_route']:
-        if lf_somajo_separate_sentence(x) == ABSTAIN and \
-                event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam:
-            return location
-    return ABSTAIN
 
 
 # delay role
