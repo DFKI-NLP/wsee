@@ -438,11 +438,18 @@ def get_stanford_doc(cand: DataPoint) -> DataPoint:
 def get_somajo_doc(cand: DataPoint) -> DataPoint:
     load_somajo_model()
     somajo_doc = list(nlp_somajo.tokenize_text([cand.text]))
+    trigger_text = get_entity(cand.trigger_id, cand.entities)['text']
+    tokenized_trigger = get_somajo_doc_tokens(nlp_somajo.tokenize_text([trigger_text]))
     doc = {
         'doc': somajo_doc,
         'tokens': get_somajo_doc_tokens(somajo_doc),
         'sentences': get_somajo_doc_sentences(somajo_doc),
+        'trigger': " ".join(tokenized_trigger),
     }
+    if 'argument_id' in cand:
+        argument_text = get_entity(cand.argument_id, cand.entities)['text']
+        tokenized_argument = get_somajo_doc_tokens(nlp_somajo.tokenize_text([argument_text]))
+        doc['argument'] = " ".join(tokenized_argument)
     cand['somajo_doc'] = doc
     return cand
 
