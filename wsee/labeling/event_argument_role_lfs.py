@@ -240,13 +240,28 @@ def lf_start_location_type(x):
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
         if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
-                (any(token.lower() in ['zw.', 'zwischen', 'ab', 'von'] for token in x.argument_left_tokens[-1:]) or
-                 ('-' == x.argument_right_tokens[0] and
+                (any(token.lower() in ['zw.', 'zwischen', 'ab', 'von', 'einfahrt', 'anschlussstelle']
+                     for token in x.argument_left_tokens[-2:]) or
+                 (x.argument_right_tokens[0] in ['-', '<', '>', '<>'] and
                   x.argument_right_ner[1][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP'])):
             if 'von' == x.argument_left_tokens[-1:] and x.argument_left_ner[-2][2:] in ['LOCATION_ROUTE']:
                 return ABSTAIN
             else:
                 return start_loc
+    return ABSTAIN
+
+
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
+                        get_argument, get_argument_left_tokens, get_argument_right_tokens, get_argument_right_ner,
+                        get_argument_left_ner, get_somajo_doc, get_between_distance, get_sentence_trigger_distances])
+def lf_start_location_questionable(x):
+    if lf_too_far_40(x) != ABSTAIN:
+        return ABSTAIN
+    arg_entity_type = x.argument['entity_type']
+    if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
+        if is_nearest_trigger(x.between_distance, x.sentence_trigger_distances) and lf_not_an_event(x) == ABSTAIN and \
+                (any(token.lower() in ['bei', 'höhe'] for token in x.argument_left_tokens[-2:])):
+            return start_loc
     return ABSTAIN
 
 
@@ -259,8 +274,9 @@ def lf_start_location_nearest(x):
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
         if is_nearest_trigger(x.between_distance, x.sentence_trigger_distances) and lf_not_an_event(x) == ABSTAIN and \
-                (any(token.lower() in ['zw.', 'zwischen', 'ab', 'von'] for token in x.argument_left_tokens[-1:]) or
-                 ('-' == x.argument_right_tokens[0] and
+                (any(token.lower() in ['zw.', 'zwischen', 'ab', 'von', 'einfahrt', 'anschlussstelle']
+                     for token in x.argument_left_tokens[-1:]) or
+                 (x.argument_right_tokens[0] in ['-', '<', '>', '<>'] and
                   x.argument_right_ner[1][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP'])):
             if 'von' == x.argument_left_tokens[-1:] and x.argument_left_ner[-2][2:] in ['LOCATION_ROUTE']:
                 return ABSTAIN
@@ -276,8 +292,10 @@ def lf_end_location_type(x):
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
         if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
-                ((any(token.lower() in ['zw.', 'zwischen'] for token in x.argument_left_tokens[-4:]) and
-                  any(token.lower() in ['und'] for token in x.argument_left_tokens[-1:])) or
+                ((any(token.lower() in ['zw.', 'zwischen'] for token in x.argument_left_tokens[-6:]) and
+                  any(token.lower() in ['und', 'u.', '<', '>', '<>'] for token in x.argument_left_tokens[-1:])) or
+                 (any(token.lower() in ['von'] for token in x.argument_left_tokens[-6:-2]) and
+                  any(token.lower() in ['auf'] for token in x.argument_left_tokens[-3:])) or
                  any(token.lower() in ['bis'] for token in x.argument_left_tokens[-1:]) or
                  ('-' == x.argument_left_tokens[-1] and
                   x.argument_right_ner[-2][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP'])):
@@ -292,8 +310,10 @@ def lf_end_location_nearest(x):
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
         if is_nearest_trigger(x.between_distance, x.sentence_trigger_distances) and lf_not_an_event(x) == ABSTAIN and \
-                ((any(token.lower() in ['zw.', 'zwischen'] for token in x.argument_left_tokens[-4:]) and
-                  any(token.lower() in ['und'] for token in x.argument_left_tokens[-1:])) or
+                ((any(token.lower() in ['zw.', 'zwischen'] for token in x.argument_left_tokens[-6:]) and
+                  any(token.lower() in ['und', 'u.', '<', '>', '<>'] for token in x.argument_left_tokens[-1:])) or
+                 (any(token.lower() in ['von'] for token in x.argument_left_tokens[-6:-2]) and
+                  any(token.lower() in ['auf'] for token in x.argument_left_tokens[-3:])) or
                  any(token.lower() in ['bis'] for token in x.argument_left_tokens[-1:]) or
                  ('-' == x.argument_left_tokens[-1] and
                   x.argument_right_ner[-2][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP'])):
