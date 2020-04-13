@@ -139,6 +139,18 @@ def lf_location_same_sentence_nearest_is_event(x):
         return ABSTAIN
 
 
+@labeling_function(pre=[get_trigger, get_between_tokens, get_trigger_left_tokens, get_trigger_right_tokens,
+                        get_entity_type_freqs, get_argument, get_somajo_doc, get_between_distance,
+                        get_all_trigger_distances, get_sentence_trigger_distances])
+def lf_location_adjacent(x):
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
+            lf_direction_type(x) == ABSTAIN and \
+            lf_multiple_same_event_type(x) == ABSTAIN and lf_somajo_separate_sentence(x) == ABSTAIN \
+            and x.between_distance < 3:
+        return location
+    return ABSTAIN
+
+
 # delay role
 @labeling_function(pre=[get_trigger, get_between_tokens, get_trigger_left_tokens, get_trigger_right_tokens,
                         get_entity_type_freqs, get_argument, get_somajo_doc, get_between_distance,
