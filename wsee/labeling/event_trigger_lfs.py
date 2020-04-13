@@ -216,7 +216,6 @@ def lf_trafficjam_cat(x):
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs])
 def lf_negative(x):
     lfs = [
-        lf_accident_cat,
         lf_accident_context,
         lf_canceledroute_cat,
         lf_canceledstop_cat,
