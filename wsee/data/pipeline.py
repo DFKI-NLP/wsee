@@ -28,12 +28,12 @@ def load_data(path, use_build_defaults=True):
         else:
             sd_path = input_path.joinpath(split, f'{split}_with_events.jsonl')
         assert os.path.exists(sd_path)
-        sd_data = pd.read_json(sd_path, lines=True)
+        sd_data = pd.read_json(sd_path, lines=True, encoding='utf8')
         output_dict[split] = sd_data
 
     daystream_path = os.path.join(input_path, 'daystream.jsonl')
     assert os.path.exists(daystream_path)
-    daystream = pd.read_json(daystream_path, lines=True)
+    daystream = pd.read_json(daystream_path, lines=True, encoding='utf8')
     output_dict['daystream'] = daystream
 
     return output_dict
