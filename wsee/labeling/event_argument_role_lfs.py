@@ -142,7 +142,7 @@ def lf_location_same_sentence_nearest_is_event(x):
 # delay role
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
                         get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances,
-                        get_sentence_trigger_distances])
+                        get_sentence_trigger_distances, get_argument_right_tokens, get_argument_left_tokens])
 def lf_delay_event_sentence(x):
     if lf_too_far_40(x) != ABSTAIN:
         return ABSTAIN
@@ -196,7 +196,8 @@ def lf_loc_stop_direction_type(x):
             if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
                     (any(token.lower() in ['nach', 'richtung'] for token in x.argument_left_tokens[-1:]) or
                      'Ankunft' in x.argument_left_tokens[-4:] or
-                     x.argument_left_ner[-1][2:] == 'LOCATION_ROUTE') and \
+                     ('argument_left_ner' in x and x.argument_left_ner and
+                      x.argument_left_ner[-1][2:] == 'LOCATION_ROUTE')) and \
                     (event_trigger_lfs.lf_canceledroute_cat(x) == event_trigger_lfs.CanceledRoute or
                      event_trigger_lfs.lf_delay_cat(x) == event_trigger_lfs.Delay or
                      event_trigger_lfs.lf_railreplacementservice_cat(x) == event_trigger_lfs.RailReplacementService):
@@ -219,7 +220,8 @@ def lf_loc_loc_city_direction_type(x):
                      'Ankunft' in x.argument_left_tokens[-4:] or
                      'richtung' in x.argument['text'].lower() or 'stadteinwärts' in x.argument['text'].lower() or
                      'stadtauswärts' in x.argument['text'].lower() or
-                     x.argument_left_ner[-1][2:] == 'LOCATION_ROUTE') and \
+                     ('argument_left_ner' in x and x.argument_left_ner and
+                      x.argument_left_ner[-1][2:] == 'LOCATION_ROUTE')) and \
                     (event_trigger_lfs.lf_accident_context(x) == event_trigger_lfs.Accident or
                      event_trigger_lfs.lf_obstruction_cat(x) == event_trigger_lfs.Obstruction or
                      event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam):
@@ -242,9 +244,12 @@ def lf_start_location_type(x):
         if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
                 (any(token.lower() in ['zw.', 'zwischen', 'ab', 'von', 'einfahrt', 'anschlussstelle']
                      for token in x.argument_left_tokens[-2:]) or
-                 (x.argument_right_tokens[0] in ['-', '<', '>', '<>'] and
+                 (x.argument_right_tokens and x.argument_right_tokens[0] in ['-', '<', '>', '<>'] and
+                  'argument_right_ner' in x and len(x.argument_right_ner) > 1 and
                   x.argument_right_ner[1][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP'])):
-            if 'von' == x.argument_left_tokens[-1:] and x.argument_left_ner[-2][2:] in ['LOCATION_ROUTE']:
+            if 'von' == x.argument_left_tokens[-1:] and \
+                  'argument_left_ner' in x and len(x.argument_left_ner) > 1 and \
+                    x.argument_left_ner[-2][2:] in ['LOCATION_ROUTE']:
                 return ABSTAIN
             else:
                 return start_loc
@@ -276,9 +281,12 @@ def lf_start_location_nearest(x):
         if is_nearest_trigger(x.between_distance, x.sentence_trigger_distances) and lf_not_an_event(x) == ABSTAIN and \
                 (any(token.lower() in ['zw.', 'zwischen', 'ab', 'von', 'einfahrt', 'anschlussstelle']
                      for token in x.argument_left_tokens[-1:]) or
-                 (x.argument_right_tokens[0] in ['-', '<', '>', '<>'] and
+                 (x.argument_right_tokens and x.argument_right_tokens[0] in ['-', '<', '>', '<>'] and
+                  'argument_right_ner' in x and len(x.argument_right_ner) > 1 and
                   x.argument_right_ner[1][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP'])):
-            if 'von' == x.argument_left_tokens[-1:] and x.argument_left_ner[-2][2:] in ['LOCATION_ROUTE']:
+            if 'von' == x.argument_left_tokens[-1:] and \
+                  'argument_left_ner' in x and len(x.argument_left_ner) > 1 and \
+                  x.argument_left_ner[-2][2:] in ['LOCATION_ROUTE']:
                 return ABSTAIN
             else:
                 return start_loc
@@ -287,7 +295,8 @@ def lf_start_location_nearest(x):
 
 # end_loc
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_argument_left_tokens, get_argument_left_ner, get_somajo_doc])
+                        get_argument, get_argument_left_tokens, get_argument_left_ner, get_somajo_doc,
+                        get_argument_right_ner])
 def lf_end_location_type(x):
     if lf_too_far_40(x) != ABSTAIN:
         return ABSTAIN
@@ -299,7 +308,8 @@ def lf_end_location_type(x):
                  (any(token.lower() in ['von'] for token in x.argument_left_tokens[-6:-2]) and
                   any(token.lower() in ['auf'] for token in x.argument_left_tokens[-3:])) or
                  any(token.lower() in ['bis'] for token in x.argument_left_tokens[-1:]) or
-                 ('-' == x.argument_left_tokens[-1] and
+                 (x.argument_left_tokens and '-' == x.argument_left_tokens[-1] and
+                  'argument_right_ner' in x and len(x.argument_right_ner) > 1 and
                   x.argument_right_ner[-2][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP'])):
             return end_loc
     return ABSTAIN
@@ -307,7 +317,7 @@ def lf_end_location_type(x):
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
                         get_argument, get_argument_left_tokens, get_argument_left_ner, get_somajo_doc,
-                        get_between_distance, get_sentence_trigger_distances])
+                        get_between_distance, get_sentence_trigger_distances, get_argument_right_ner])
 def lf_end_location_nearest(x):
     if lf_too_far_40(x) != ABSTAIN:
         return ABSTAIN
@@ -319,7 +329,8 @@ def lf_end_location_nearest(x):
                  (any(token.lower() in ['von'] for token in x.argument_left_tokens[-6:-2]) and
                   any(token.lower() in ['auf'] for token in x.argument_left_tokens[-3:])) or
                  any(token.lower() in ['bis'] for token in x.argument_left_tokens[-1:]) or
-                 ('-' == x.argument_left_tokens[-1] and
+                 (x.argument_left_tokens and '-' == x.argument_left_tokens[-1] and
+                  'argument_right_ner' in x and len(x.argument_right_ner) > 1 and
                   x.argument_right_ner[-2][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP'])):
             return end_loc
     return ABSTAIN
@@ -338,7 +349,8 @@ def lf_start_date_type(x):
             if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
                     ((any(token.lower() in ['ab', 'von', 'vom'] for token in x.argument_left_tokens[-3:]) and
                       not any(token.lower() in ['bis'] for token in x.argument_left_tokens[-3:])) or
-                     (x.argument_right_tokens[0] in ['und', '/', '-'] and
+                     (x.argument_right_tokens and x.argument_right_tokens[0] in ['und', '/', '-'] and
+                      'argument_right_ner' in x and len(x.argument_right_ner) > 1 and
                       x.argument_right_ner[1][2:] in ['DATE', 'TIME'])):
                 return start_date
     return ABSTAIN
@@ -346,7 +358,7 @@ def lf_start_date_type(x):
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
                         get_argument, get_argument_left_tokens, get_argument_right_tokens, get_somajo_doc,
-                        get_between_distance, get_sentence_trigger_distances, get_trigger_entity_type_distances])
+                        get_between_distance, get_sentence_trigger_distances, get_entity_trigger_distances])
 def lf_start_date_nearest(x):
     if lf_too_far_40(x) != ABSTAIN or 'Meldung' in x.argument_right_tokens:
         return ABSTAIN
@@ -354,7 +366,8 @@ def lf_start_date_nearest(x):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['date', 'time']:
             if is_nearest_trigger(x.between_distance, x.sentence_trigger_distances) and \
-                    x.between_distance <= min(x.trigger_entity_type_distances[arg_entity_type]) and \
+                    x.entity_trigger_distances[arg_entity_type] and \
+                    x.between_distance <= min(x.entity_trigger_distances[arg_entity_type]) and \
                     lf_not_an_event(x) == ABSTAIN and lf_end_date_type(x) == ABSTAIN:
                 return start_date
     return ABSTAIN
@@ -373,7 +386,8 @@ def lf_end_date_type(x):
             if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
                     ((any(token.lower() in ['bis', 'endet'] for token in x.argument_left_tokens[-3:]) and
                       not any(token.lower() in ['von'] for token in x.argument_left_tokens[-2:])) or
-                     (x.argument_left_tokens[-1] in ['und', '/', '-'] and
+                     (x.argument_left_tokens and x.argument_left_tokens[-1] in ['und', '/', '-'] and
+                      'argument_left_ner' in x and len(x.argument_left_ner) > 1 and
                       x.argument_left_ner[1][2:] in ['DATE', 'TIME'])):
                 return end_date
     return ABSTAIN
@@ -388,7 +402,7 @@ def lf_cause_type(x):
         if arg_entity_type in ['trigger']:
             if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
                     (event_trigger_lfs.check_cause_keywords(x.argument_left_tokens[-4:], x) or
-                     x.argument_right_tokens[0].lower() in ['erzeugt', 'erzeugen']):
+                     (x.argument_right_tokens and x.argument_right_tokens[0].lower() in ['erzeugt', 'erzeugen'])):
                 # TODO check trigger-arg order, some event types have higher priority
                 #  often Accident cause for TrafficJam
                 return cause
@@ -407,7 +421,7 @@ def lf_cause_gaz_file(x, cause_mapping):
 # jam_length
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
                         get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances,
-                        get_sentence_trigger_distances, get_trigger_entity_type_distances])
+                        get_sentence_trigger_distances, get_entity_trigger_distances])
 def lf_distance_type(x):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
@@ -420,13 +434,14 @@ def lf_distance_type(x):
 
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
                         get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances,
-                        get_sentence_trigger_distances, get_trigger_entity_type_distances])
+                        get_sentence_trigger_distances, get_entity_trigger_distances])
 def lf_distance_nearest(x):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['distance']:
             if is_nearest_trigger(x.between_distance, x.sentence_trigger_distances) and \
-                    x.between_distance <= min(x.trigger_entity_type_distances[arg_entity_type]) and \
+                    x.entity_trigger_distances[arg_entity_type] and \
+                    x.between_distance <= min(x.entity_trigger_distances[arg_entity_type]) and \
                     event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam:
                 return jam_length
     return ABSTAIN
@@ -530,11 +545,16 @@ def lf_not_nearest_same_sentence_event(x):
 
 
 @labeling_function(pre=[get_trigger, get_argument, get_between_distance, get_sentence_trigger_distances,
-                        get_trigger_entity_type_distances])
+                        get_entity_trigger_distances])
 def lf_not_nearest_event_argument(x):
     argument_type = x.argument['entity_type']
+    if argument_type not in ['location', 'location_city', 'location_route', 'location_stop', 'location_street', 'date',
+                             'time', 'duration', 'distance', 'trigger']:
+        return no_arg
     if is_nearest_trigger(x.between_distance, x.sentence_trigger_distances) and \
-            x.between_distance <= min(x.sentence_trigger_distances[argument_type]):
+            'entity_trigger_distances' in x and \
+            x.entity_trigger_distances[argument_type] and \
+            x.between_distance <= min(x.entity_trigger_distances[argument_type]):
         return ABSTAIN
     else:
         return no_arg
