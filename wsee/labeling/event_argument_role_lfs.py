@@ -337,7 +337,7 @@ def lf_start_date_type(x):
         if arg_entity_type in ['date', 'time']:
             if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
                     ((any(token.lower() in ['ab', 'von', 'vom'] for token in x.argument_left_tokens[-3:]) and
-                     not any(token.lower() in ['bis'] for token in x.argument_left_tokens[-3:])) or
+                      not any(token.lower() in ['bis'] for token in x.argument_left_tokens[-3:])) or
                      (x.argument_right_tokens[0] in ['und', '/', '-'] and
                       x.argument_right_ner[1][2:] in ['DATE', 'TIME'])):
                 return start_date
@@ -372,7 +372,7 @@ def lf_end_date_type(x):
         if arg_entity_type in ['date', 'time']:
             if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
                     ((any(token.lower() in ['bis', 'endet'] for token in x.argument_left_tokens[-3:]) and
-                     not any(token.lower() in ['von'] for token in x.argument_left_tokens[-2:])) or
+                      not any(token.lower() in ['von'] for token in x.argument_left_tokens[-2:])) or
                      (x.argument_left_tokens[-1] in ['und', '/', '-'] and
                       x.argument_left_ner[1][2:] in ['DATE', 'TIME'])):
                 return end_date
@@ -414,7 +414,6 @@ def lf_distance_type(x):
         if arg_entity_type in ['distance']:
             if lf_somajo_separate_sentence(x) == ABSTAIN and \
                     event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam:
-                # TODO make sure it is the closest TrafficJam event
                 return jam_length
     return ABSTAIN
 
@@ -426,9 +425,9 @@ def lf_distance_nearest(x):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['distance']:
-            if lf_somajo_separate_sentence(x) == ABSTAIN and \
+            if is_nearest_trigger(x.between_distance, x.sentence_trigger_distances) and \
+                    x.between_distance <= min(x.trigger_entity_type_distances[arg_entity_type]) and \
                     event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam:
-                # TODO make sure it is the closest TrafficJam event
                 return jam_length
     return ABSTAIN
 
@@ -514,7 +513,7 @@ def lf_somajo_separate_sentence(x):
 
 
 @labeling_function(
-    pre=[get_trigger, get_argument, get_between_distance, get_all_trigger_distances, get_sentence_trigger_distances])
+    pre=[get_trigger, get_argument, get_between_distance, get_all_trigger_distances])
 def lf_not_nearest_event(x):
     if is_nearest_trigger(x.between_distance, x.all_trigger_distances):
         return ABSTAIN
@@ -525,6 +524,17 @@ def lf_not_nearest_event(x):
 @labeling_function(pre=[get_trigger, get_argument, get_between_distance, get_sentence_trigger_distances])
 def lf_not_nearest_same_sentence_event(x):
     if is_nearest_trigger(x.between_distance, x.sentence_trigger_distances):
+        return ABSTAIN
+    else:
+        return no_arg
+
+
+@labeling_function(pre=[get_trigger, get_argument, get_between_distance, get_sentence_trigger_distances,
+                        get_trigger_entity_type_distances])
+def lf_not_nearest_event_argument(x):
+    argument_type = x.argument['entity_type']
+    if is_nearest_trigger(x.between_distance, x.sentence_trigger_distances) and \
+            x.between_distance <= min(x.sentence_trigger_distances[argument_type]):
         return ABSTAIN
     else:
         return no_arg
