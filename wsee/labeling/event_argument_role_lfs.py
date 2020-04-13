@@ -478,6 +478,17 @@ def lf_too_far_40(x):
         return ABSTAIN
 
 
+@labeling_function(pre=[get_trigger, get_between_tokens])
+def lf_multiple_same_event_type(x):
+    # TODO check and use in all lfs
+    #  also use keyword list and loop over them instead of trying to exactly match the trigger text
+    trigger_text = x.trigger['text']
+    if trigger_text in x.between_tokens:
+        return no_arg
+    else:
+        return ABSTAIN
+
+
 # general
 @labeling_function(pre=[get_trigger, get_argument, get_spacy_doc])
 def lf_dependency(x):
