@@ -270,7 +270,7 @@ def get_all_trigger_distances(cand: DataPoint) -> DataPoint:
 
 
 @preprocessor()
-def get_trigger_entity_type_distances(cand: DataPoint) -> DataPoint:
+def get_entity_trigger_distances(cand: DataPoint) -> DataPoint:
     """
     Calculates distances from trigger to all other entities, grouped by their entity type.
     :param cand: DataPoint, one example.
@@ -292,10 +292,11 @@ def get_trigger_entity_type_distances(cand: DataPoint) -> DataPoint:
     for entity in cand.entities:
         if entity['id'] != cand.trigger_id:
             distance = get_entity_distance(trigger, entity)
-            if entity['entity_type'] in entity_trigger_distances:
-                entity_trigger_distances['entity_type'].append(distance)
+            entity_type = entity['entity_type']
+            if entity_type in entity_trigger_distances:
+                entity_trigger_distances[entity_type].append(distance)
             else:
-                entity_trigger_distances['entity_type'] = [distance]
+                entity_trigger_distances[entity_type] = [distance]
     cand['entity_trigger_distances'] = entity_trigger_distances
     return cand
 
