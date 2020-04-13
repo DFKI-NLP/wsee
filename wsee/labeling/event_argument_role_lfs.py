@@ -381,14 +381,16 @@ def lf_end_date_type(x):
 
 # cause
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_argument_left_tokens, get_somajo_doc])
+                        get_argument, get_argument_left_tokens, get_argument_right_tokens, get_somajo_doc])
 def lf_cause_type(x):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['trigger']:
             if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
-                    event_trigger_lfs.check_cause_keywords(x.argument_left_tokens[-4:], x):
+                    (event_trigger_lfs.check_cause_keywords(x.argument_left_tokens[-4:], x) or
+                     x.argument_right_tokens[0].lower() in ['erzeugt', 'erzeugen']):
                 # TODO check trigger-arg order, some event types have higher priority
+                #  often Accident cause for TrafficJam
                 return cause
     return ABSTAIN
 
@@ -405,8 +407,22 @@ def lf_cause_gaz_file(x, cause_mapping):
 # jam_length
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
                         get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances,
-                        get_sentence_trigger_distances])
+                        get_sentence_trigger_distances, get_trigger_entity_type_distances])
 def lf_distance_type(x):
+    if check_required_args(x.entity_type_freqs):
+        arg_entity_type = x.argument['entity_type']
+        if arg_entity_type in ['distance']:
+            if lf_somajo_separate_sentence(x) == ABSTAIN and \
+                    event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam:
+                # TODO make sure it is the closest TrafficJam event
+                return jam_length
+    return ABSTAIN
+
+
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
+                        get_argument, get_somajo_doc, get_between_distance, get_all_trigger_distances,
+                        get_sentence_trigger_distances, get_trigger_entity_type_distances])
+def lf_distance_nearest(x):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['distance']:
