@@ -289,6 +289,8 @@ def lf_start_location_nearest(x):
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
                         get_argument, get_argument_left_tokens, get_argument_left_ner, get_somajo_doc])
 def lf_end_location_type(x):
+    if lf_too_far_40(x) != ABSTAIN:
+        return ABSTAIN
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
         if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
@@ -307,6 +309,8 @@ def lf_end_location_type(x):
                         get_argument, get_argument_left_tokens, get_argument_left_ner, get_somajo_doc,
                         get_between_distance, get_sentence_trigger_distances])
 def lf_end_location_nearest(x):
+    if lf_too_far_40(x) != ABSTAIN:
+        return ABSTAIN
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
         if is_nearest_trigger(x.between_distance, x.sentence_trigger_distances) and lf_not_an_event(x) == ABSTAIN and \
@@ -323,26 +327,54 @@ def lf_end_location_nearest(x):
 
 # start_date
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_argument_left_tokens, get_somajo_doc])
+                        get_argument, get_argument_left_tokens, get_argument_right_tokens, get_somajo_doc,
+                        get_argument_right_ner])
 def lf_start_date_type(x):
+    if lf_too_far_40(x) != ABSTAIN or 'Meldung' in x.argument_right_tokens:
+        return ABSTAIN
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['date', 'time']:
             if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
-                    any(token.lower() in ['ab', 'von'] for token in x.argument_left_tokens[-2:]):
+                    ((any(token.lower() in ['ab', 'von', 'vom'] for token in x.argument_left_tokens[-3:]) and
+                     not any(token.lower() in ['bis'] for token in x.argument_left_tokens[-3:])) or
+                     (x.argument_right_tokens[0] in ['und', '/', '-'] and
+                      x.argument_right_ner[1][2:] in ['DATE', 'TIME'])):
+                return start_date
+    return ABSTAIN
+
+
+@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
+                        get_argument, get_argument_left_tokens, get_argument_right_tokens, get_somajo_doc,
+                        get_between_distance, get_sentence_trigger_distances, get_trigger_entity_type_distances])
+def lf_start_date_nearest(x):
+    if lf_too_far_40(x) != ABSTAIN or 'Meldung' in x.argument_right_tokens:
+        return ABSTAIN
+    if check_required_args(x.entity_type_freqs):
+        arg_entity_type = x.argument['entity_type']
+        if arg_entity_type in ['date', 'time']:
+            if is_nearest_trigger(x.between_distance, x.sentence_trigger_distances) and \
+                    x.between_distance <= min(x.trigger_entity_type_distances[arg_entity_type]) and \
+                    lf_not_an_event(x) == ABSTAIN and lf_end_date_type(x) == ABSTAIN:
                 return start_date
     return ABSTAIN
 
 
 # end_date
 @labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs,
-                        get_argument, get_argument_left_tokens, get_somajo_doc])
+                        get_argument, get_argument_left_tokens, get_argument_right_tokens, get_somajo_doc,
+                        get_argument_left_ner])
 def lf_end_date_type(x):
+    if lf_too_far_40(x) != ABSTAIN or 'Meldung' in x.argument_right_tokens:
+        return ABSTAIN
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['date', 'time']:
             if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
-                    any(token.lower() in ['bis'] for token in x.argument_left_tokens[-2:]):
+                    ((any(token.lower() in ['bis', 'endet'] for token in x.argument_left_tokens[-3:]) and
+                     not any(token.lower() in ['von'] for token in x.argument_left_tokens[-2:])) or
+                     (x.argument_left_tokens[-1] in ['und', '/', '-'] and
+                      x.argument_left_ner[1][2:] in ['DATE', 'TIME'])):
                 return end_date
     return ABSTAIN
 
