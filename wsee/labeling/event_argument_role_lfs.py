@@ -253,7 +253,7 @@ def lf_loc_loc_city_direction_type(x):
                         get_argument_right_ner, get_argument_left_ner, get_somajo_doc])
 def lf_start_location_type(x):
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
-            event_trigger_lfs.canceledstop_keywords(x) != ABSTAIN:
+            event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
         return ABSTAIN
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
@@ -278,7 +278,7 @@ def lf_start_location_type(x):
                         get_sentence_trigger_distances])
 def lf_start_location_questionable(x):
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
-            event_trigger_lfs.canceledstop_keywords(x) != ABSTAIN:
+            event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
         return ABSTAIN
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
@@ -294,7 +294,7 @@ def lf_start_location_questionable(x):
                         get_sentence_trigger_distances])
 def lf_start_location_nearest(x):
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
-            event_trigger_lfs.canceledstop_keywords(x) != ABSTAIN:
+            event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
         return ABSTAIN
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
@@ -319,7 +319,7 @@ def lf_start_location_nearest(x):
                         get_somajo_doc, get_argument_right_ner])
 def lf_end_location_type(x):
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
-            event_trigger_lfs.canceledstop_keywords(x) != ABSTAIN:
+            event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
         return ABSTAIN
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
