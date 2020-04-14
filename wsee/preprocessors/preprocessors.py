@@ -228,6 +228,11 @@ def get_windowed_right_ner(entity, ner, window_size: int = None) -> List[str]:
 
 @preprocessor()
 def get_between_tokens(cand: DataPoint) -> DataPoint:
+    cand['between_tokens'] = get_between_tokens_helper(cand)
+    return cand
+
+
+def get_between_tokens_helper(cand: DataPoint):
     trigger = get_entity(cand.trigger_id, cand.entities)
     argument = get_entity(cand.argument_id, cand.entities)
 
@@ -243,8 +248,7 @@ def get_between_tokens(cand: DataPoint) -> DataPoint:
         cand['between_tokens'] = []
         return cand
 
-    cand['between_tokens'] = cand.tokens[start:end]
-    return cand
+    return cand.tokens[start:end]
 
 
 @preprocessor()
