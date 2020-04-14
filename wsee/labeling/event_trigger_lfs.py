@@ -74,12 +74,14 @@ def lf_accident_cat(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_trigger_left_tokens, get_trigger_right_tokens])
+@labeling_function(pre=[get_trigger, get_entity_type_freqs])
 def lf_accident_context(x):
+    trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
+    trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], accident_keywords)
     if highest[1] >= 90:
-        if (check_cause_keywords(x.trigger_left_tokens[-4:], x) or
-            check_in_parentheses(x.trigger['text'], x.trigger_left_tokens, x.trigger_right_tokens)) \
+        if (check_cause_keywords(trigger_left_tokens[-4:], x) or
+            check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
             return O
         else:
@@ -131,7 +133,7 @@ def check_in_parentheses(trigger_text, left_tokens=None, right_tokens=None):
         return False
 
 
-@labeling_function(pre=[get_trigger, get_trigger_right_tokens, get_entity_type_freqs])
+@labeling_function(pre=[get_trigger, get_entity_type_freqs])
 def lf_canceledroute_cat(x):
     """
     Checks for canceled route keywords. Does not handle special case of split trigger "fällt ... aus".
@@ -139,21 +141,24 @@ def lf_canceledroute_cat(x):
     :param x:
     :return:
     """
+    # trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
+    # trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], canceledroute_keywords)
     if highest[1] >= 90 and 'location_route' in x.entity_type_freqs:
         # TODO handle special case?
-        # if x.trigger['text'] in ['fällt', 'fallen'] and 'aus' in x.trigger_right_tokens:
-        # if x.trigger['text'] == 'aus' and any(fall in x.trigger_left_tokens for fall in ['fällt', 'fallen']):
+        # if x.trigger['text'] in ['fällt', 'fallen'] and 'aus' in trigger_right_tokens:
+        # if x.trigger['text'] == 'aus' and any(fall in trigger_left_tokens for fall in ['fällt', 'fallen']):
         #    return ABSTAIN
         return CanceledRoute
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_trigger_left_tokens])
+@labeling_function(pre=[get_trigger, get_entity_type_freqs])
 def lf_canceledstop_cat(x):
+    trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], canceledstop_keywords)
     if highest[1] >= 90 and 'location_stop' in x.entity_type_freqs:
-        if not check_route_keywords(x.trigger_left_tokens[-7:]):
+        if not check_route_keywords(trigger_left_tokens[-7:]):
             return CanceledStop
     return ABSTAIN
 
@@ -166,12 +171,14 @@ def check_route_keywords(tokens):
         return False
 
 
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs])
+@labeling_function(pre=[get_trigger, get_entity_type_freqs])
 def lf_delay_cat(x):
+    trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
+    trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], delay_keywords)
     if highest[1] >= 90:
-        if (check_cause_keywords(x.trigger_left_tokens[-4:], x) or
-            check_in_parentheses(x.trigger['text'], x.trigger_left_tokens, x.trigger_right_tokens)) \
+        if (check_cause_keywords(trigger_left_tokens[-4:], x) or
+            check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
             return O
         else:
@@ -179,12 +186,14 @@ def lf_delay_cat(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs])
+@labeling_function(pre=[get_trigger, get_entity_type_freqs])
 def lf_obstruction_cat(x):
+    trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
+    trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], obstruction_keywords)
     if highest[1] >= 90 and x.trigger['text'] not in ['aus', 'aus.']:
-        if (check_cause_keywords(x.trigger_left_tokens[-4:], x) or
-            check_in_parentheses(x.trigger['text'], x.trigger_left_tokens, x.trigger_right_tokens)) \
+        if (check_cause_keywords(trigger_left_tokens[-4:], x) or
+            check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
             return O
         else:
@@ -200,12 +209,14 @@ def lf_railreplacementservice_cat(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs])
+@labeling_function(pre=[get_trigger, get_entity_type_freqs])
 def lf_trafficjam_cat(x):
+    trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
+    trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], trafficjam_keywords)
     if (highest[1] >= 90 or x.trigger['text'] in trafficjam_exact_keywords) and \
             x.trigger['text'] not in ['aus', 'aus.']:
-        if check_in_parentheses(x.trigger['text'], x.trigger_left_tokens, x.trigger_right_tokens) and \
+        if check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens) and \
                 x.entity_type_freqs['trigger'] > 1:
             return O
         else:
@@ -213,7 +224,7 @@ def lf_trafficjam_cat(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_trigger_left_tokens, get_trigger_right_tokens, get_entity_type_freqs])
+@labeling_function(pre=[get_trigger, get_entity_type_freqs])
 def lf_negative(x):
     lfs = [
         lf_accident_context,
