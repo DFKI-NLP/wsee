@@ -336,8 +336,7 @@ def lf_end_location_type(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument,
-                        get_somajo_doc, get_sentence_trigger_distances])
+@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
 def lf_end_location_nearest(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
