@@ -196,7 +196,7 @@ def lf_direction_type(x):
 @labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
 def lf_loc_stop_direction_type(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
-    argument_left_ner = get_windowed_left_ner(x.argument, x.ner)
+    argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
         return ABSTAIN
     if lf_start_location_type(x) != ABSTAIN or lf_end_location_type(x) != ABSTAIN:
@@ -218,7 +218,7 @@ def lf_loc_stop_direction_type(x):
 @labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
 def lf_loc_loc_city_direction_type(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
-    argument_left_ner = get_windowed_left_ner(x.argument, x.ner)
+    argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
         return ABSTAIN
     if lf_start_location_type(x) != ABSTAIN or lf_end_location_type(x) != ABSTAIN:
@@ -247,8 +247,8 @@ def lf_loc_loc_city_direction_type(x):
 def lf_start_location_type(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
-    argument_left_ner = get_windowed_left_ner(x.argument, x.ner)
-    argument_right_ner = get_windowed_right_ner(x.argument, x.ner)
+    argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
+    argument_right_ner = get_windowed_right_ner(x.argument, x.ner_tags)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
             event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
         return ABSTAIN
@@ -289,8 +289,8 @@ def lf_start_location_questionable(x):
 def lf_start_location_nearest(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
-    argument_left_ner = get_windowed_left_ner(x.argument, x.ner)
-    argument_right_ner = get_windowed_right_ner(x.argument, x.ner)
+    argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
+    argument_right_ner = get_windowed_right_ner(x.argument, x.ner_tags)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
             event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
         return ABSTAIN
@@ -315,7 +315,7 @@ def lf_start_location_nearest(x):
 @labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
 def lf_end_location_type(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
-    argument_left_ner = get_windowed_left_ner(x.argument, x.ner)
+    argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
             event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
         return ABSTAIN
@@ -338,7 +338,7 @@ def lf_end_location_type(x):
                         get_somajo_doc, get_between_distance, get_sentence_trigger_distances])
 def lf_end_location_nearest(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
-    argument_left_ner = get_windowed_left_ner(x.argument, x.ner)
+    argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
         return ABSTAIN
     arg_entity_type = x.argument['entity_type']
@@ -361,7 +361,7 @@ def lf_end_location_nearest(x):
 def lf_start_date_type(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
-    argument_right_ner = get_windowed_right_ner(x.argument, x.ner)
+    argument_right_ner = get_windowed_right_ner(x.argument, x.ner_tags)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or 'Meldung' in argument_right_tokens:
         return ABSTAIN
     if check_required_args(x.entity_type_freqs):
@@ -398,7 +398,7 @@ def lf_start_date_nearest(x):
 def lf_end_date_type(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
-    argument_left_ner = get_windowed_left_ner(x.argument, x.ner)
+    argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or 'Meldung' in argument_right_tokens:
         return ABSTAIN
     if check_required_args(x.entity_type_freqs):

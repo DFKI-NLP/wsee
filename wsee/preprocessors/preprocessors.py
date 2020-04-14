@@ -117,7 +117,7 @@ def get_trigger_left_pos(cand: DataPoint) -> DataPoint:
 def get_trigger_left_ner(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
     if 'ner' in cand:
-        cand['trigger_left_ner'] = get_windowed_left_ner(trigger, cand.ner)
+        cand['trigger_left_ner'] = get_windowed_left_ner(trigger, cand.ner_tags)
     return cand
 
 
@@ -140,7 +140,7 @@ def get_argument_left_pos(cand: DataPoint) -> DataPoint:
 def get_argument_left_ner(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
     if 'ner' in cand:
-        cand['argument_left_ner'] = get_windowed_left_ner(argument, cand.ner)
+        cand['argument_left_ner'] = get_windowed_left_ner(argument, cand.ner_tags)
     return cand
 
 
@@ -181,7 +181,7 @@ def get_trigger_right_pos(cand: DataPoint) -> DataPoint:
 def get_trigger_right_ner(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
     if 'ner' in cand:
-        cand['trigger_right_ner'] = get_windowed_right_ner(trigger, cand.ner)
+        cand['trigger_right_ner'] = get_windowed_right_ner(trigger, cand.ner_tags)
     return cand
 
 
@@ -204,7 +204,7 @@ def get_argument_right_pos(cand: DataPoint) -> DataPoint:
 def get_argument_right_ner(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
     if 'ner' in cand:
-        cand['argument_right_ner'] = get_windowed_right_ner(argument, cand.ner)
+        cand['argument_right_ner'] = get_windowed_right_ner(argument, cand.ner_tags)
     return cand
 
 
