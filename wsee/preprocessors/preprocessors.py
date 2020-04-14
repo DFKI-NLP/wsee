@@ -253,14 +253,23 @@ def get_between_tokens_helper(cand: DataPoint):
 
 @preprocessor()
 def get_between_distance(cand: DataPoint) -> DataPoint:
+    cand['between_distance'] = get_between_distance_helper(cand)
+    return cand
+
+
+def get_between_distance_helper(cand: DataPoint):
     trigger = get_entity(cand.trigger_id, cand.entities)
     argument = get_entity(cand.argument_id, cand.entities)
-    cand['between_distance'] = get_entity_distance(trigger, argument)
-    return cand
+    return get_entity_distance(trigger, argument)
 
 
 @preprocessor()
 def get_all_trigger_distances(cand: DataPoint) -> DataPoint:
+    cand['all_trigger_distances'] = get_all_trigger_distances_helper(cand)
+    return cand
+
+
+def get_all_trigger_distances_helper(cand: DataPoint):
     argument = get_entity(cand.argument_id, cand.entities)
     all_trigger_distances = {}
     for event_trigger in cand.event_triggers:
@@ -269,12 +278,16 @@ def get_all_trigger_distances(cand: DataPoint) -> DataPoint:
             trigger = get_entity(trigger_id, cand.entities)
             distance = get_entity_distance(trigger, argument)
             all_trigger_distances[trigger_id] = distance
-    cand['all_trigger_distances'] = all_trigger_distances
-    return cand
+    return all_trigger_distances
 
 
 @preprocessor()
 def get_entity_trigger_distances(cand: DataPoint) -> DataPoint:
+    cand['entity_trigger_distances'] = get_entity_trigger_distances_helper(cand)
+    return cand
+
+
+def get_entity_trigger_distances_helper(cand: DataPoint):
     """
     Calculates distances from trigger to all other entities, grouped by their entity type.
     :param cand: DataPoint, one example.
@@ -301,12 +314,16 @@ def get_entity_trigger_distances(cand: DataPoint) -> DataPoint:
                 entity_trigger_distances[entity_type].append(distance)
             else:
                 entity_trigger_distances[entity_type] = [distance]
-    cand['entity_trigger_distances'] = entity_trigger_distances
-    return cand
+    return entity_trigger_distances
 
 
 @preprocessor()
 def get_sentence_trigger_distances(cand: DataPoint) -> DataPoint:
+    cand['sentence_trigger_distances'] = get_sentence_trigger_distances_helper(cand)
+    return cand
+
+
+def get_sentence_trigger_distances_helper(cand: DataPoint):
     argument = get_entity(cand.argument_id, cand.entities)
 
     load_somajo_model()
@@ -336,8 +353,7 @@ def get_sentence_trigger_distances(cand: DataPoint) -> DataPoint:
                     distance = get_entity_distance(trigger, argument)
                     sentence_trigger_distances[trigger_id] = distance
                     break
-    cand['sentence_trigger_distances'] = sentence_trigger_distances
-    return cand
+    return sentence_trigger_distances
 
 
 def get_entity_distance(entity1, entity2) -> int:
