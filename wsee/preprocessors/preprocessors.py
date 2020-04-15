@@ -4,7 +4,7 @@ import spacy
 import logging
 import numpy as np
 
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, Any
 from somajo import SoMaJo
 from snorkel.preprocess import preprocessor
 from snorkel.types import DataPoint
@@ -37,9 +37,9 @@ def load_somajo_model():
         nlp_somajo = SoMaJo("de_CMC", split_camel_case=True)
 
 
-def get_entity_idx(entity_id, entities):
-    entity_idx = next((idx for idx, x in enumerate(entities) if x['id'] == entity_id), None)
-    if entity_idx is None:
+def get_entity_idx(entity_id: str, entities: List[Dict[str, Any]]):
+    entity_idx: int = next((idx for idx, x in enumerate(entities) if x['id'] == entity_id), -1)
+    if entity_idx < 0:
         raise Exception(f'The entity_id {entity_id} was not found in:\n {entities}')
     else:
         return entity_idx
@@ -72,7 +72,7 @@ def get_trigger(cand: DataPoint) -> DataPoint:
 
 @preprocessor()
 def get_trigger_idx(cand: DataPoint) -> DataPoint:
-    trigger_idx = get_entity_idx(cand.trigger_id, cand.entities)
+    trigger_idx: int = get_entity_idx(cand.trigger_id, cand.entities)
     cand['trigger_idx'] = trigger_idx
     return cand
 
@@ -93,7 +93,7 @@ def get_argument(cand: DataPoint) -> DataPoint:
 
 @preprocessor()
 def get_argument_idx(cand: DataPoint) -> DataPoint:
-    argument_idx = get_entity_idx(cand.argument_id, cand.entities)
+    argument_idx: int = get_entity_idx(cand.argument_id, cand.entities)
     cand['argument_idx'] = argument_idx
     return cand
 
