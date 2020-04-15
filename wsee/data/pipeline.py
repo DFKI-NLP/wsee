@@ -54,7 +54,7 @@ def build_event_trigger_examples(dataframe):
     print(f"DataFrame has {len(dataframe.index)} rows")
     for index, row in tqdm(dataframe.iterrows()):
         for event_trigger in row.event_triggers:
-            augmented_row = utils.get_deep_copy(row)
+            augmented_row = row.copy()
             augmented_row['trigger_id'] = event_trigger['id']
             event_trigger_rows.append(augmented_row)
             event_type_num = np.asarray(event_trigger['event_type_probs']).argmax()
@@ -83,7 +83,7 @@ def build_event_role_examples(dataframe):
 
     for index, row in tqdm(dataframe.iterrows()):
         for event_role in row.event_roles:
-            augmented_row = utils.get_deep_copy(row)
+            augmented_row = row.copy()
             augmented_row['trigger_id'] = event_role['trigger']
             augmented_row['argument_id'] = event_role['argument']
             event_role_rows_list.append(augmented_row)
@@ -204,7 +204,8 @@ def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]]
     event_role_examples, _ = build_event_role_examples(l_train)
     if lfs is None:
         lfs = [
-            lf_delay_type,
+            lf_location_same_sentence_is_event,
+            lf_delay_event_sentence,
             lf_direction_type,
             lf_start_location_type,
             lf_end_location_type,
