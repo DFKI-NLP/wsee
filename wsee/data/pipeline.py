@@ -119,7 +119,7 @@ def build_labeled_event_trigger(x):
     :return: DataFrame row with filled event_triggers column.
     """
     event_trigger = {
-        'id': x.trigger_id,
+        'id': x.trigger['id'],
         'event_type_probs': x.event_type_probs
     }
     x['event_triggers'] = [event_trigger]
@@ -149,8 +149,8 @@ def build_labeled_event_role(x):
     :return: DataFrame row with filled event_roles column.
     """
     event_role = {
-        'trigger': x.trigger_id,
-        'argument': x.argument_id,
+        'trigger': x.trigger['id'],
+        'argument': x.argument['id'],
         'event_argument_probs': x.event_argument_probs
     }
     x['event_roles'] = [event_role]
