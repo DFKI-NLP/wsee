@@ -46,9 +46,11 @@ def get_entity_idx(entity_id: str, entities: List[Dict[str, Any]]):
 
 
 def get_entity(entity_id, entities):
-    entity_idx = get_entity_idx(entity_id, entities)
-    entity = entities[entity_idx]
-    return entity
+    entity = next((x for x in entities if x['id'] == entity_id), None)
+    if entity:
+        return entity
+    else:
+        raise Exception(f'The entity_id {entity_id} was not found in:\n {entities}')
 
 
 def get_entity_text_and_type(entity_id, entities):
@@ -57,37 +59,9 @@ def get_entity_text_and_type(entity_id, entities):
 
 
 @preprocessor()
-def get_trigger_text(cand: DataPoint) -> DataPoint:
-    trigger = get_entity(cand.trigger_id, cand.entities)
-    cand['trigger_text'] = trigger['text']
-    return cand
-
-
-@preprocessor()
-def get_trigger(cand: DataPoint) -> DataPoint:
-    trigger = get_entity(cand.trigger_id, cand.entities)
-    cand['trigger'] = trigger
-    return cand
-
-
-@preprocessor()
 def get_trigger_idx(cand: DataPoint) -> DataPoint:
     trigger_idx: int = get_entity_idx(cand.trigger_id, cand.entities)
     cand['trigger_idx'] = trigger_idx
-    return cand
-
-
-@preprocessor()
-def get_argument_text(cand: DataPoint) -> DataPoint:
-    argument = get_entity(cand.argument_id, cand.entities)
-    cand['argument_text'] = argument['text']
-    return cand
-
-
-@preprocessor()
-def get_argument(cand: DataPoint) -> DataPoint:
-    argument = get_entity(cand.argument_id, cand.entities)
-    cand['argument'] = argument
     return cand
 
 
@@ -227,24 +201,22 @@ def get_windowed_right_ner(entity, ner, window_size: int = None) -> List[str]:
 
 
 @preprocessor()
-def get_between_tokens(cand: DataPoint) -> DataPoint:
-    cand['between_tokens'] = get_between_tokens_helper(cand)
+def pre_between_tokens(cand: DataPoint) -> DataPoint:
+    cand['between_tokens'] = get_between_tokens(cand)
     return cand
 
 
-def get_between_tokens_helper(cand: DataPoint):
-    trigger = get_entity(cand.trigger_id, cand.entities)
-    argument = get_entity(cand.argument_id, cand.entities)
-
-    if trigger['end'] <= argument['start']:
-        start = trigger['end']
-        end = argument['start']
-    elif argument['end'] <= trigger['start']:
-        start = argument['end']
-        end = trigger['start']
+def get_between_tokens(cand: DataPoint):
+    if cand.trigger['end'] <= cand.argument['start']:
+        start = cand.trigger['end']
+        end = cand.argument['start']
+    elif cand.argument['end'] <= cand.trigger['start']:
+        start = cand.argument['end']
+        end = cand.trigger['start']
     else:
-        logging.debug(f"Trigger {trigger['text']}({trigger['start']}, {trigger['end']}) and "
-                      f"argument {argument['text']}({argument['start']}, {argument['end']}) are overlapping.")
+        logging.debug(f"Trigger {cand.trigger['text']}({cand.trigger['start']}, {cand.trigger['end']}) and "
+                      f"argument {cand.argument['text']}({cand.argument['start']}, {cand.argument['end']}) are "
+                      f"overlapping.")
         cand['between_tokens'] = []
         return cand
 
@@ -252,24 +224,24 @@ def get_between_tokens_helper(cand: DataPoint):
 
 
 @preprocessor()
-def get_between_distance(cand: DataPoint) -> DataPoint:
-    cand['between_distance'] = get_between_distance_helper(cand)
+def pre_between_distance(cand: DataPoint) -> DataPoint:
+    cand['between_distance'] = get_between_distance(cand)
     return cand
 
 
-def get_between_distance_helper(cand: DataPoint):
+def get_between_distance(cand: DataPoint):
     trigger = get_entity(cand.trigger_id, cand.entities)
     argument = get_entity(cand.argument_id, cand.entities)
     return get_entity_distance(trigger, argument)
 
 
 @preprocessor()
-def get_all_trigger_distances(cand: DataPoint) -> DataPoint:
-    cand['all_trigger_distances'] = get_all_trigger_distances_helper(cand)
+def pre_all_trigger_distances(cand: DataPoint) -> DataPoint:
+    cand['all_trigger_distances'] = get_all_trigger_distances(cand)
     return cand
 
 
-def get_all_trigger_distances_helper(cand: DataPoint):
+def get_all_trigger_distances(cand: DataPoint):
     argument = get_entity(cand.argument_id, cand.entities)
     all_trigger_distances = {}
     for event_trigger in cand.event_triggers:
@@ -282,12 +254,12 @@ def get_all_trigger_distances_helper(cand: DataPoint):
 
 
 @preprocessor()
-def get_entity_trigger_distances(cand: DataPoint) -> DataPoint:
-    cand['entity_trigger_distances'] = get_entity_trigger_distances_helper(cand)
+def pre_entity_trigger_distances(cand: DataPoint) -> DataPoint:
+    cand['entity_trigger_distances'] = get_entity_trigger_distances(cand)
     return cand
 
 
-def get_entity_trigger_distances_helper(cand: DataPoint):
+def get_entity_trigger_distances(cand: DataPoint):
     """
     Calculates distances from trigger to all other entities, grouped by their entity type.
     :param cand: DataPoint, one example.
@@ -318,18 +290,17 @@ def get_entity_trigger_distances_helper(cand: DataPoint):
 
 
 @preprocessor()
-def get_sentence_trigger_distances(cand: DataPoint) -> DataPoint:
-    cand['sentence_trigger_distances'] = get_sentence_trigger_distances_helper(cand)
+def pre_sentence_trigger_distances(cand: DataPoint) -> DataPoint:
+    cand['sentence_trigger_distances'] = get_sentence_trigger_distances(cand)
     return cand
 
 
-def get_sentence_trigger_distances_helper(cand: DataPoint):
-    argument = get_entity(cand.argument_id, cand.entities)
-
+def get_sentence_trigger_distances(cand: DataPoint):
     load_somajo_model()
     somajo_doc = list(nlp_somajo.tokenize_text([cand.text]))
 
     sentences = get_somajo_doc_sentences(somajo_doc)
+    somajo_argument = cand.somajo_doc['entities'][cand.argument['id']]
 
     sentence_trigger_distances = {}
     for event_trigger in cand.event_triggers:
@@ -347,10 +318,14 @@ def get_sentence_trigger_distances_helper(cand: DataPoint):
                 # factor 2 because for each punctuation marks we are adding at most 2 wrong whitespaces
                 tolerance += 2 * len(
                     [token for token in sent_tokens if token.text in punctuation_marks]) + sentence.count('\n')
-                m_start = min(trigger['char_start'], argument['char_start'])
-                m_end = max(trigger['char_end'], argument['char_end'])
-                if sentence_start <= m_start + tolerance and m_end <= sentence_end + tolerance:
-                    distance = get_entity_distance(trigger, argument)
+                m_start = min(trigger['char_start'], cand.argument['char_start'])
+                m_end = max(trigger['char_end'], cand.argument['char_end'])
+
+                somajo_trigger = cand.somajo_doc['entities'][trigger_id]
+
+                if sentence_start <= m_start + tolerance and m_end <= sentence_end + tolerance and \
+                        somajo_trigger in sentence and somajo_argument in sentence:
+                    distance = get_entity_distance(trigger, cand.argument)
                     sentence_trigger_distances[trigger_id] = distance
                     break
     return sentence_trigger_distances
@@ -368,10 +343,13 @@ def get_entity_distance(entity1, entity2) -> int:
 
 
 @preprocessor()
-def get_entity_type_freqs(cand: DataPoint) -> DataPoint:
-    entity_type_freqs = get_windowed_entity_type_freqs(entities=cand.entities)
-    cand['entity_type_freqs'] = entity_type_freqs
+def pre_entity_type_freqs(cand: DataPoint) -> DataPoint:
+    cand['entity_type_freqs'] = get_entity_type_freqs(cand)
     return cand
+
+
+def get_entity_type_freqs(cand: DataPoint) -> DataPoint:
+    return get_windowed_entity_type_freqs(entities=cand.entities)
 
 
 def get_windowed_entity_type_freqs(entities, entity=None, window_size: int = None) -> Dict[str, int]:
@@ -417,6 +395,18 @@ def check_spans(tokens, text, entity_span, match_span):
 
 
 @preprocessor()
+def pre_mixed_ner(cand: DataPoint) -> DataPoint:
+    """
+    Builds mixed NER patterns from text and entities.
+    :param cand:
+    :return:
+    """
+    mixed_ner, mixed_ner_spans = get_mixed_ner(cand)
+    cand['mixed_ner'] = mixed_ner
+    cand['mixed_ner_spans'] = mixed_ner_spans
+    return cand
+
+
 def get_mixed_ner(cand: DataPoint) -> DataPoint:
     """
     Builds mixed NER patterns from text and entities.
@@ -457,9 +447,7 @@ def get_mixed_ner(cand: DataPoint) -> DataPoint:
         mixed_ner_spans.append((match_start, match_start + len(entity['entity_type'])))
         offset = match_end
     mixed_ner += cand.text[offset:]
-    cand['mixed_ner'] = mixed_ner
-    cand['mixed_ner_spans'] = mixed_ner_spans
-    return cand
+    return mixed_ner, mixed_ner_spans
 
 
 def get_spacy_doc_tokens(doc):
@@ -490,8 +478,7 @@ def get_somajo_doc_sentences(doc):
     return [" ".join([token.text for token in sentence]) for sentence in doc]
 
 
-@preprocessor()
-def get_spacy_doc(cand: DataPoint) -> DataPoint:
+def get_spacy_doc(cand: DataPoint):
     load_spacy_model()
     spacy_doc = nlp_spacy(cand.text)
     doc = {
@@ -502,12 +489,16 @@ def get_spacy_doc(cand: DataPoint) -> DataPoint:
     }
     if 'argument_id' in cand:
         doc['argument_text'] = get_entity(cand.argument_id, cand.entities)['text']
-    cand['spacy_doc'] = doc
-    return cand
+    return doc
 
 
 @preprocessor()
-def get_stanford_doc(cand: DataPoint) -> DataPoint:
+def pre_spacy_doc(cand: DataPoint) -> DataPoint:
+    cand['spacy_doc'] = get_spacy_doc(cand)
+    return cand
+
+
+def get_stanford_doc(cand: DataPoint):
     load_stanford_model()
     stanford_doc = nlp_stanford(cand.text)
     trigger_text = get_entity(cand.trigger_id, cand.entities)['text']
@@ -522,30 +513,39 @@ def get_stanford_doc(cand: DataPoint) -> DataPoint:
         argument_text = get_entity(cand.argument_id, cand.entities)['text']
         tokenized_argument = get_stanford_doc_tokens(nlp_stanford(argument_text))
         doc['argument'] = " ".join(tokenized_argument)
-    cand['stanford_doc'] = doc
+    return doc
+
+
+@preprocessor()
+def pre_stanford_doc(cand: DataPoint) -> DataPoint:
+    cand['stanford_doc'] = get_stanford_doc(cand)
     return cand
 
 
 @preprocessor()
-def get_somajo_doc(cand: DataPoint) -> DataPoint:
+def pre_somajo_doc(cand: DataPoint) -> DataPoint:
+    cand['somajo_doc'] = get_somajo_doc(cand)
+    return cand
+
+
+def get_somajo_doc(cand: DataPoint):
     load_somajo_model()
     somajo_doc = list(nlp_somajo.tokenize_text([cand.text]))
-    trigger_text = get_entity(cand.trigger_id, cand.entities)['text']
-    tokenized_trigger = get_somajo_doc_tokens(nlp_somajo.tokenize_text([trigger_text]))
+    entities = {}
+    for entity in cand.entities:
+        tokenized_entity = get_somajo_doc_tokens(nlp_somajo.tokenize_text([entity['text']]))
+        entities[entity['id']] = (' '.join(tokenized_entity))
+
     doc = {
         'doc': somajo_doc,
         'tokens': get_somajo_doc_tokens(somajo_doc),
         'sentences': get_somajo_doc_sentences(somajo_doc),
-        'trigger': " ".join(tokenized_trigger),
+        'entities': entities
     }
-    if 'argument_id' in cand:
-        argument_text = get_entity(cand.argument_id, cand.entities)['text']
-        tokenized_argument = get_somajo_doc_tokens(nlp_somajo.tokenize_text([argument_text]))
-        doc['argument'] = " ".join(tokenized_argument)
-    cand['somajo_doc'] = doc
-    return cand
+    return doc
 
 
+# only for exploration purposes when gold labels are available
 def get_event_types(cand: DataPoint) -> DataPoint:
     if 'event_triggers' in cand:
         event_types = []
