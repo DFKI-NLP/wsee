@@ -666,9 +666,9 @@ def event_patterns_helper(x, rules, general_location=False):
             entities_subset = [entity for span, entity in zip(x.mixed_ner_spans, x.entities) if
                                span[0] >= best_match.start() and span[1] <= best_match.end()]
             trigger_position = next(
-                (idx for idx, entity in enumerate(entities_subset) if entity['id'] == x.trigger_id), None)
+                (idx for idx, entity in enumerate(entities_subset) if entity['id'] == x.trigger['id']), None)
             argument_position = next(
-                (idx for idx, entity in enumerate(entities_subset) if entity['id'] == x.argument_id), None)
+                (idx for idx, entity in enumerate(entities_subset) if entity['id'] == x.argument['id']), None)
 
             entity_types = []
             for entity in entities_subset:

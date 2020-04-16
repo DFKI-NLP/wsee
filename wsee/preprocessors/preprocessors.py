@@ -60,28 +60,28 @@ def get_entity_text_and_type(entity_id, entities):
 
 @preprocessor()
 def pre_trigger_idx(cand: DataPoint) -> DataPoint:
-    trigger_idx: int = get_entity_idx(cand.trigger_id, cand.entities)
+    trigger_idx: int = get_entity_idx(cand.trigger['id'], cand.entities)
     cand['trigger_idx'] = trigger_idx
     return cand
 
 
 @preprocessor()
 def pre_argument_idx(cand: DataPoint) -> DataPoint:
-    argument_idx: int = get_entity_idx(cand.argument_id, cand.entities)
+    argument_idx: int = get_entity_idx(cand.argument['id'], cand.entities)
     cand['argument_idx'] = argument_idx
     return cand
 
 
 @preprocessor()
 def pre_trigger_left_tokens(cand: DataPoint) -> DataPoint:
-    trigger = get_entity(cand.trigger_id, cand.entities)
+    trigger = get_entity(cand.trigger['id'], cand.entities)
     cand['trigger_left_tokens'] = get_windowed_left_tokens(trigger, cand.tokens)
     return cand
 
 
 @preprocessor()
 def pre_trigger_left_pos(cand: DataPoint) -> DataPoint:
-    trigger = get_entity(cand.trigger_id, cand.entities)
+    trigger = get_entity(cand.trigger['id'], cand.entities)
     if 'pos' in cand:
         cand['trigger_left_pos'] = get_windowed_left_pos(trigger, cand.pos)
     return cand
@@ -89,7 +89,7 @@ def pre_trigger_left_pos(cand: DataPoint) -> DataPoint:
 
 @preprocessor()
 def pre_trigger_left_ner(cand: DataPoint) -> DataPoint:
-    trigger = get_entity(cand.trigger_id, cand.entities)
+    trigger = get_entity(cand.trigger['id'], cand.entities)
     if 'ner' in cand:
         cand['trigger_left_ner'] = get_windowed_left_ner(trigger, cand.ner_tags)
     return cand
@@ -97,14 +97,14 @@ def pre_trigger_left_ner(cand: DataPoint) -> DataPoint:
 
 @preprocessor()
 def pre_argument_left_tokens(cand: DataPoint) -> DataPoint:
-    argument = get_entity(cand.argument_id, cand.entities)
+    argument = get_entity(cand.argument['id'], cand.entities)
     cand['argument_left_tokens'] = get_windowed_left_tokens(argument, cand.tokens)
     return cand
 
 
 @preprocessor()
 def pre_argument_left_pos(cand: DataPoint) -> DataPoint:
-    argument = get_entity(cand.argument_id, cand.entities)
+    argument = get_entity(cand.argument['id'], cand.entities)
     if 'pos' in cand:
         cand['argument_left_pos'] = get_windowed_left_pos(argument, cand.pos)
     return cand
@@ -112,7 +112,7 @@ def pre_argument_left_pos(cand: DataPoint) -> DataPoint:
 
 @preprocessor()
 def pre_argument_left_ner(cand: DataPoint) -> DataPoint:
-    argument = get_entity(cand.argument_id, cand.entities)
+    argument = get_entity(cand.argument['id'], cand.entities)
     if 'ner' in cand:
         cand['argument_left_ner'] = get_windowed_left_ner(argument, cand.ner_tags)
     return cand
@@ -138,14 +138,14 @@ def get_windowed_left_ner(entity, ner, window_size: int = None) -> List[str]:
 
 @preprocessor()
 def pre_trigger_right_tokens(cand: DataPoint) -> DataPoint:
-    trigger = get_entity(cand.trigger_id, cand.entities)
+    trigger = get_entity(cand.trigger['id'], cand.entities)
     cand['trigger_right_tokens'] = get_windowed_right_tokens(trigger, cand.tokens)
     return cand
 
 
 @preprocessor()
 def pre_trigger_right_pos(cand: DataPoint) -> DataPoint:
-    trigger = get_entity(cand.trigger_id, cand.entities)
+    trigger = get_entity(cand.trigger['id'], cand.entities)
     if 'pos' in cand:
         cand['trigger_right_pos'] = get_windowed_right_pos(trigger, cand.pos)
     return cand
@@ -153,7 +153,7 @@ def pre_trigger_right_pos(cand: DataPoint) -> DataPoint:
 
 @preprocessor()
 def pre_trigger_right_ner(cand: DataPoint) -> DataPoint:
-    trigger = get_entity(cand.trigger_id, cand.entities)
+    trigger = get_entity(cand.trigger['id'], cand.entities)
     if 'ner' in cand:
         cand['trigger_right_ner'] = get_windowed_right_ner(trigger, cand.ner_tags)
     return cand
@@ -161,14 +161,14 @@ def pre_trigger_right_ner(cand: DataPoint) -> DataPoint:
 
 @preprocessor()
 def pre_argument_right_tokens(cand: DataPoint) -> DataPoint:
-    argument = get_entity(cand.argument_id, cand.entities)
+    argument = get_entity(cand.argument['id'], cand.entities)
     cand['argument_right_tokens'] = get_windowed_right_tokens(argument, cand.tokens)
     return cand
 
 
 @preprocessor()
 def pre_argument_right_pos(cand: DataPoint) -> DataPoint:
-    argument = get_entity(cand.argument_id, cand.entities)
+    argument = get_entity(cand.argument['id'], cand.entities)
     if 'pos' in cand:
         cand['argument_right_pos'] = get_windowed_right_pos(argument, cand.pos)
     return cand
@@ -176,7 +176,7 @@ def pre_argument_right_pos(cand: DataPoint) -> DataPoint:
 
 @preprocessor()
 def pre_argument_right_ner(cand: DataPoint) -> DataPoint:
-    argument = get_entity(cand.argument_id, cand.entities)
+    argument = get_entity(cand.argument['id'], cand.entities)
     if 'ner' in cand:
         cand['argument_right_ner'] = get_windowed_right_ner(argument, cand.ner_tags)
     return cand
@@ -230,8 +230,8 @@ def pre_between_distance(cand: DataPoint) -> DataPoint:
 
 
 def get_between_distance(cand: DataPoint):
-    trigger = get_entity(cand.trigger_id, cand.entities)
-    argument = get_entity(cand.argument_id, cand.entities)
+    trigger = get_entity(cand.trigger['id'], cand.entities)
+    argument = get_entity(cand.argument['id'], cand.entities)
     return get_entity_distance(trigger, argument)
 
 
@@ -242,11 +242,11 @@ def pre_all_trigger_distances(cand: DataPoint) -> DataPoint:
 
 
 def get_all_trigger_distances(cand: DataPoint):
-    argument = get_entity(cand.argument_id, cand.entities)
+    argument = get_entity(cand.argument['id'], cand.entities)
     all_trigger_distances = {}
     for event_trigger in cand.event_triggers:
         trigger_id = event_trigger['id']
-        if trigger_id != cand.argument_id:
+        if trigger_id != cand.argument['id']:
             trigger = get_entity(trigger_id, cand.entities)
             distance = get_entity_distance(trigger, argument)
             all_trigger_distances[trigger_id] = distance
@@ -265,7 +265,7 @@ def get_entity_trigger_distances(cand: DataPoint):
     :param cand: DataPoint, one example.
     :return: DataPoint enriched with distances.
     """
-    trigger = get_entity(cand.trigger_id, cand.entities)
+    trigger = get_entity(cand.trigger['id'], cand.entities)
     entity_trigger_distances: Dict[str, List[int]] = {
         'location': [],
         'location_city': [],
@@ -279,7 +279,7 @@ def get_entity_trigger_distances(cand: DataPoint):
         'trigger': []
     }
     for entity in cand.entities:
-        if entity['id'] != cand.trigger_id:
+        if entity['id'] != cand.trigger['id']:
             distance = get_entity_distance(trigger, entity)
             entity_type = entity['entity_type']
             if entity_type in entity_trigger_distances:
@@ -305,7 +305,7 @@ def get_sentence_trigger_distances(cand: DataPoint):
     sentence_trigger_distances = {}
     for event_trigger in cand.event_triggers:
         trigger_id = event_trigger['id']
-        if trigger_id != cand.argument_id:
+        if trigger_id != cand.argument['id']:
             trigger = get_entity(trigger_id, cand.entities)
 
             text = ""
@@ -485,10 +485,10 @@ def get_spacy_doc(cand: DataPoint):
         'doc': spacy_doc,
         'tokens': get_spacy_doc_tokens(spacy_doc),
         'sentences': get_spacy_doc_sentences(spacy_doc),  # preserves sentence texts
-        'trigger_text': nlp_spacy(get_entity(cand.trigger_id, cand.entities)['text']),
+        'trigger_text': nlp_spacy(get_entity(cand.trigger['id'], cand.entities)['text']),
     }
     if 'argument_id' in cand:
-        doc['argument_text'] = get_entity(cand.argument_id, cand.entities)['text']
+        doc['argument_text'] = get_entity(cand.argument['id'], cand.entities)['text']
     return doc
 
 
@@ -501,7 +501,7 @@ def pre_spacy_doc(cand: DataPoint) -> DataPoint:
 def get_stanford_doc(cand: DataPoint):
     load_stanford_model()
     stanford_doc = nlp_stanford(cand.text)
-    trigger_text = get_entity(cand.trigger_id, cand.entities)['text']
+    trigger_text = get_entity(cand.trigger['id'], cand.entities)['text']
     tokenized_trigger = get_stanford_doc_tokens(nlp_stanford(trigger_text))
     doc = {
         'doc': stanford_doc,
@@ -510,7 +510,7 @@ def get_stanford_doc(cand: DataPoint):
         'trigger': " ".join(tokenized_trigger),
     }
     if 'argument_id' in cand:
-        argument_text = get_entity(cand.argument_id, cand.entities)['text']
+        argument_text = get_entity(cand.argument['id'], cand.entities)['text']
         tokenized_argument = get_stanford_doc_tokens(nlp_stanford(argument_text))
         doc['argument'] = " ".join(tokenized_argument)
     return doc
