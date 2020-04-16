@@ -1,12 +1,16 @@
 import os
 from pathlib import Path
+from typing import Optional, List
 
 import pandas as pd
-from snorkel.labeling import LabelModel, PandasLFApplier
+import numpy as np
+from snorkel.labeling import LabelModel, PandasLFApplier, labeling_function
 from tqdm import tqdm
 
-from wsee.labeling.event_argument_role_lfs import *
-from wsee.labeling.event_trigger_lfs import *
+from wsee.preprocessors import preprocessors
+from wsee.labeling import event_trigger_lfs
+from wsee.labeling import event_argument_role_lfs
+from wsee.utils import utils
 
 
 def load_data(path, use_build_defaults=True):
@@ -53,10 +57,12 @@ def build_event_trigger_examples(dataframe):
 
     print(f"DataFrame has {len(dataframe.index)} rows")
     for index, row in tqdm(dataframe.iterrows()):
+        entity_type_freqs = preprocessors.get_entity_type_freqs(row)
         for event_trigger in row.event_triggers:
-            augmented_row = row.copy()
-            augmented_row['trigger_id'] = event_trigger['id']
-            event_trigger_rows.append(augmented_row)
+            trigger_row = row.copy()
+            trigger_row['trigger'] = preprocessors.get_entity(event_trigger['id'], row.entities)
+            trigger_row['entity_type_freqs'] = entity_type_freqs
+            event_trigger_rows.append(trigger_row)
             event_type_num = np.asarray(event_trigger['event_type_probs']).argmax()
             event_trigger_rows_y.append(event_type_num)
             if event_type_num != 7:
@@ -82,11 +88,17 @@ def build_event_role_examples(dataframe):
     event_count = 0
 
     for index, row in tqdm(dataframe.iterrows()):
+        entity_type_freqs = preprocessors.get_entity_type_freqs(row)
+        somajo_doc = preprocessors.get_somajo_doc(row)
+        mixed_ner = preprocessors.get_mixed_ner(row)
         for event_role in row.event_roles:
-            augmented_row = row.copy()
-            augmented_row['trigger_id'] = event_role['trigger']
-            augmented_row['argument_id'] = event_role['argument']
-            event_role_rows_list.append(augmented_row)
+            role_row = row.copy()
+            role_row['trigger_'] = preprocessors.get_entity(event_role['trigger'], row.entities)
+            role_row['argument'] = preprocessors.get_entity(event_role['argument'], row.entities)
+            role_row['entity_type_freqs'] = entity_type_freqs
+            role_row['somajo_doc'] = somajo_doc
+            role_row['mixed_ner'] = mixed_ner
+            event_role_rows_list.append(role_row)
             event_role_num = np.asarray(event_role['event_argument_probs']).argmax()
             event_role_rows_y.append(event_role_num)
             if event_role_num != 10:
@@ -175,13 +187,13 @@ def get_trigger_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_functio
     event_trigger_examples, _ = build_event_trigger_examples(l_train)
     if lfs is None:
         lfs = [
-            lf_accident_cat,
-            lf_canceledroute_cat,
-            lf_canceledstop_cat,
-            lf_delay_cat,
-            lf_obstruction_cat,
-            lf_railreplacementservice_cat,
-            lf_trafficjam_cat
+            event_trigger_lfs.lf_accident_cat,
+            event_trigger_lfs.lf_canceledroute_cat,
+            event_trigger_lfs.lf_canceledstop_cat,
+            event_trigger_lfs.lf_delay_cat,
+            event_trigger_lfs.lf_obstruction_cat,
+            event_trigger_lfs.lf_railreplacementservice_cat,
+            event_trigger_lfs.lf_trafficjam_cat
         ]
     applier = PandasLFApplier(lfs)
     df_train = applier.apply(event_trigger_examples)
@@ -204,21 +216,21 @@ def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]]
     event_role_examples, _ = build_event_role_examples(l_train)
     if lfs is None:
         lfs = [
-            lf_location_same_sentence_is_event,
-            lf_delay_event_sentence,
-            lf_direction_type,
-            lf_start_location_type,
-            lf_end_location_type,
-            lf_start_date_type,
-            lf_end_date_type,
-            lf_cause_type,
-            lf_cause_gaz_file,
-            lf_distance_type,
-            lf_route_type,
-            lf_not_an_event,
-            lf_somajo_separate_sentence,
-            lf_event_patterns,
-            lf_event_patterns_general_location
+            event_argument_role_lfs.lf_location_same_sentence_is_event,
+            event_argument_role_lfs.lf_delay_event_sentence,
+            event_argument_role_lfs.lf_direction_type,
+            event_argument_role_lfs.lf_start_location_type,
+            event_argument_role_lfs.lf_end_location_type,
+            event_argument_role_lfs.lf_start_date_type,
+            event_argument_role_lfs.lf_end_date_type,
+            event_argument_role_lfs.lf_cause_type,
+            event_argument_role_lfs.lf_cause_gaz_file,
+            event_argument_role_lfs.lf_distance_type,
+            event_argument_role_lfs.lf_route_type,
+            event_argument_role_lfs.lf_not_an_event,
+            event_argument_role_lfs.lf_somajo_separate_sentence,
+            event_argument_role_lfs.lf_event_patterns,
+            event_argument_role_lfs.lf_event_patterns_general_location
         ]
     applier = PandasLFApplier(lfs)
     df_train = applier.apply(event_role_examples)
