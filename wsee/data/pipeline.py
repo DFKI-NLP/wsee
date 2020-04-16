@@ -93,7 +93,7 @@ def build_event_role_examples(dataframe):
         mixed_ner, mixed_ner_spans = preprocessors.get_mixed_ner(row)
         for event_role in row.event_roles:
             role_row = row.copy()
-            role_row['trigger_'] = preprocessors.get_entity(event_role['trigger'], row.entities)
+            role_row['trigger'] = preprocessors.get_entity(event_role['trigger'], row.entities)
             role_row['argument'] = preprocessors.get_entity(event_role['argument'], row.entities)
             role_row['entity_type_freqs'] = entity_type_freqs
             role_row['somajo_doc'] = somajo_doc
