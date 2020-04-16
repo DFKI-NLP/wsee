@@ -35,8 +35,8 @@ class TestMixedNer(unittest.TestCase):
     def test_applypreprocessors(self):
         event_type_rows, event_type_rows_y = pipeline.build_event_trigger_examples(self.pd_df)
         labeled_rows = explore.add_labels(event_type_rows, event_type_rows_y)
-        processed_rows = explore.apply_preprocessors(labeled_rows, pre=[preprocessors.get_trigger,
-                                                                        preprocessors.get_mixed_ner])
+        processed_rows = explore.apply_preprocessors(labeled_rows, pre=[preprocessors.pre_between_distance,
+                                                                        preprocessors.pre_mixed_ner])
         self.assertIsNotNone(processed_rows)
 
 
@@ -48,13 +48,13 @@ class TestComplexPreprocessors(unittest.TestCase):
     def test_stanford_preprocessor(self):
         event_type_rows, event_type_rows_y = pipeline.build_event_trigger_examples(self.pd_df)
         labeled_rows = explore.add_labels(event_type_rows, event_type_rows_y)
-        processed_rows = explore.apply_preprocessors(labeled_rows, pre=[preprocessors.get_stanford_doc])
+        processed_rows = explore.apply_preprocessors(labeled_rows, pre=[preprocessors.pre_stanford_doc])
         self.assertIsNotNone(processed_rows)
 
     def test_spacy_preprocessor(self):
         event_type_rows, event_type_rows_y = pipeline.build_event_trigger_examples(self.pd_df)
         labeled_rows = explore.add_labels(event_type_rows, event_type_rows_y)
-        processed_rows = explore.apply_preprocessors(labeled_rows, pre=[preprocessors.get_spacy_doc])
+        processed_rows = explore.apply_preprocessors(labeled_rows, pre=[preprocessors.pre_spacy_doc])
         self.assertIsNotNone(processed_rows)
 
     def test_somajo_preprocessor(self):

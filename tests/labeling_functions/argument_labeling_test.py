@@ -18,11 +18,7 @@ class TestMixedNer(unittest.TestCase):
     def test_somajo_separate_sentence(self):
         event_role_rows, event_role_rows_y = pipeline.build_event_role_examples(self.pd_df)
         labeled_rows = explore.add_labels(event_role_rows, event_role_rows_y)
-        processed_rows = explore.apply_preprocessors(labeled_rows, pre=[preprocessors.get_trigger,
-                                                                        preprocessors.get_argument,
-                                                                        preprocessors.get_somajo_doc])
-        for idx, row in processed_rows.iterrows():
-
+        for idx, row in labeled_rows.iterrows():
             if row['argument']['text'] == 'ICE 1141' and row['trigger']['char_start'] == 535:
                 self.assertEqual(lf_somajo_separate_sentence(row), no_arg)
         self.assertIsNotNone(event_role_rows)
