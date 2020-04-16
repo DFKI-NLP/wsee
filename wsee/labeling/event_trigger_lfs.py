@@ -66,7 +66,7 @@ trafficjam_exact_keywords = [
 ]
 
 
-@labeling_function(pre=[get_trigger])
+@labeling_function(pre=[])
 def lf_accident_cat(x):
     highest = process.extractOne(x.trigger['text'], accident_keywords)
     if highest[1] >= 90:
@@ -74,7 +74,7 @@ def lf_accident_cat(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs])
+@labeling_function(pre=[])
 def lf_accident_context(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
@@ -133,7 +133,7 @@ def check_in_parentheses(trigger_text, left_tokens=None, right_tokens=None):
         return False
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs])
+@labeling_function(pre=[])
 def lf_canceledroute_cat(x):
     """
     Checks for canceled route keywords. Does not handle special case of split trigger "fällt ... aus".
@@ -153,7 +153,7 @@ def lf_canceledroute_cat(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs])
+@labeling_function(pre=[])
 def lf_canceledstop_cat(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], canceledstop_keywords)
@@ -171,7 +171,7 @@ def check_route_keywords(tokens):
         return False
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs])
+@labeling_function(pre=[])
 def lf_delay_cat(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
@@ -186,7 +186,7 @@ def lf_delay_cat(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs])
+@labeling_function(pre=[])
 def lf_obstruction_cat(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
@@ -201,7 +201,7 @@ def lf_obstruction_cat(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs])
+@labeling_function(pre=[])
 def lf_railreplacementservice_cat(x):
     highest = process.extractOne(x.trigger['text'], railreplacementservice_keywords)
     if highest[1] >= 90 and 'location_route' in x.entity_type_freqs:
@@ -209,7 +209,7 @@ def lf_railreplacementservice_cat(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs])
+@labeling_function(pre=[])
 def lf_trafficjam_cat(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
@@ -224,7 +224,7 @@ def lf_trafficjam_cat(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs])
+@labeling_function(pre=[])
 def lf_negative(x):
     lfs = [
         lf_accident_context,

@@ -1,5 +1,3 @@
-from typing import Any
-
 from snorkel.labeling import labeling_function
 from wsee.preprocessors.preprocessors import *
 from wsee.preprocessors.pattern_event_processor import parse_pattern_file, find_best_pattern_match, location_subtypes
@@ -93,9 +91,9 @@ def lf_location(x, same_sentence=True, nearest=True, check_event_type=True,
     :param entity_types: General list of allowed entity types for the argument.
     :return: location label or ABSTAIN
     """
-    between_distance = get_between_distance_helper(x)
-    sentence_trigger_distances = get_sentence_trigger_distances_helper(x)
-    all_trigger_distances = get_all_trigger_distances_helper(x)
+    between_distance = get_between_distance(x)
+    sentence_trigger_distances = get_sentence_trigger_distances(x)
+    all_trigger_distances = get_all_trigger_distances(x)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
         return ABSTAIN
     if same_sentence:
@@ -122,7 +120,7 @@ def lf_location(x, same_sentence=True, nearest=True, check_event_type=True,
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_location_same_sentence_is_event(x):
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and lf_direction_type(x) == ABSTAIN:
         return lf_location(x, nearest=False)
@@ -130,7 +128,7 @@ def lf_location_same_sentence_is_event(x):
         return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_location_same_sentence_nearest_is_event(x):
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and lf_direction_type(x) == ABSTAIN:
         return lf_location(x)
@@ -138,9 +136,9 @@ def lf_location_same_sentence_nearest_is_event(x):
         return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_location_adjacent(x):
-    between_distance = get_between_distance_helper(x)
+    between_distance = get_between_distance(x)
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
             lf_direction_type(x) == ABSTAIN and \
             lf_multiple_same_event_type(x) == ABSTAIN and lf_somajo_separate_sentence(x) == ABSTAIN \
@@ -150,7 +148,7 @@ def lf_location_adjacent(x):
 
 
 # delay role
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_delay_event_sentence(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
@@ -174,7 +172,7 @@ def lf_delay_event_sentence(x):
 # TODO: no location_route, location_street and check for event types
 #  Accident (loc, loc_city), CanceledRoute (loc_stop, loc_city), CanceledStop (none), Delay (loc_stop),
 #  Obstruction (loc, loc_city), RailReplacementService (loc_stop), TrafficJam (loc, loc_city)
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_direction_type(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
@@ -193,7 +191,7 @@ def lf_direction_type(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_loc_stop_direction_type(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
@@ -215,7 +213,7 @@ def lf_loc_stop_direction_type(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_loc_loc_city_direction_type(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
@@ -243,7 +241,7 @@ def lf_loc_loc_city_direction_type(x):
 # TODO: no location_route and check for event types
 #  Accident (loc, loc_city), CanceledRoute (loc_stop), CanceledStop (none), Delay (loc_stop),
 #  Obstruction (all), RailReplacementService (loc_stop), TrafficJam (loc, loc_city, loc_street)
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_start_location_type(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
@@ -269,10 +267,10 @@ def lf_start_location_type(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_start_location_questionable(x):
-    between_distance = get_between_distance_helper(x)
-    sentence_trigger_distances = get_sentence_trigger_distances_helper(x)
+    between_distance = get_between_distance(x)
+    sentence_trigger_distances = get_sentence_trigger_distances(x)
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
             event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
@@ -285,14 +283,14 @@ def lf_start_location_questionable(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_start_location_nearest(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
     argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
     argument_right_ner = get_windowed_right_ner(x.argument, x.ner_tags)
-    between_distance = get_between_distance_helper(x)
-    sentence_trigger_distances = get_sentence_trigger_distances_helper(x)
+    between_distance = get_between_distance(x)
+    sentence_trigger_distances = get_sentence_trigger_distances(x)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
             event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
         return ABSTAIN
@@ -314,7 +312,7 @@ def lf_start_location_nearest(x):
 
 
 # end_loc
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_end_location_type(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
@@ -336,12 +334,12 @@ def lf_end_location_type(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_end_location_nearest(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
-    between_distance = get_between_distance_helper(x)
-    sentence_trigger_distances = get_sentence_trigger_distances_helper(x)
+    between_distance = get_between_distance(x)
+    sentence_trigger_distances = get_sentence_trigger_distances(x)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
         return ABSTAIN
     arg_entity_type = x.argument['entity_type']
@@ -360,7 +358,7 @@ def lf_end_location_nearest(x):
 
 
 # start_date
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_start_date_type(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
@@ -379,12 +377,12 @@ def lf_start_date_type(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_start_date_nearest(x):
     argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
-    between_distance = get_between_distance_helper(x)
-    sentence_trigger_distances = get_sentence_trigger_distances_helper(x)
-    entity_trigger_distances = get_entity_trigger_distances_helper(x)
+    between_distance = get_between_distance(x)
+    sentence_trigger_distances = get_sentence_trigger_distances(x)
+    entity_trigger_distances = get_entity_trigger_distances(x)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or 'Meldung' in argument_right_tokens:
         return ABSTAIN
     if check_required_args(x.entity_type_freqs):
@@ -399,7 +397,7 @@ def lf_start_date_nearest(x):
 
 
 # end_date
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_end_date_type(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
@@ -419,7 +417,7 @@ def lf_end_date_type(x):
 
 
 # cause
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_cause_type(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
@@ -437,7 +435,7 @@ def lf_cause_type(x):
     return ABSTAIN
 
 
-@labeling_function(resources=dict(cause_mapping=traffic_event_causes), pre=[get_trigger, get_argument])
+@labeling_function(resources=dict(cause_mapping=traffic_event_causes), pre=[])
 def lf_cause_gaz_file(x, cause_mapping):
     # TODO add more cause pairs, coverage is 0%
     if x.argument['text'] in cause_mapping:
@@ -447,7 +445,7 @@ def lf_cause_gaz_file(x, cause_mapping):
 
 
 # jam_length
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_distance_type(x):
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
         return ABSTAIN
@@ -460,11 +458,11 @@ def lf_distance_type(x):
     return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_distance_nearest(x):
-    between_distance = get_between_distance_helper(x)
-    sentence_trigger_distances = get_sentence_trigger_distances_helper(x)
-    entity_trigger_distances = get_entity_trigger_distances_helper(x)
+    between_distance = get_between_distance(x)
+    sentence_trigger_distances = get_sentence_trigger_distances(x)
+    entity_trigger_distances = get_entity_trigger_distances(x)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
         return ABSTAIN
     if check_required_args(x.entity_type_freqs):
@@ -479,7 +477,7 @@ def lf_distance_nearest(x):
 
 
 # route
-@labeling_function(pre=[get_trigger, get_entity_type_freqs, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_route_type(x):
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
         return ABSTAIN
@@ -493,7 +491,7 @@ def lf_route_type(x):
 
 
 # no_args
-@labeling_function(pre=[get_trigger, get_entity_type_freqs])
+@labeling_function(pre=[])
 def lf_not_an_event(x):
     if event_trigger_lfs.lf_negative(x) == event_trigger_lfs.O:
         return no_arg
@@ -501,7 +499,7 @@ def lf_not_an_event(x):
         return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger, get_argument, get_spacy_doc])
+@labeling_function(pre=[pre_spacy_doc])
 def lf_spacy_separate_sentence(x):
     # proof of concept that makes use of spaCy sentence splitter parsing feature
     # see: https://github.com/explosion/spaCy/blob/master/examples/information_extraction/entity_relations.py
@@ -519,7 +517,7 @@ def lf_spacy_separate_sentence(x):
         return no_arg
 
 
-@labeling_function(pre=[get_trigger, get_argument, get_stanford_doc])
+@labeling_function(pre=[pre_stanford_doc])
 def lf_stanford_separate_sentence(x):
     same_sentence = False
 
@@ -534,7 +532,7 @@ def lf_stanford_separate_sentence(x):
         return no_arg
 
 
-@labeling_function(pre=[get_trigger, get_argument, get_somajo_doc])
+@labeling_function(pre=[])
 def lf_somajo_separate_sentence(x):
     same_sentence = False
     text = ""
@@ -548,8 +546,12 @@ def lf_somajo_separate_sentence(x):
         tolerance += 2 * len([token for token in sent_tokens if token.text in punctuation_marks]) + sentence.count('\n')
         m_start = min(x.trigger['char_start'], x.argument['char_start'])
         m_end = max(x.trigger['char_end'], x.argument['char_end'])
+
+        somajo_trigger = x.somajo_doc['entities'][x.trigger['id']]
+        somajo_argument = x.somajo_doc['entities'][x.argument['id']]
+
         if sentence_start <= m_start + tolerance and m_end <= sentence_end + tolerance and \
-                x.somajo_doc['trigger'] in sentence and x.somajo_doc['argument'] in sentence:
+                somajo_trigger in sentence and somajo_argument in sentence:
             same_sentence = True
             break
     if same_sentence:
@@ -558,32 +560,31 @@ def lf_somajo_separate_sentence(x):
         return no_arg
 
 
-@labeling_function(
-    pre=[get_trigger, get_argument])
+@labeling_function(pre=[])
 def lf_not_nearest_event(x):
-    between_distance = get_between_distance_helper(x)
-    all_trigger_distances = get_all_trigger_distances_helper(x)
+    between_distance = get_between_distance(x)
+    all_trigger_distances = get_all_trigger_distances(x)
     if is_nearest_trigger(between_distance, all_trigger_distances):
         return ABSTAIN
     else:
         return no_arg
 
 
-@labeling_function(pre=[get_trigger, get_argument])
+@labeling_function(pre=[])
 def lf_not_nearest_same_sentence_event(x):
-    between_distance = get_between_distance_helper(x)
-    sentence_trigger_distances = get_sentence_trigger_distances_helper(x)
+    between_distance = get_between_distance(x)
+    sentence_trigger_distances = get_sentence_trigger_distances(x)
     if is_nearest_trigger(between_distance, sentence_trigger_distances):
         return ABSTAIN
     else:
         return no_arg
 
 
-@labeling_function(pre=[get_trigger, get_argument])
+@labeling_function(pre=[])
 def lf_not_nearest_event_argument(x):
-    between_distance = get_between_distance_helper(x)
-    sentence_trigger_distances = get_sentence_trigger_distances_helper(x)
-    entity_trigger_distances = get_entity_trigger_distances_helper(x)
+    between_distance = get_between_distance(x)
+    sentence_trigger_distances = get_sentence_trigger_distances(x)
+    entity_trigger_distances = get_entity_trigger_distances(x)
     argument_type = x.argument['entity_type']
     if argument_type not in ['location', 'location_city', 'location_route', 'location_stop', 'location_street', 'date',
                              'time', 'duration', 'distance', 'trigger']:
@@ -597,9 +598,9 @@ def lf_not_nearest_event_argument(x):
         return no_arg
 
 
-@labeling_function(pre=[get_trigger, get_argument])
+@labeling_function(pre=[])
 def lf_overlapping(x):
-    between_distance = get_between_distance_helper(x)
+    between_distance = get_between_distance(x)
     if between_distance < 0:
         return no_arg
     else:
@@ -608,18 +609,17 @@ def lf_overlapping(x):
 
 @labeling_function(pre=[])
 def lf_too_far_40(x):
-    between_distance = get_between_distance_helper(x)
+    between_distance = get_between_distance(x)
     if between_distance > 40:
         return no_arg
     else:
         return ABSTAIN
 
 
-@labeling_function(pre=[get_trigger])
+@labeling_function(pre=[])
 def lf_multiple_same_event_type(x):
-    # TODO check and use in all lfs
-    #  also use keyword list and loop over them instead of trying to exactly match the trigger text
-    between_tokens = get_between_tokens_helper(x)
+    # TODO use keyword list and loop over them instead of trying to exactly match the trigger text
+    between_tokens = get_between_tokens(x)
     trigger_text = x.trigger['text']
     if trigger_text in between_tokens:
         return no_arg
@@ -628,7 +628,7 @@ def lf_multiple_same_event_type(x):
 
 
 # general
-@labeling_function(pre=[get_trigger, get_argument, get_spacy_doc])
+@labeling_function(pre=[pre_spacy_doc])
 def lf_dependency(x):
     # proof of concept that makes use of spaCy dependency parsing feature
     # see: https://github.com/explosion/spaCy/blob/master/examples/information_extraction/entity_relations.py
@@ -698,16 +698,12 @@ def event_patterns_helper(x, rules, general_location=False):
     return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=original_rules), pre=[get_trigger, get_trigger_idx,
-                                                              get_argument, get_argument_idx,
-                                                              get_mixed_ner])
+@labeling_function(resources=dict(rules=original_rules), pre=[get_trigger_idx, get_argument_idx])
 def lf_event_patterns(x, rules):
     return event_patterns_helper(x, rules)
 
 
-@labeling_function(resources=dict(rules=original_rules), pre=[get_trigger, get_trigger_idx,
-                                                              get_argument, get_argument_idx,
-                                                              get_mixed_ner])
+@labeling_function(resources=dict(rules=original_rules), pre=[get_trigger_idx, get_argument_idx])
 def lf_event_patterns_route_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=False)
     if label == route:
@@ -716,16 +712,12 @@ def lf_event_patterns_route_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger, get_trigger_idx,
-                                                                      get_argument, get_argument_idx,
-                                                                      get_mixed_ner])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
 def lf_event_patterns_general_location(x, rules):
     return event_patterns_helper(x, rules, general_location=True)
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger, get_trigger_idx,
-                                                                      get_argument, get_argument_idx,
-                                                                      get_mixed_ner])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
 def lf_event_patterns_general_location_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     if label == location:
@@ -734,9 +726,7 @@ def lf_event_patterns_general_location_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger, get_trigger_idx,
-                                                                      get_argument, get_argument_idx,
-                                                                      get_mixed_ner])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
 def lf_event_patterns_general_direction_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     if label == direction:
@@ -745,9 +735,7 @@ def lf_event_patterns_general_direction_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger, get_trigger_idx,
-                                                                      get_argument, get_argument_idx,
-                                                                      get_mixed_ner])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
 def lf_event_patterns_general_delay_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     if label == delay:
@@ -756,9 +744,7 @@ def lf_event_patterns_general_delay_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger, get_trigger_idx,
-                                                                      get_argument, get_argument_idx,
-                                                                      get_mixed_ner])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
 def lf_event_patterns_general_startloc_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     arg_entity_type = x.argument['entity_type']
@@ -768,9 +754,7 @@ def lf_event_patterns_general_startloc_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger, get_trigger_idx,
-                                                                      get_argument, get_argument_idx,
-                                                                      get_mixed_ner])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
 def lf_event_patterns_general_endloc_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     arg_entity_type = x.argument['entity_type']
@@ -780,9 +764,7 @@ def lf_event_patterns_general_endloc_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger, get_trigger_idx,
-                                                                      get_argument, get_argument_idx,
-                                                                      get_mixed_ner])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
 def lf_event_patterns_general_startdate_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     if label == start_date:
@@ -791,9 +773,7 @@ def lf_event_patterns_general_startdate_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger, get_trigger_idx,
-                                                                      get_argument, get_argument_idx,
-                                                                      get_mixed_ner])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
 def lf_event_patterns_general_enddate_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     if label == end_date:
@@ -802,9 +782,7 @@ def lf_event_patterns_general_enddate_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger, get_trigger_idx,
-                                                                      get_argument, get_argument_idx,
-                                                                      get_mixed_ner])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
 def lf_event_patterns_general_cause_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     if label == cause:
@@ -813,9 +791,7 @@ def lf_event_patterns_general_cause_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger, get_trigger_idx,
-                                                                      get_argument, get_argument_idx,
-                                                                      get_mixed_ner])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
 def lf_event_patterns_general_jamlength_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     if label == jam_length:
