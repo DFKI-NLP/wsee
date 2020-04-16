@@ -90,7 +90,7 @@ def build_event_role_examples(dataframe):
     for index, row in tqdm(dataframe.iterrows()):
         entity_type_freqs = preprocessors.get_entity_type_freqs(row)
         somajo_doc = preprocessors.get_somajo_doc(row)
-        mixed_ner = preprocessors.get_mixed_ner(row)
+        mixed_ner, mixed_ner_spans = preprocessors.get_mixed_ner(row)
         for event_role in row.event_roles:
             role_row = row.copy()
             role_row['trigger_'] = preprocessors.get_entity(event_role['trigger'], row.entities)
@@ -98,6 +98,7 @@ def build_event_role_examples(dataframe):
             role_row['entity_type_freqs'] = entity_type_freqs
             role_row['somajo_doc'] = somajo_doc
             role_row['mixed_ner'] = mixed_ner
+            role_row['mixed_ner_spans'] = mixed_ner_spans
             event_role_rows_list.append(role_row)
             event_role_num = np.asarray(event_role['event_argument_probs']).argmax()
             event_role_rows_y.append(event_role_num)
