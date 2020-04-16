@@ -698,12 +698,12 @@ def event_patterns_helper(x, rules, general_location=False):
     return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=original_rules), pre=[get_trigger_idx, get_argument_idx])
+@labeling_function(resources=dict(rules=original_rules), pre=[pre_trigger_idx, pre_argument_idx])
 def lf_event_patterns(x, rules):
     return event_patterns_helper(x, rules)
 
 
-@labeling_function(resources=dict(rules=original_rules), pre=[get_trigger_idx, get_argument_idx])
+@labeling_function(resources=dict(rules=original_rules), pre=[pre_trigger_idx, pre_argument_idx])
 def lf_event_patterns_route_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=False)
     if label == route:
@@ -712,12 +712,12 @@ def lf_event_patterns_route_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[pre_trigger_idx, pre_argument_idx])
 def lf_event_patterns_general_location(x, rules):
     return event_patterns_helper(x, rules, general_location=True)
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[pre_trigger_idx, pre_argument_idx])
 def lf_event_patterns_general_location_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     if label == location:
@@ -726,7 +726,7 @@ def lf_event_patterns_general_location_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[pre_trigger_idx, pre_argument_idx])
 def lf_event_patterns_general_direction_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     if label == direction:
@@ -735,7 +735,7 @@ def lf_event_patterns_general_direction_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[pre_trigger_idx, pre_argument_idx])
 def lf_event_patterns_general_delay_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     if label == delay:
@@ -744,7 +744,7 @@ def lf_event_patterns_general_delay_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[pre_trigger_idx, pre_argument_idx])
 def lf_event_patterns_general_startloc_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     arg_entity_type = x.argument['entity_type']
@@ -754,7 +754,7 @@ def lf_event_patterns_general_startloc_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[pre_trigger_idx, pre_argument_idx])
 def lf_event_patterns_general_endloc_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     arg_entity_type = x.argument['entity_type']
@@ -764,7 +764,7 @@ def lf_event_patterns_general_endloc_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[pre_trigger_idx, pre_argument_idx])
 def lf_event_patterns_general_startdate_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     if label == start_date:
@@ -773,7 +773,7 @@ def lf_event_patterns_general_startdate_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[pre_trigger_idx, pre_argument_idx])
 def lf_event_patterns_general_enddate_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     if label == end_date:
@@ -782,7 +782,7 @@ def lf_event_patterns_general_enddate_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[pre_trigger_idx, pre_argument_idx])
 def lf_event_patterns_general_cause_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     if label == cause:
@@ -791,7 +791,7 @@ def lf_event_patterns_general_cause_type(x, rules):
         return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[get_trigger_idx, get_argument_idx])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[pre_trigger_idx, pre_argument_idx])
 def lf_event_patterns_general_jamlength_type(x, rules):
     label = event_patterns_helper(x, rules, general_location=True)
     if label == jam_length:

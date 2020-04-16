@@ -59,28 +59,28 @@ def get_entity_text_and_type(entity_id, entities):
 
 
 @preprocessor()
-def get_trigger_idx(cand: DataPoint) -> DataPoint:
+def pre_trigger_idx(cand: DataPoint) -> DataPoint:
     trigger_idx: int = get_entity_idx(cand.trigger_id, cand.entities)
     cand['trigger_idx'] = trigger_idx
     return cand
 
 
 @preprocessor()
-def get_argument_idx(cand: DataPoint) -> DataPoint:
+def pre_argument_idx(cand: DataPoint) -> DataPoint:
     argument_idx: int = get_entity_idx(cand.argument_id, cand.entities)
     cand['argument_idx'] = argument_idx
     return cand
 
 
 @preprocessor()
-def get_trigger_left_tokens(cand: DataPoint) -> DataPoint:
+def pre_trigger_left_tokens(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
     cand['trigger_left_tokens'] = get_windowed_left_tokens(trigger, cand.tokens)
     return cand
 
 
 @preprocessor()
-def get_trigger_left_pos(cand: DataPoint) -> DataPoint:
+def pre_trigger_left_pos(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
     if 'pos' in cand:
         cand['trigger_left_pos'] = get_windowed_left_pos(trigger, cand.pos)
@@ -88,7 +88,7 @@ def get_trigger_left_pos(cand: DataPoint) -> DataPoint:
 
 
 @preprocessor()
-def get_trigger_left_ner(cand: DataPoint) -> DataPoint:
+def pre_trigger_left_ner(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
     if 'ner' in cand:
         cand['trigger_left_ner'] = get_windowed_left_ner(trigger, cand.ner_tags)
@@ -96,14 +96,14 @@ def get_trigger_left_ner(cand: DataPoint) -> DataPoint:
 
 
 @preprocessor()
-def get_argument_left_tokens(cand: DataPoint) -> DataPoint:
+def pre_argument_left_tokens(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
     cand['argument_left_tokens'] = get_windowed_left_tokens(argument, cand.tokens)
     return cand
 
 
 @preprocessor()
-def get_argument_left_pos(cand: DataPoint) -> DataPoint:
+def pre_argument_left_pos(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
     if 'pos' in cand:
         cand['argument_left_pos'] = get_windowed_left_pos(argument, cand.pos)
@@ -111,7 +111,7 @@ def get_argument_left_pos(cand: DataPoint) -> DataPoint:
 
 
 @preprocessor()
-def get_argument_left_ner(cand: DataPoint) -> DataPoint:
+def pre_argument_left_ner(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
     if 'ner' in cand:
         cand['argument_left_ner'] = get_windowed_left_ner(argument, cand.ner_tags)
@@ -137,14 +137,14 @@ def get_windowed_left_ner(entity, ner, window_size: int = None) -> List[str]:
 
 
 @preprocessor()
-def get_trigger_right_tokens(cand: DataPoint) -> DataPoint:
+def pre_trigger_right_tokens(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
     cand['trigger_right_tokens'] = get_windowed_right_tokens(trigger, cand.tokens)
     return cand
 
 
 @preprocessor()
-def get_trigger_right_pos(cand: DataPoint) -> DataPoint:
+def pre_trigger_right_pos(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
     if 'pos' in cand:
         cand['trigger_right_pos'] = get_windowed_right_pos(trigger, cand.pos)
@@ -152,7 +152,7 @@ def get_trigger_right_pos(cand: DataPoint) -> DataPoint:
 
 
 @preprocessor()
-def get_trigger_right_ner(cand: DataPoint) -> DataPoint:
+def pre_trigger_right_ner(cand: DataPoint) -> DataPoint:
     trigger = get_entity(cand.trigger_id, cand.entities)
     if 'ner' in cand:
         cand['trigger_right_ner'] = get_windowed_right_ner(trigger, cand.ner_tags)
@@ -160,14 +160,14 @@ def get_trigger_right_ner(cand: DataPoint) -> DataPoint:
 
 
 @preprocessor()
-def get_argument_right_tokens(cand: DataPoint) -> DataPoint:
+def pre_argument_right_tokens(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
     cand['argument_right_tokens'] = get_windowed_right_tokens(argument, cand.tokens)
     return cand
 
 
 @preprocessor()
-def get_argument_right_pos(cand: DataPoint) -> DataPoint:
+def pre_argument_right_pos(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
     if 'pos' in cand:
         cand['argument_right_pos'] = get_windowed_right_pos(argument, cand.pos)
@@ -175,7 +175,7 @@ def get_argument_right_pos(cand: DataPoint) -> DataPoint:
 
 
 @preprocessor()
-def get_argument_right_ner(cand: DataPoint) -> DataPoint:
+def pre_argument_right_ner(cand: DataPoint) -> DataPoint:
     argument = get_entity(cand.argument_id, cand.entities)
     if 'ner' in cand:
         cand['argument_right_ner'] = get_windowed_right_ner(argument, cand.ner_tags)
