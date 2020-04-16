@@ -296,10 +296,8 @@ def pre_sentence_trigger_distances(cand: DataPoint) -> DataPoint:
 
 
 def get_sentence_trigger_distances(cand: DataPoint):
-    load_somajo_model()
-    somajo_doc = list(nlp_somajo.tokenize_text([cand.text]))
-
-    sentences = get_somajo_doc_sentences(somajo_doc)
+    somajo_doc = cand.somajo_doc['doc']
+    sentences = cand.somajo_doc['sentences']
     somajo_argument = cand.somajo_doc['entities'][cand.argument['id']]
 
     sentence_trigger_distances = {}
