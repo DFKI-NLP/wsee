@@ -258,4 +258,6 @@ def build_training_data(lf_train: pd.DataFrame) -> pd.DataFrame:
     merged_examples.update(merged_event_trigger_examples)
     merged_examples.update(merged_event_role_examples)
 
+    merged_examples.reset_index(level=0, inplace=True)
+
     return merged_examples
