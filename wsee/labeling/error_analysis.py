@@ -11,7 +11,7 @@ def get_false_positives(labeled_df: pd.DataFrame, lf_outputs: np.ndarray, lf_ind
 
 
 def sample_fp(labeled_df: pd.DataFrame, lf_outputs: np.ndarray, lf_index: int,
-              sample_size: int, label_of_interest: int):
+              label_of_interest: int, sample_size: int = 10):
     false_positives = get_false_positives(labeled_df, lf_outputs, lf_index, label_of_interest)
     return explore.sample_data(false_positives, sample_size=sample_size)
 
@@ -23,6 +23,6 @@ def get_abstained_instances(labeled_df: pd.DataFrame, lf_outputs: np.ndarray, lf
 
 
 def sample_abstained_instances(labeled_df: pd.DataFrame, lf_outputs: np.ndarray, lf_index: int,
-                               sample_size: int, label_of_interest: int):
+                               label_of_interest: int, sample_size: int = 10):
     abstains = get_abstained_instances(labeled_df, lf_outputs, lf_index)
     return explore.sample_data(abstains[abstains['label'] == label_of_interest], sample_size=sample_size)
