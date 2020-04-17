@@ -143,7 +143,7 @@ def lf_location_adjacent(x):
             lf_direction_type(x) == ABSTAIN and \
             lf_multiple_same_event_type(x) == ABSTAIN and lf_somajo_separate_sentence(x) == ABSTAIN \
             and between_distance < 3:
-        return location
+        return lf_location(x)
     return ABSTAIN
 
 
