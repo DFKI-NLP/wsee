@@ -323,9 +323,9 @@ def lf_end_location_type(x):
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
         if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
                 ((any(token.lower() in ['zw.', 'zwischen'] for token in argument_left_tokens[-6:]) and
-                  any(token.lower() in ['und', 'u.', '<', '>', '<>'] for token in argument_left_tokens[-1:])) or
+                  any(token.lower() in ['und', 'u.', '<', '>', '<>', '&'] for token in argument_left_tokens[-1:])) or
                  (any(token.lower() in ['von'] for token in argument_left_tokens[-6:-2]) and
-                  any(token.lower() in ['auf'] for token in argument_left_tokens[-3:])) or
+                  any(token.lower() in ['auf', 'nach'] for token in argument_left_tokens[-3:])) or
                  any(token.lower() in ['bis'] for token in argument_left_tokens[-1:]) or
                  (argument_left_tokens and '-' == argument_left_tokens[-1] and
                   len(argument_left_ner) > 1 and
@@ -346,9 +346,9 @@ def lf_end_location_nearest(x):
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
         if is_nearest_trigger(between_distance, sentence_trigger_distances) and lf_not_an_event(x) == ABSTAIN and \
                 ((any(token.lower() in ['zw.', 'zwischen'] for token in argument_left_tokens[-6:]) and
-                  any(token.lower() in ['und', 'u.', '<', '>', '<>'] for token in argument_left_tokens[-1:])) or
+                  any(token.lower() in ['und', 'u.', '<', '>', '<>', '&'] for token in argument_left_tokens[-1:])) or
                  (any(token.lower() in ['von'] for token in argument_left_tokens[-6:-2]) and
-                  any(token.lower() in ['auf'] for token in argument_left_tokens[-3:])) or
+                  any(token.lower() in ['auf', 'nach'] for token in argument_left_tokens[-3:])) or
                  any(token.lower() in ['bis'] for token in argument_left_tokens[-1:]) or
                  (argument_left_tokens and '-' == argument_left_tokens[-1] and
                   len(argument_left_ner) > 1 and
