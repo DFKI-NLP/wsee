@@ -24,5 +24,5 @@ def get_abstained_instances(labeled_df: pd.DataFrame, lf_outputs: np.ndarray, lf
 
 def sample_abstained_instances(labeled_df: pd.DataFrame, lf_outputs: np.ndarray, lf_index: int,
                                label_of_interest: int, sample_size: int = 10):
-    abstains = get_abstained_instances(labeled_df, lf_outputs, lf_index)
-    return explore.sample_data(abstains[abstains['label'] == label_of_interest], sample_size=sample_size)
+    abstains = get_abstained_instances(labeled_df, lf_outputs, lf_index, label_of_interest)
+    return explore.sample_data(abstains, sample_size=sample_size)
