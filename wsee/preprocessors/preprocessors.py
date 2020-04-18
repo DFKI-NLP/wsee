@@ -265,7 +265,6 @@ def get_entity_trigger_distances(cand: DataPoint):
     :param cand: DataPoint, one example.
     :return: DataPoint enriched with distances.
     """
-    trigger = get_entity(cand.trigger['id'], cand.entities)
     entity_trigger_distances: Dict[str, List[int]] = {
         'location': [],
         'location_city': [],
@@ -280,13 +279,25 @@ def get_entity_trigger_distances(cand: DataPoint):
     }
     for entity in cand.entities:
         if entity['id'] != cand.trigger['id']:
-            distance = get_entity_distance(trigger, entity)
+            distance = get_entity_distance(cand.trigger, entity)
             entity_type = entity['entity_type']
             if entity_type in entity_trigger_distances:
                 entity_trigger_distances[entity_type].append(distance)
             else:
                 entity_trigger_distances[entity_type] = [distance]
     return entity_trigger_distances
+
+
+def get_closest_entity(cand: DataPoint):
+    closest_entity = None
+    min_distance = 10000
+    for entity in cand.entities:
+        if entity['id'] != cand.trigger['id']:
+            distance = get_entity_distance(cand.trigger, entity)
+            if distance < min_distance:
+                closest_entity = entity
+                min_distance = distance
+    return closest_entity
 
 
 @preprocessor()
