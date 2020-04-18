@@ -32,26 +32,28 @@ accident_keywords = [
 ]
 canceledroute_keywords = [
         'Zugausfall', 'Zugausfälle', 'Zugausfällen', 'S-Bahn-Ausfall', 'fällt aus', 'ausgefallen', 'gesperrt',
-        'Umleitung', 'umgeleitet', 'Einstellung', 'Teilausfall', 'Ausfall', 'streichen', 'gestrichen',
-        'Streckensperrung',
-        'aus', 'fällt', 'fallen', 'unterbrochen', 'Ausfälle', 'Einstellung'
+        'Einstellung', 'Teilausfall', 'Ausfall', 'streichen', 'gestrichen',
+        'Streckensperrung', 'aus', 'fällt', 'fallen', 'unterbrochen', 'Ausfälle', 'Einstellung'
 ]
 canceledstop_keywords = [
         'hält nicht', 'halten nicht', 'hält', 'geschlossen', 'gesperrt'
 ]
 delay_keywords = [
-        'Verspätung', 'Verspätungen', 'Verzögerung', 'Verzögerungen', '#Störung',
-        'Technische Störung', 'Technische_Störung', 'Folgeverspätung', 'Folgeverspätungen',
-        'Fahrplanabweichung', 'unregelmäßiger Zugverkehr', 'unregelmäßigem Zugverkehr', 'unregelmäßigen Zugverkehr',
-        'Verspätungskürzung', 'verspäten', 'verspäten sich', 'Störung', 'Störungsinformation', 'verzögert',
-        'verspätet', 'später', 'Wartezeit', 'warten'
+        'Verspätung', 'Verspätungen', 'Verzögerung', 'Verzögerungen', 'Folgeverspätung', 'Folgeverspätungen',
+        'Verspätungskürzung', 'verspäten', 'verspäten sich', 'verzögert', 'verspätet', 'später', 'Wartezeit', 'warten'
+]
+delay_lower_priority_keywords = [
+        '#Störung', 'Technische Störung', 'Technische_Störung', 'Fahrplanabweichung', 'unregelmäßiger Zugverkehr',
+        'unregelmäßigem Zugverkehr', 'unregelmäßigen Zugverkehr', 'Störung', 'Störungsinformation',
 ]
 obstruction_keywords = [
-        'Umleitung', 'Umleitungen', 'umgeleitet',  'Sperrung', 'gesperrt', 'Großbaustelle', 'Nachtbaustelle',
-        'Tagesbaustelle', 'Baustelle', 'Bauarbeiten', 'Straßenbauarbeiten', 'Straßenbau', 'Fliegerbombe',
-        'Fliegerbomben', 'Bombenentschärfung', 'Vollsperrung', 'Verkehrsbehinderung', 'Behinderung', 'behindern',
-        'blockiert', 'Blockade', 'unterbrochen',
-        'Behinderungen', 'Schwertransport', 'Vorsicht', 'brennender PKW', 'Störung'
+        'Umleitung', 'Umleitungen', 'umgeleitet',  'Sperrung', 'gesperrt', 'Vollsperrung', 'Verkehrsbehinderung',
+        'Behinderung', 'behindern', 'blockiert', 'Blockade', 'unterbrochen', 'Behinderungen'
+]
+obstruction_lower_priority_keywords = [
+        'Großbaustelle', 'Nachtbaustelle', 'Tagesbaustelle', 'Baustelle', 'Bauarbeiten', 'Straßenbauarbeiten',
+        'Straßenbau', 'Fliegerbombe', 'Fliegerbomben', 'Bombenentschärfung', 'Schwertransport', 'Vorsicht',
+        'brennender PKW', 'Störung'
 ]
 railreplacementservice_keywords = [
         'Schienenersatzverkehr', '#SEV', 'Ersatzverkehr', 'Busnotverkehr', 'Pendelverkehr', 'durch Busse ersetzt',
@@ -67,14 +69,6 @@ trafficjam_exact_keywords = [
 
 
 @labeling_function(pre=[])
-def lf_accident_cat(x):
-    highest = process.extractOne(x.trigger['text'], accident_keywords)
-    if highest[1] >= 90:
-        return Accident
-    return ABSTAIN
-
-
-@labeling_function(pre=[])
 def lf_accident_context(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
@@ -83,8 +77,23 @@ def lf_accident_context(x):
         if (check_cause_keywords(trigger_left_tokens[-4:], x) or
             check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
-            return O
+            return ABSTAIN
         else:
+            return Accident
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_accident_context_street(x):
+    trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
+    trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
+    highest = process.extractOne(x.trigger['text'], accident_keywords)
+    if highest[1] >= 90:
+        if (check_cause_keywords(trigger_left_tokens[-4:], x) or
+            check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
+                and x.entity_type_freqs['trigger'] > 1:
+            return ABSTAIN
+        elif x.entity_type_freqs['location_street'] > 0:
             return Accident
     return ABSTAIN
 
@@ -180,7 +189,50 @@ def lf_delay_cat(x):
         if (check_cause_keywords(trigger_left_tokens[-4:], x) or
             check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
-            return O
+            return ABSTAIN
+        else:
+            return Delay
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_delay_duration(x):
+    trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
+    trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
+    highest = process.extractOne(x.trigger['text'], delay_keywords)
+    if highest[1] >= 90:
+        if (check_cause_keywords(trigger_left_tokens[-4:], x) or
+            check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
+                and x.entity_type_freqs['trigger'] > 1:
+            return ABSTAIN
+        elif 'duration' in x.entity_type_freqs:
+            return Delay
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_delay_priorities(x):
+    trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
+    trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
+    highest = process.extractOne(x.trigger['text'], delay_keywords)
+    highest_lower_priority = process.extractOne(x.trigger['text'], delay_lower_priority_keywords)
+    if highest[1] >= 90 or highest_lower_priority[1] >= 90:
+        if (check_cause_keywords(trigger_left_tokens[-4:], x) or
+            check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
+                and x.entity_type_freqs['trigger'] > 1:
+            return ABSTAIN
+        elif x.entity_type_freqs['trigger'] > 1 and highest_lower_priority[1] >= 90:
+            # Check for other higher priority delay trigger: "Verspätung" vs. lower priority "Störung
+            higher_priority_delay = False
+            for entity in x.entities:
+                if entity['entity_type'] == 'trigger' and entity['id'] != x.trigger['id']:
+                    best_match = process.extractOne(entity['text'], delay_keywords)
+                    if best_match >= 90:
+                        higher_priority_delay = True
+            if higher_priority_delay:
+                return ABSTAIN
+            else:
+                return Delay
         else:
             return Delay
     return ABSTAIN
@@ -195,7 +247,50 @@ def lf_obstruction_cat(x):
         if (check_cause_keywords(trigger_left_tokens[-4:], x) or
             check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
-            return O
+            return ABSTAIN
+        else:
+            return Obstruction
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_obstruction_street(x):
+    trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
+    trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
+    highest = process.extractOne(x.trigger['text'], obstruction_keywords)
+    if highest[1] >= 90 and x.trigger['text'] not in ['aus', 'aus.']:
+        if (check_cause_keywords(trigger_left_tokens[-4:], x) or
+            check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
+                and x.entity_type_freqs['trigger'] > 1:
+            return ABSTAIN
+        elif 'location_street' in x.entity_type_freqs:
+            return Obstruction
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_obstruction_priorities(x):
+    trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
+    trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
+    highest = process.extractOne(x.trigger['text'], obstruction_keywords)
+    highest_lower_priority = process.extractOne(x.trigger['text'], obstruction_lower_priority_keywords)
+    if (highest[1] >= 90 or highest_lower_priority[1] >= 90) and x.trigger['text'] not in ['aus', 'aus.']:
+        if (check_cause_keywords(trigger_left_tokens[-4:], x) or
+            check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
+                and x.entity_type_freqs['trigger'] > 1:
+            return ABSTAIN
+        elif x.entity_type_freqs['trigger'] > 1 and highest_lower_priority[1] >= 90:
+            # Check for other higher priority obstruction trigger: "Sperrung" vs. lower priority "Baustelle"
+            higher_priority_obstruction = False
+            for entity in x.entities:
+                if entity['entity_type'] == 'trigger' and entity['id'] != x.trigger['id']:
+                    best_match = process.extractOne(entity['text'], obstruction_keywords)
+                    if best_match >= 90:
+                        higher_priority_obstruction = True
+            if higher_priority_obstruction:
+                return ABSTAIN
+            else:
+                return Obstruction
         else:
             return Obstruction
     return ABSTAIN
@@ -218,7 +313,49 @@ def lf_trafficjam_cat(x):
             x.trigger['text'] not in ['aus', 'aus.']:
         if check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens) and \
                 x.entity_type_freqs['trigger'] > 1:
-            return O
+            return ABSTAIN
+        else:
+            return TrafficJam
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_trafficjam_street(x):
+    trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
+    trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
+    highest = process.extractOne(x.trigger['text'], trafficjam_keywords)
+    if (highest[1] >= 90 or x.trigger['text'] in trafficjam_exact_keywords) and \
+            x.trigger['text'] not in ['aus', 'aus.']:
+        if check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens) and \
+                x.entity_type_freqs['trigger'] > 1:
+            return ABSTAIN
+        elif 'location_street' in x.entity_type_freqs:
+            return TrafficJam
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_trafficjam_order(x):
+    trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
+    trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
+    highest = process.extractOne(x.trigger['text'], trafficjam_keywords)
+    if (highest[1] >= 90 or x.trigger['text'] in trafficjam_exact_keywords) and \
+            x.trigger['text'] not in ['aus', 'aus.']:
+        if check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens) and \
+                x.entity_type_freqs['trigger'] > 1:
+            return ABSTAIN
+        elif x.entity_type_freqs['trigger'] > 1:
+            not_first_trafficjam_trigger = False
+            for entity in x.entities:
+                if entity['start'] < x.trigger['start'] and entity['entity_type'] == 'trigger' \
+                        and entity['id'] != x.trigger['id']:
+                    best_match = process.extractOne(entity['text'], trafficjam_keywords)
+                    if best_match >= 90 or entity['text'] in trafficjam_exact_keywords:
+                        not_first_trafficjam_trigger = True
+            if not_first_trafficjam_trigger:
+                return ABSTAIN
+            else:
+                return TrafficJam
         else:
             return TrafficJam
     return ABSTAIN
