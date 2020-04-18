@@ -243,7 +243,8 @@ def lf_obstruction_cat(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], obstruction_keywords)
-    if highest[1] >= 90 and x.trigger['text'] not in ['aus', 'aus.']:
+    highest_lower_priority = process.extractOne(x.trigger['text'], obstruction_lower_priority_keywords)
+    if (highest[1] >= 90 or highest_lower_priority[1] >= 90) and x.trigger['text'] not in ['aus', 'aus.']:
         if (check_cause_keywords(trigger_left_tokens[-4:], x) or
             check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
@@ -258,7 +259,8 @@ def lf_obstruction_street(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], obstruction_keywords)
-    if highest[1] >= 90 and x.trigger['text'] not in ['aus', 'aus.']:
+    highest_lower_priority = process.extractOne(x.trigger['text'], obstruction_lower_priority_keywords)
+    if (highest[1] >= 90 or highest_lower_priority[1] >= 90) and x.trigger['text'] not in ['aus', 'aus.']:
         if (check_cause_keywords(trigger_left_tokens[-4:], x) or
             check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
