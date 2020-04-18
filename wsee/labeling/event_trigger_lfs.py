@@ -93,7 +93,7 @@ def lf_accident_context_street(x):
             check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
             return ABSTAIN
-        elif x.entity_type_freqs['location_street'] > 0:
+        elif 'location_street' in x.entity_type_freqs:
             return Accident
     return ABSTAIN
 
