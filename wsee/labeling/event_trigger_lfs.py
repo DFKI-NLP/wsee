@@ -98,25 +98,21 @@ def lf_accident_context_street(x):
     return ABSTAIN
 
 
-def check_cause_keywords(tokens, x):
+def check_cause_keywords(left_tokens, x):
     """
     Checks the tokens (usually the ones left to the trigger) for causal keywords that would
     indicate that the trigger is not the event of the sentence, but rather a cause for the actual event.
     :param x: DataPoint.
-    :param tokens: Context tokens of the trigger.
+    :param left_tokens: Context tokens of the trigger.
     :return: True or False depending on a match with any of the causal keywords.
     """
     cause_keywords = ['nach', 'wegen', 'bei', 'grund', 'aufgrund', 'durch']
-    if any(token.lower() in cause_keywords for token in tokens):
-        left_text = " ".join(tokens)
-        lower_left_text = left_text.lower()
-        cause_start = max([lower_left_text.find(cause_keyword) for cause_keyword in cause_keywords])
-        assert cause_start > -1
-        # make sure that no other trigger occurs after the causal keyword
-        if x.event_triggers:
-            rightest_trigger_start = max([left_text.find(get_entity(event_trigger['id'], x.entities)['text'])
-                                          for event_trigger in x.event_triggers])
-            if rightest_trigger_start > cause_start:
+    cause_token_idx = next((idx for idx, token in enumerate(left_tokens) if token.lower() in cause_keywords), -1)
+    if cause_token_idx > -1:
+        # make sure that no other entity occurs after the causal keyword
+        for entity in x.entities:
+            cause_token_idx_global = x.trigger['start'] - len(left_tokens) + cause_token_idx
+            if entity['id'] != x.trigger['id'] and cause_token_idx_global < entity['start'] < x.trigger['start']:
                 return False
         return True
     else:
