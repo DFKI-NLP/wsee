@@ -227,7 +227,7 @@ def lf_delay_priorities(x):
             for entity in x.entities:
                 if entity['entity_type'] == 'trigger' and entity['id'] != x.trigger['id']:
                     best_match = process.extractOne(entity['text'], delay_keywords)
-                    if best_match >= 90:
+                    if best_match[1] >= 90:
                         higher_priority_delay = True
             if higher_priority_delay:
                 return ABSTAIN
@@ -285,7 +285,7 @@ def lf_obstruction_priorities(x):
             for entity in x.entities:
                 if entity['entity_type'] == 'trigger' and entity['id'] != x.trigger['id']:
                     best_match = process.extractOne(entity['text'], obstruction_keywords)
-                    if best_match >= 90:
+                    if best_match[1] >= 90:
                         higher_priority_obstruction = True
             if higher_priority_obstruction:
                 return ABSTAIN
@@ -350,7 +350,7 @@ def lf_trafficjam_order(x):
                 if entity['start'] < x.trigger['start'] and entity['entity_type'] == 'trigger' \
                         and entity['id'] != x.trigger['id']:
                     best_match = process.extractOne(entity['text'], trafficjam_keywords)
-                    if best_match >= 90 or entity['text'] in trafficjam_exact_keywords:
+                    if best_match[1] >= 90 or entity['text'] in trafficjam_exact_keywords:
                         not_first_trafficjam_trigger = True
             if not_first_trafficjam_trigger:
                 return ABSTAIN
