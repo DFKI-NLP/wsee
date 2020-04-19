@@ -188,13 +188,22 @@ def get_trigger_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_functio
     event_trigger_examples, _ = build_event_trigger_examples(l_train)
     if lfs is None:
         lfs = [
-            event_trigger_lfs.lf_accident_cat,
+            event_trigger_lfs.lf_accident_context,
+            event_trigger_lfs.lf_accident_context_street,
             event_trigger_lfs.lf_canceledroute_cat,
             event_trigger_lfs.lf_canceledstop_cat,
             event_trigger_lfs.lf_delay_cat,
+            event_trigger_lfs.lf_delay_priorities,
+            event_trigger_lfs.lf_delay_duration,
             event_trigger_lfs.lf_obstruction_cat,
+            event_trigger_lfs.lf_obstruction_street,
+            event_trigger_lfs.lf_obstruction_priorities,
             event_trigger_lfs.lf_railreplacementservice_cat,
-            event_trigger_lfs.lf_trafficjam_cat
+            event_trigger_lfs.lf_trafficjam_cat,
+            event_trigger_lfs.lf_trafficjam_street,
+            event_trigger_lfs.lf_trafficjam_order,
+            event_trigger_lfs.lf_negative,
+            event_trigger_lfs.lf_cause_negative
         ]
     applier = PandasLFApplier(lfs)
     df_train = applier.apply(event_trigger_examples)
@@ -242,9 +251,10 @@ def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]]
     return merge_event_trigger_examples(event_role_examples, event_role_probs)
 
 
-def build_training_data(lf_train: pd.DataFrame) -> pd.DataFrame:
+def build_training_data(lf_train: pd.DataFrame, save_path=None) -> pd.DataFrame:
     """
     Merges event_trigger_examples and event_role examples to build training data.
+    :param save_path: Where to save the dataframe as a jsonl
     :param lf_train: DataFrame with original data.
     :return: Original DataFrame updated with event triggers and event roles.
     """
@@ -260,4 +270,9 @@ def build_training_data(lf_train: pd.DataFrame) -> pd.DataFrame:
 
     merged_examples.reset_index(level=0, inplace=True)
 
+    if save_path:
+        try:
+            merged_examples.to_json(save_path, orient='records', lines=True, force_ascii=False)
+        except Exception as e:
+            print(e)
     return merged_examples
