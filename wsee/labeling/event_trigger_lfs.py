@@ -106,13 +106,19 @@ def check_cause_keywords(left_tokens, x):
     :param left_tokens: Context tokens of the trigger.
     :return: True or False depending on a match with any of the causal keywords.
     """
-    cause_keywords = ['nach', 'wegen', 'bei', 'grund', 'aufgrund', 'durch']
-    cause_token_idx = next((idx for idx, token in enumerate(left_tokens) if token.lower() in cause_keywords), -1)
+    cause_keywords = ['nach', 'wegen', 'grund', 'aufgrund', 'durch']
+    cause_token_idx, cause_word = next((idx, token for idx, token in enumerate(left_tokens)
+                                        if token.lower() in cause_keywords), -1)
     if cause_token_idx > -1:
-        # make sure that no other entity occurs after the causal keyword
+        # Avoid cases such as: 'durch Busse ersetzt'
+        if cause_word == 'durch':
+            highest = process.extractOne(x.trigger['text'], railreplacementservice_keywords)
+            if highest[1] >= 90 and 'location_route' in x.entity_type_freqs:
+                return False
+        # make sure that no other entity occurs after the causal keyword or is the one containing the cause_keyword
         for entity in x.entities:
             cause_token_idx_global = x.trigger['start'] - len(left_tokens) + cause_token_idx
-            if entity['id'] != x.trigger['id'] and cause_token_idx_global < entity['start'] < x.trigger['start']:
+            if entity['id'] != x.trigger['id'] and cause_token_idx_global <= entity['end'] <= x.trigger['start']:
                 return False
         return True
     else:
@@ -377,3 +383,12 @@ def lf_negative(x):
             else:
                 return ABSTAIN
     return O
+
+
+@labeling_function(pre=[])
+def lf_cause_negative(x):
+    trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
+    if check_cause_keywords(trigger_left_tokens[-4:], x):
+        return O
+    else:
+        return ABSTAIN
