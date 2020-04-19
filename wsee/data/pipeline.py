@@ -1,4 +1,5 @@
 import os
+import logging
 from pathlib import Path
 from typing import Optional, List
 
@@ -11,6 +12,9 @@ from wsee.preprocessors import preprocessors
 from wsee.labeling import event_trigger_lfs
 from wsee.labeling import event_argument_role_lfs
 from wsee.utils import utils
+
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 def load_data(path, use_build_defaults=True):
@@ -32,11 +36,13 @@ def load_data(path, use_build_defaults=True):
         else:
             sd_path = input_path.joinpath(split, f'{split}_with_events.jsonl')
         assert os.path.exists(sd_path)
+        logging.info(f"Reading {split} data from: {sd_path}")
         sd_data = pd.read_json(sd_path, lines=True, encoding='utf8')
         output_dict[split] = sd_data
 
     daystream_path = os.path.join(input_path, 'daystream.jsonl')
     assert os.path.exists(daystream_path)
+    logging.info(f"Reading daystream data from: {daystream_path}")
     daystream = pd.read_json(daystream_path, lines=True, encoding='utf8')
     output_dict['daystream'] = daystream
 
@@ -54,8 +60,10 @@ def build_event_trigger_examples(dataframe):
     event_trigger_rows_y = []
 
     event_count = 0
+    example_count = 0
 
-    print(f"DataFrame has {len(dataframe.index)} rows")
+    logging.info("Building event trigger examples")
+    logging.info(f"DataFrame has {len(dataframe.index)} rows")
     for index, row in tqdm(dataframe.iterrows()):
         entity_type_freqs = preprocessors.get_entity_type_freqs(row)
         for event_trigger in row.event_triggers:
@@ -65,10 +73,13 @@ def build_event_trigger_examples(dataframe):
             event_trigger_rows.append(trigger_row)
             event_type_num = np.asarray(event_trigger['event_type_probs']).argmax()
             event_trigger_rows_y.append(event_type_num)
+            example_count += 1
             if event_type_num != 7:
                 event_count += 1
 
-    print("Number of events:", event_count)
+    if event_count > 0:
+        logging.info(f"Number of events: {event_count}")
+    logging.info(f"Number of event trigger examples: {example_count}")
     event_trigger_rows = pd.DataFrame(event_trigger_rows)
     event_trigger_rows_y = np.asarray(event_trigger_rows_y)
     return event_trigger_rows, event_trigger_rows_y
@@ -86,7 +97,10 @@ def build_event_role_examples(dataframe):
     event_role_rows_y = []
 
     event_count = 0
+    example_count = 0
 
+    logging.info("Building event role examples")
+    logging.info(f"DataFrame has {len(dataframe.index)} rows")
     for index, row in tqdm(dataframe.iterrows()):
         entity_type_freqs = preprocessors.get_entity_type_freqs(row)
         somajo_doc = preprocessors.get_somajo_doc(row)
@@ -102,10 +116,13 @@ def build_event_role_examples(dataframe):
             event_role_rows_list.append(role_row)
             event_role_num = np.asarray(event_role['event_argument_probs']).argmax()
             event_role_rows_y.append(event_role_num)
+            example_count += 1
             if event_role_num != 10:
                 event_count += 1
 
-    print("Number of event roles:", event_count)
+    if event_count > 0:
+        logging.info(f"Number of event roles: {event_count}")
+    logging.info(f"Number of event role examples: {example_count}")
     event_role_rows = pd.DataFrame(event_role_rows_list).reset_index(drop=True)
     event_role_rows_y = np.asarray(event_role_rows_y)
 
@@ -133,6 +150,7 @@ def merge_event_trigger_examples(event_trigger_rows, event_trigger_probs):
     :param event_trigger_probs: NumPy array containing the event trigger class probabilities.
     :return: DataFrame containing one document per row.
     """
+    logging.info("Merging event trigger examples that belong to the same document")
     # add event_trigger_probs to dataframe as additional column
     event_trigger_rows['event_type_probs'] = list(event_trigger_probs)
     event_trigger_rows = event_trigger_rows.apply(build_labeled_event_trigger, axis=1)
@@ -165,7 +183,7 @@ def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_prob
     :return: DataFrame containing one document per row.
     """
     # add event_trigger_probs to dataframe as additional column
-    # TODO fix: A value is trying to be set on a copy of a slice from a DataFrame
+    logging.info("Merging event role examples that belong to the same document")
     event_role_rows_copy = event_role_rows.copy()
     event_role_rows_copy['event_argument_probs'] = list(event_argument_probs)
     event_role_rows_copy = event_role_rows_copy.apply(build_labeled_event_role, axis=1)
@@ -205,11 +223,23 @@ def get_trigger_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_functio
             event_trigger_lfs.lf_negative,
             event_trigger_lfs.lf_cause_negative
         ]
+    logging.info("Running Event Trigger Labeling Function Applier")
     applier = PandasLFApplier(lfs)
     df_train = applier.apply(event_trigger_examples)
+    logging.info("Fitting LabelModel on the data and predicting class probabilities")
     if label_model is None:
         label_model = LabelModel(cardinality=8, verbose=True)
-        label_model.fit(L_train=df_train, n_epochs=500, log_freq=100, seed=123)
+        label_model.fit(L_train=df_train, n_epochs=500, log_freq=100, seed=123,
+                        class_balance=[
+                            0.070991432,
+                            0.074663403,
+                            0.030599755,
+                            0.079559364,
+                            0.123623011,
+                            0.026927785,
+                            0.189718482,
+                            0.403916769]
+                        )
     event_trigger_probs = label_model.predict_proba(df_train)
     return merge_event_trigger_examples(event_trigger_examples, event_trigger_probs)
 
@@ -242,22 +272,40 @@ def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]]
             event_argument_role_lfs.lf_event_patterns,
             event_argument_role_lfs.lf_event_patterns_general_location
         ]
+    logging.info("Running Event Role Labeling Function Applier")
     applier = PandasLFApplier(lfs)
     df_train = applier.apply(event_role_examples)
+    logging.info("Fitting LabelModel on the data and predicting class probabilities")
     if label_model is None:
         label_model = LabelModel(cardinality=11, verbose=True)
-        label_model.fit(L_train=df_train, n_epochs=500, log_freq=100, seed=123)
+        label_model.fit(L_train=df_train, n_epochs=500, log_freq=100, seed=123,
+                        class_balance=[
+                             0.0749797352067009,
+                             0.010537692515536342,
+                             0.037017022426371254,
+                             0.03539583896244258,
+                             0.06119967576330721,
+                             0.0045933531477978925,
+                             0.0054039448797622265,
+                             0.013915158065387734,
+                             0.018238313969197513,
+                             0.0031072683058632803,
+                             0.7356119967576331
+                        ])
     event_role_probs = label_model.predict_proba(df_train)
     return merge_event_trigger_examples(event_role_examples, event_role_probs)
 
 
-def build_training_data(lf_train: pd.DataFrame, save_path=None) -> pd.DataFrame:
+def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) -> pd.DataFrame:
     """
     Merges event_trigger_examples and event_role examples to build training data.
+    :param sample: When set to true, only use a sample of the data.
     :param save_path: Where to save the dataframe as a jsonl
     :param lf_train: DataFrame with original data.
     :return: Original DataFrame updated with event triggers and event roles.
     """
+    if sample and len(lf_train) > 100:
+        lf_train = lf_train.sample(100)
     merged_event_trigger_examples = get_trigger_probs(lf_train)
     merged_event_role_examples = get_role_probs(lf_train)
 
@@ -272,6 +320,7 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None) -> pd.DataFrame:
 
     if save_path:
         try:
+            logging.info(f"Writing Snorkel Labeled data to {save_path}")
             merged_examples.to_json(save_path, orient='records', lines=True, force_ascii=False)
         except Exception as e:
             print(e)
