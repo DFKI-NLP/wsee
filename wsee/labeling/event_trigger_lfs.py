@@ -31,9 +31,9 @@ accident_keywords = [
         'Verkehrsunfalls'
 ]
 canceledroute_keywords = [
-        'Zugausfall', 'Zugausfälle', 'Zugausfällen', 'S-Bahn-Ausfall', 'fällt aus', 'ausgefallen', 'gesperrt',
-        'Einstellung', 'Teilausfall', 'Ausfall', 'streichen', 'gestrichen',
-        'Streckensperrung', 'aus', 'fällt', 'fallen', 'unterbrochen', 'Ausfälle', 'Einstellung'
+        'Zugausfall', 'Zugausfälle', 'Zugausfällen', 'S-Bahn-Ausfall', 'fällt aus', 'ausgefallen', 'aus', 'fällt',
+        'fallen', 'unterbrochen', 'Ausfälle', 'Einstellung', 'Teilausfall', 'Ausfall', 'streichen', 'gestrichen',
+        'Streckensperrung', 'gesperrt'
 ]
 canceledstop_keywords = [
         'hält nicht', 'halten nicht', 'hält', 'geschlossen', 'gesperrt'
@@ -107,8 +107,8 @@ def check_cause_keywords(left_tokens, x):
     :return: True or False depending on a match with any of the causal keywords.
     """
     cause_keywords = ['nach', 'wegen', 'grund', 'aufgrund', 'durch']
-    cause_token_idx, cause_word = next((idx, token for idx, token in enumerate(left_tokens)
-                                        if token.lower() in cause_keywords), -1)
+    cause_token_idx, cause_word = next(((idx, token) for idx, token in enumerate(left_tokens)
+                                        if token.lower() in cause_keywords), (-1, None))
     if cause_token_idx > -1:
         # Avoid cases such as: 'durch Busse ersetzt'
         if cause_word == 'durch':
@@ -116,9 +116,12 @@ def check_cause_keywords(left_tokens, x):
             if highest[1] >= 90 and 'location_route' in x.entity_type_freqs:
                 return False
         # make sure that no other entity occurs after the causal keyword or is the one containing the cause_keyword
+        if cause_token_idx == len(left_tokens)-1:
+            # adjacent to trigger
+            return True
         for entity in x.entities:
             cause_token_idx_global = x.trigger['start'] - len(left_tokens) + cause_token_idx
-            if entity['id'] != x.trigger['id'] and cause_token_idx_global <= entity['end'] <= x.trigger['start']:
+            if entity['id'] != x.trigger['id'] and cause_token_idx_global < entity['end'] <= x.trigger['start']:
                 return False
         return True
     else:
@@ -245,8 +248,7 @@ def lf_obstruction_cat(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], obstruction_keywords)
-    highest_lower_priority = process.extractOne(x.trigger['text'], obstruction_lower_priority_keywords)
-    if (highest[1] >= 90 or highest_lower_priority[1] >= 90) and x.trigger['text'] not in ['aus', 'aus.']:
+    if highest[1] >= 90 and x.trigger['text'] not in ['aus', 'aus.']:
         if (check_cause_keywords(trigger_left_tokens[-4:], x) or
             check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
@@ -369,12 +371,19 @@ def lf_trafficjam_order(x):
 def lf_negative(x):
     lfs = [
         lf_accident_context,
+        lf_accident_context_street,
         lf_canceledroute_cat,
         lf_canceledstop_cat,
         lf_delay_cat,
+        lf_delay_priorities,
+        lf_delay_duration,
         lf_obstruction_cat,
+        lf_obstruction_street,
+        lf_obstruction_priorities,
         lf_railreplacementservice_cat,
-        lf_trafficjam_cat
+        lf_trafficjam_cat,
+        lf_trafficjam_street,
+        lf_trafficjam_order
     ]
     for lf in lfs:
         if lf(x) != ABSTAIN:
@@ -388,7 +397,7 @@ def lf_negative(x):
 @labeling_function(pre=[])
 def lf_cause_negative(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
-    if check_cause_keywords(trigger_left_tokens[-4:], x):
+    if check_cause_keywords(trigger_left_tokens[-4:], x) and x.entity_type_freqs['trigger'] > 1:
         return O
     else:
         return ABSTAIN
