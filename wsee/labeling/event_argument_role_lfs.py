@@ -147,6 +147,16 @@ def lf_location_adjacent(x):
     return ABSTAIN
 
 
+@labeling_function(pre=[])
+def lf_location_beginning(x):
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
+            lf_direction_type(x) == ABSTAIN and \
+            lf_multiple_same_event_type(x) == ABSTAIN and lf_somajo_separate_sentence(x) == ABSTAIN and \
+            x.argument['start'] == 0:
+        return lf_location(x)
+    return ABSTAIN
+
+
 # delay role
 @labeling_function(pre=[])
 def lf_delay_event_sentence(x):
