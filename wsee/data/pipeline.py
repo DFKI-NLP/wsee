@@ -14,7 +14,7 @@ from wsee.labeling import event_argument_role_lfs
 from wsee.utils import utils
 
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 def load_data(path, use_build_defaults=True):
