@@ -1,5 +1,3 @@
-from typing import Union
-
 from snorkel.labeling import labeling_function
 from wsee.preprocessors.preprocessors import *
 from wsee.preprocessors.pattern_event_processor import parse_pattern_file, find_best_pattern_match, location_subtypes
@@ -123,39 +121,14 @@ def lf_location(x, same_sentence=True, nearest=False, check_event_type=True,
 
 
 @labeling_function(pre=[])
-def lf_location_same_sentence_is_event(x):
-    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and lf_direction_type(x) == ABSTAIN:
-        return lf_location(x, same_sentence=True, nearest=False)
-    else:
-        return ABSTAIN
-
-
-@labeling_function(pre=[])
-def lf_location_same_sentence_nearest_is_event(x):
-    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and lf_direction_type(x) == ABSTAIN:
-        return lf_location(x, same_sentence=True, nearest=True)
-    else:
-        return ABSTAIN
-
-
-@labeling_function(pre=[])
-def lf_location_adjacent(x):
-    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN and \
-            lf_multiple_same_event_type(x) == ABSTAIN and no_entity_in_between(x):
-        return lf_location(x, same_sentence=True, nearest=True)
-    return ABSTAIN
-
-
-@labeling_function(pre=[])
 def lf_location_adjacent_markers(x):
     between_distance = get_between_distance(x)
     between_tokens = get_between_tokens(x)
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN and \
-            lf_multiple_same_event_type(x) == ABSTAIN and no_entity_in_between(x):
+            lf_direction_type(x) == ABSTAIN and no_entity_in_between(x):
         if (':' in between_tokens and between_distance <= 1) or \
                 (x.trigger['start'] < x.argument['start'] and between_distance < 3 and
+                 no_entity_in_between(x) and
                  (any(token for token in between_tokens if token in ['auf', 'bei', 'in']))):
             return lf_location(x)
     return ABSTAIN
@@ -163,10 +136,8 @@ def lf_location_adjacent_markers(x):
 
 @labeling_function(pre=[])
 def lf_location_beginning(x):
-    # TODO: maybe not location city?
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN and \
-            lf_multiple_same_event_type(x) == ABSTAIN and x.argument['start'] == 0:
+            lf_direction_type(x) == ABSTAIN and x.argument['start'] == 0:
         return lf_location(x)
     return ABSTAIN
 
@@ -174,8 +145,7 @@ def lf_location_beginning(x):
 @labeling_function(pre=[])
 def lf_location_first(x):
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN and \
-            lf_multiple_same_event_type(x) == ABSTAIN:
+            lf_direction_type(x) == ABSTAIN:
         first_location_entity = first_of_entity_types(
             x.entities, ['location', 'location_route', 'location_street', 'location_stop', 'location_city'])
         if first_location_entity and first_location_entity['id'] == x.argument['id']:
@@ -184,11 +154,15 @@ def lf_location_first(x):
 
 
 @labeling_function(pre=[])
-def lf_location_first_independent(x):
-    if lf_multiple_same_event_type(x) == ABSTAIN:
+def lf_location_first_nearest(x):
+    between_distance = get_between_distance(x)
+    sentence_trigger_distances = get_sentence_trigger_distances(x)
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
+            lf_direction_type(x) == ABSTAIN:
         first_location_entity = first_of_entity_types(
             x.entities, ['location', 'location_route', 'location_street', 'location_stop', 'location_city'])
-        if first_location_entity and first_location_entity['id'] == x.argument['id']:
+        if first_location_entity and first_location_entity['id'] == x.argument['id'] and \
+                is_nearest_trigger(between_distance, sentence_trigger_distances):
             return lf_location(x)
     return ABSTAIN
 
