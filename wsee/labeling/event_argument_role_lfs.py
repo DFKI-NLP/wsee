@@ -455,8 +455,9 @@ def lf_start_location_type(x):
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
         if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
-                (any(token.lower() in ['zw.', 'zwischen', 'ab', 'von', 'einfahrt', 'anschlussstelle']
-                     for token in argument_left_tokens[-2:]) or
+                ((any(token.lower() in ['zw.', 'zwischen', 'ab', 'von']
+                      for token in argument_left_tokens[-3:]) and
+                  argument_left_ner[-1][2:] not in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP']) or
                  (argument_right_tokens and argument_right_tokens[0] in ['-', '<', '>', '<>'] and
                   len(argument_right_ner) > 1 and
                   argument_right_ner[1][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP'])):
@@ -466,22 +467,6 @@ def lf_start_location_type(x):
                 return ABSTAIN
             else:
                 return start_loc
-    return ABSTAIN
-
-
-@labeling_function(pre=[])
-def lf_start_location_questionable(x):
-    between_distance = get_between_distance(x)
-    sentence_trigger_distances = get_sentence_trigger_distances(x)
-    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
-    if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
-            event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
-        return ABSTAIN
-    arg_entity_type = x.argument['entity_type']
-    if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
-        if is_nearest_trigger(between_distance, sentence_trigger_distances) and lf_not_an_event(x) == ABSTAIN and \
-                (any(token.lower() in ['bei', 'höhe'] for token in argument_left_tokens[-2:])):
-            return start_loc
     return ABSTAIN
 
 
@@ -499,8 +484,9 @@ def lf_start_location_nearest(x):
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
         if is_nearest_trigger(between_distance, sentence_trigger_distances) and lf_not_an_event(x) == ABSTAIN and \
-                (any(token.lower() in ['zw.', 'zwischen', 'ab', 'von', 'einfahrt', 'anschlussstelle']
-                     for token in argument_left_tokens[-1:]) or
+                ((any(token.lower() in ['zw.', 'zwischen', 'ab', 'von']
+                      for token in argument_left_tokens[-3:]) and
+                  argument_left_ner[-1][2:] not in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP']) or
                  (argument_right_tokens and argument_right_tokens[0] in ['-', '<', '>', '<>'] and
                   len(argument_right_ner) > 1 and
                   argument_right_ner[1][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP'])):
@@ -566,6 +552,9 @@ def lf_start_date_type(x):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['date', 'time']:
+            if any(left_token == 'gültig' for left_token in argument_left_tokens[-4:]) and \
+                    'ab' in argument_left_tokens[-3:]:
+                return ABSTAIN
             if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
                     ((any(token.lower() in ['ab', 'von', 'vom'] for token in argument_left_tokens[-3:]) and
                       not any(token.lower() in ['bis'] for token in argument_left_tokens[-3:])) or
@@ -577,6 +566,7 @@ def lf_start_date_type(x):
 
 @labeling_function(pre=[])
 def lf_start_date_nearest(x):
+    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
     between_distance = get_between_distance(x)
     sentence_trigger_distances = get_sentence_trigger_distances(x)
@@ -585,6 +575,9 @@ def lf_start_date_nearest(x):
         return ABSTAIN
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
+        if any(left_token == 'gültig' for left_token in argument_left_tokens[-4:]) and \
+                'ab' in argument_left_tokens[-3:]:
+            return ABSTAIN
         if arg_entity_type in ['date', 'time']:
             if is_nearest_trigger(between_distance, sentence_trigger_distances) and \
                     entity_trigger_distances[arg_entity_type] and \
