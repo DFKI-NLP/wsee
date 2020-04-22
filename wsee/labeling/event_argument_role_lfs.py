@@ -94,7 +94,8 @@ def lf_location(x, same_sentence=True, nearest=False, check_event_type=True,
     between_distance = get_between_distance(x)
     sentence_trigger_distances = get_sentence_trigger_distances(x)
     all_trigger_distances = get_all_trigger_distances(x)
-    if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
+    if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
+            (x.trigger['text'] == 'aus' and x.trigger['start'] < x.argument['start']):
         return ABSTAIN
     if same_sentence:
         if lf_somajo_separate_sentence(x) != ABSTAIN:
@@ -116,8 +117,29 @@ def lf_location(x, same_sentence=True, nearest=False, check_event_type=True,
     else:
         for event_class, location_types in event_type_location_type_map.items():
             if arg_entity_type in location_types and event_type_lf_map[event_class](x) == event_class:
-                return location
+                if event_class == event_trigger_lfs.CanceledStop and between_distance > 10:
+                    return ABSTAIN
+                else:
+                    return location
     return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_location_chained(x):
+    if any(location_lf(x) == location for location_lf in
+           [
+               lf_location_adjacent_markers,
+               lf_location_beginning_street_stop_route,
+               lf_location_first_sentence,
+               lf_location_first_sentence_nearest,
+               lf_location_first_sentence_street_stop_route,
+               lf_location_first_sentence_priorities,
+               lf_event_patterns,
+               lf_event_patterns_general_location
+           ]):
+        return location
+    else:
+        return ABSTAIN
 
 
 @labeling_function(pre=[])
@@ -135,9 +157,10 @@ def lf_location_adjacent_markers(x):
 
 
 @labeling_function(pre=[])
-def lf_location_beginning(x):
+def lf_location_beginning_street_stop_route(x):
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN and x.argument['start'] == 0:
+            lf_direction_type(x) == ABSTAIN and x.argument['start'] == 0 and \
+            x.argument['entity_type'] not in ['location_city', 'location']:
         return lf_location(x)
     return ABSTAIN
 
@@ -146,7 +169,7 @@ def lf_location_beginning(x):
 def lf_location_first(x):
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
             lf_direction_type(x) == ABSTAIN:
-        first_location_entity = first_of_entity_types(
+        first_location_entity = get_first_of_entity_types(
             x.entities, ['location', 'location_route', 'location_street', 'location_stop', 'location_city'])
         if first_location_entity and first_location_entity['id'] == x.argument['id']:
             return lf_location(x)
@@ -159,7 +182,7 @@ def lf_location_first_nearest(x):
     sentence_trigger_distances = get_sentence_trigger_distances(x)
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
             lf_direction_type(x) == ABSTAIN:
-        first_location_entity = first_of_entity_types(
+        first_location_entity = get_first_of_entity_types(
             x.entities, ['location', 'location_route', 'location_street', 'location_stop', 'location_city'])
         if first_location_entity and first_location_entity['id'] == x.argument['id'] and \
                 is_nearest_trigger(between_distance, sentence_trigger_distances):
@@ -168,18 +191,131 @@ def lf_location_first_nearest(x):
 
 
 @labeling_function(pre=[])
-def lf_location_first_not_city(x):
+def lf_location_first_street_stop_route(x):
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
             lf_direction_type(x) == ABSTAIN and \
             lf_multiple_same_event_type(x) == ABSTAIN and lf_somajo_separate_sentence(x) == ABSTAIN:
-        first_location_entity = first_of_entity_types(
-            x.entities, ['location', 'location_route', 'location_street', 'location_stop'])
+        first_location_entity = get_first_of_entity_types(
+            x.entities, ['location_route', 'location_street', 'location_stop'])
         if first_location_entity and first_location_entity['id'] == x.argument['id']:
             return lf_location(x)
     return ABSTAIN
 
 
-def first_of_entity_types(entities, entity_types: List[str]):
+@labeling_function(pre=[])
+def lf_location_first_priorities(x):
+    """
+    Looks at the first location entity. If it is a (general) location/ city entity and a
+    street/stop/route location entity follows immediately, the location argument of interest is
+    probably the latter. There choose that second location entity as the argument.
+    :param x:
+    :return:
+    """
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
+            lf_direction_type(x) == ABSTAIN:
+        first_location_entity = get_first_of_entity_types(
+            get_sentence_entities(x),
+            ['location', 'location_route', 'location_street', 'location_stop', 'location_city'])
+        first_street_stop_route = get_first_of_entity_types(
+            x.entities, ['location_route', 'location_stop', 'location_street'])
+        if first_location_entity:
+            if first_street_stop_route:
+                first_distance = get_entity_distance(first_location_entity, first_street_stop_route)
+                if first_location_entity['id'] != first_street_stop_route['id'] and first_distance < 2:
+                    if first_street_stop_route['id'] == x.argument['id']:
+                        return lf_location(x)
+                    else:
+                        return ABSTAIN
+                elif first_location_entity['id'] == first_street_stop_route['id'] and \
+                        first_street_stop_route['id'] == x.argument['id']:
+                    return lf_location(x)
+            elif first_location_entity['id'] == x.argument['id']:
+                return lf_location(x)
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_location_first_sentence(x):
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
+            lf_direction_type(x) == ABSTAIN:
+        first_location_entity = get_first_of_entity_types(
+            get_sentence_entities(x),
+            ['location', 'location_route', 'location_street', 'location_stop', 'location_city'])
+        if first_location_entity and first_location_entity['id'] == x.argument['id']:
+            return lf_location(x)
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_location_first_sentence_nearest(x):
+    between_distance = get_between_distance(x)
+    sentence_trigger_distances = get_sentence_trigger_distances(x)
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
+            lf_direction_type(x) == ABSTAIN:
+        first_location_entity = get_first_of_entity_types(
+            get_sentence_entities(x),
+            ['location', 'location_route', 'location_street', 'location_stop', 'location_city'])
+        if first_location_entity and first_location_entity['id'] == x.argument['id'] and \
+                is_nearest_trigger(between_distance, sentence_trigger_distances):
+            return lf_location(x)
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_location_first_sentence_not_city(x):
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
+            lf_direction_type(x) == ABSTAIN:
+        first_location_entity = get_first_of_entity_types(
+            get_sentence_entities(x), ['location', 'location_route', 'location_street', 'location_stop'])
+        if first_location_entity and first_location_entity['id'] == x.argument['id']:
+            return lf_location(x)
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_location_first_sentence_street_stop_route(x):
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
+            lf_direction_type(x) == ABSTAIN:
+        first_location_entity = get_first_of_entity_types(
+            get_sentence_entities(x), ['location_route', 'location_street', 'location_stop'])
+        if first_location_entity and first_location_entity['id'] == x.argument['id']:
+            return lf_location(x)
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_location_first_sentence_priorities(x):
+    """
+    Looks at the first location entity. If it is a (general) location/ city entity and a
+    street/stop/route location entity follows immediately, the location argument of interest is
+    probably the latter. There choose that second location entity as the argument.
+    :param x:
+    :return:
+    """
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
+            lf_direction_type(x) == ABSTAIN:
+        first_location_entity = get_first_of_entity_types(
+            get_sentence_entities(x),
+            ['location', 'location_route', 'location_street', 'location_stop', 'location_city'])
+        first_street_stop_route = get_first_of_entity_types(
+            get_sentence_entities(x), ['location_route', 'location_stop', 'location_street'])
+        if first_location_entity:
+            if first_street_stop_route:
+                first_distance = get_entity_distance(first_location_entity, first_street_stop_route)
+                if first_location_entity['id'] != first_street_stop_route['id'] and first_distance < 2:
+                    if first_street_stop_route['id'] == x.argument['id']:
+                        return lf_location(x)
+                    else:
+                        return ABSTAIN
+                elif first_location_entity['id'] == first_street_stop_route['id'] and \
+                        first_street_stop_route['id'] == x.argument['id']:
+                    return lf_location(x)
+            elif first_location_entity['id'] == x.argument['id']:
+                return lf_location(x)
+    return ABSTAIN
+
+
+def get_first_of_entity_types(entities, entity_types: List[str]):
     first_entity = None
     for entity in entities:
         if entity['entity_type'] in entity_types and \
@@ -203,7 +339,8 @@ def lf_delay_event_sentence(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
-            'früher' in argument_right_tokens[:2]:
+            'früher' in argument_right_tokens[:2] or \
+            (lf_somajo_separate_sentence(x) != ABSTAIN and 'Zeitverlust' not in argument_left_tokens[-4:]):
         return ABSTAIN
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
@@ -212,7 +349,35 @@ def lf_delay_event_sentence(x):
                     event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam or \
                     event_trigger_lfs.lf_obstruction_cat(x) == event_trigger_lfs.Obstruction or \
                     event_trigger_lfs.lf_accident_context(x) == event_trigger_lfs.Accident:
-                if lf_somajo_separate_sentence(x) == ABSTAIN or 'Zeitverlust' in argument_left_tokens[-4:]:
+                return delay
+    return ABSTAIN
+
+
+# delay role
+@labeling_function(pre=[])
+def lf_delay_event_sentence_check(x):
+    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
+    argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
+    if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
+            'früher' in argument_right_tokens[:2] or \
+            (lf_somajo_separate_sentence(x) != ABSTAIN and 'Zeitverlust' not in argument_left_tokens[-4:]):
+        return ABSTAIN
+    if check_required_args(x.entity_type_freqs):
+        arg_entity_type = x.argument['entity_type']
+        if arg_entity_type in ['duration']:
+            if event_trigger_lfs.lf_delay_cat(x) == event_trigger_lfs.Delay or \
+                    event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam or \
+                    event_trigger_lfs.lf_obstruction_cat(x) == event_trigger_lfs.Obstruction or \
+                    event_trigger_lfs.lf_accident_context(x) == event_trigger_lfs.Accident:
+                if get_entity_distance(x.trigger, x.argument) > 0 and \
+                        x.argument['text'].islower() and \
+                        x.argument['start'] < x.trigger['start']:
+                    # Rationale here: duration can only occur after a trigger verb,
+                    # e.g. "verspätet sich um 15 min"
+                    # Only case, where a lower case trigger can occur after the duration "15 später", they are
+                    # adjacent
+                    return ABSTAIN
+                else:
                     return delay
     return ABSTAIN
 
@@ -227,6 +392,27 @@ def lf_direction_type(x):
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
         return ABSTAIN
     if lf_start_location_type(x) != ABSTAIN or lf_end_location_type(x) != ABSTAIN:
+        return ABSTAIN
+    if check_required_args(x.entity_type_freqs):
+        arg_entity_type = x.argument['entity_type']
+        if arg_entity_type in ['location', 'location_city', 'location_stop', 'location_street']:
+            if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN:
+                if any(token.lower() in ['nach', 'richtung', 'fahrtrichtung', '->']
+                       for token in argument_left_tokens[-1:]) or \
+                        x.argument['text'].lower() in ['richtung', 'richtungen', 'stadteinwärts', 'stadtauswärts',
+                                                       'beide richtungen', 'gegenrichtung', 'je richtung']:
+                    return direction
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_direction_order(x):
+    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
+    if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
+        return ABSTAIN
+    if lf_start_location_type(x) != ABSTAIN or lf_end_location_type(x) != ABSTAIN:
+        return ABSTAIN
+    if x.argument['start'] > x.trigger['start']:
         return ABSTAIN
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
@@ -263,22 +449,46 @@ def lf_loc_stop_direction_type(x):
 
 
 @labeling_function(pre=[])
-def lf_loc_loc_city_direction_type(x):
+def lf_loc_stop_direction_order(x):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
         return ABSTAIN
     if lf_start_location_type(x) != ABSTAIN or lf_end_location_type(x) != ABSTAIN:
         return ABSTAIN
+    if x.argument['start'] > x.trigger['start']:
+        return ABSTAIN
+    if check_required_args(x.entity_type_freqs):
+        arg_entity_type = x.argument['entity_type']
+        if arg_entity_type in ['location_stop']:
+            if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
+                    (any(token.lower() in ['nach', 'richtung', 'fahrtrichtung', '->']
+                         for token in argument_left_tokens[-1:]) or
+                     (argument_left_ner and argument_left_ner[-1][2:] == 'LOCATION_ROUTE')) and \
+                    (event_trigger_lfs.lf_canceledroute_cat(x) == event_trigger_lfs.CanceledRoute or
+                     event_trigger_lfs.lf_delay_cat(x) == event_trigger_lfs.Delay or
+                     event_trigger_lfs.lf_railreplacementservice_cat(x) == event_trigger_lfs.RailReplacementService):
+                return direction
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_loc_loc_city_direction_type(x):
+    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
+    argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
+    if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
+            lf_somajo_separate_sentence(x) != ABSTAIN:
+        return ABSTAIN
+    if lf_start_location_type(x) != ABSTAIN or lf_end_location_type(x) != ABSTAIN:
+        return ABSTAIN
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['location', 'location_city', 'location_stop']:
-            if lf_somajo_separate_sentence(x) == ABSTAIN and \
-                    (any(token.lower() in ['nach', 'richtung', 'fahrtrichtung', '->']
-                         for token in argument_left_tokens[-1:]) or
-                     x.argument['text'].lower() in ['richtung', 'richtungen', 'stadteinwärts', 'stadtauswärts',
-                                                    'beide richtungen', 'gegenrichtung', 'je richtung'] or
-                     (argument_left_ner and argument_left_ner[-1][2:] == 'LOCATION_ROUTE')) and \
+            if (any(token.lower() in ['nach', 'richtung', 'fahrtrichtung', '->']
+                    for token in argument_left_tokens[-1:]) or
+                x.argument['text'].lower() in ['richtung', 'richtungen', 'stadteinwärts', 'stadtauswärts',
+                                               'beide richtungen', 'gegenrichtung', 'je richtung'] or
+                (argument_left_ner and argument_left_ner[-1][2:] == 'LOCATION_ROUTE')) and \
                     (event_trigger_lfs.lf_accident_context(x) == event_trigger_lfs.Accident or
                      event_trigger_lfs.lf_obstruction_cat(x) == event_trigger_lfs.Obstruction or
                      event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam):
@@ -373,8 +583,6 @@ def lf_end_location_type(x):
         if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
                 ((any(token.lower() in ['zw.', 'zwischen'] for token in argument_left_tokens[-6:]) and
                   any(token.lower() in ['und', 'u.', '<', '>', '<>', '&'] for token in argument_left_tokens[-1:])) or
-                 (any(token.lower() in ['von'] for token in argument_left_tokens[-6:-2]) and
-                  any(token.lower() in ['auf', 'nach'] for token in argument_left_tokens[-3:])) or
                  any(token.lower() in ['bis'] for token in argument_left_tokens[-1:]) or
                  (argument_left_tokens and '-' == argument_left_tokens[-1] and
                   len(argument_left_ner) > 1 and
@@ -396,8 +604,6 @@ def lf_end_location_nearest(x):
         if is_nearest_trigger(between_distance, sentence_trigger_distances) and lf_not_an_event(x) == ABSTAIN and \
                 ((any(token.lower() in ['zw.', 'zwischen'] for token in argument_left_tokens[-6:]) and
                   any(token.lower() in ['und', 'u.', '<', '>', '<>', '&'] for token in argument_left_tokens[-1:])) or
-                 (any(token.lower() in ['von'] for token in argument_left_tokens[-6:-2]) and
-                  any(token.lower() in ['auf', 'nach'] for token in argument_left_tokens[-3:])) or
                  any(token.lower() in ['bis'] for token in argument_left_tokens[-1:]) or
                  (argument_left_tokens and '-' == argument_left_tokens[-1] and
                   len(argument_left_ner) > 1 and
@@ -535,6 +741,20 @@ def lf_route_type(x):
     if arg_entity_type in ['location_route']:
         if lf_somajo_separate_sentence(x) == ABSTAIN and \
                 event_trigger_lfs.lf_canceledstop_cat(x) == event_trigger_lfs.CanceledStop:
+            return route
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_route_type_order(x):
+    if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
+        return ABSTAIN
+    # purely distance based for now: could use dependency parsing/ context words
+    arg_entity_type = x.argument['entity_type']
+    if arg_entity_type in ['location_route']:
+        if lf_somajo_separate_sentence(x) == ABSTAIN and \
+                event_trigger_lfs.lf_canceledstop_cat(x) == event_trigger_lfs.CanceledStop and \
+                x.argument['start'] < x.trigger['start']:
             return route
     return ABSTAIN
 
