@@ -554,6 +554,38 @@ def get_somajo_doc(cand: DataPoint):
     return doc
 
 
+def get_sentence_entities(cand: DataPoint):
+    """
+    Returns all the entities that are in the same sentence as the trigger and the argument.
+    If the trigger and argument are not in the same sentence, an empty list is returned.
+    :param cand: DataPoint
+    :return: Same sentence entities.
+    """
+    assert 'somajo_doc' in cand, "Need somajo_doc to retrieve sentence entities"
+    text = ""
+    tolerance = 0
+    for sentence, sent_tokens in zip(cand.somajo_doc['sentences'], cand.somajo_doc['doc']):
+        sentence_start = len(text)
+        text += sentence
+        sentence_end = len(text)
+        # allow for some tolerance for wrong whitespaces: number of punctuation marks, new lines  for now
+        # factor 2 because for each punctuation marks we are adding at most 2 wrong whitespaces
+        tolerance += 2 * len([token for token in sent_tokens if token.text in punctuation_marks]) + sentence.count('\n')
+        m_start = min(cand.trigger['char_start'], cand.argument['char_start'])
+        m_end = max(cand.trigger['char_end'], cand.argument['char_end'])
+
+        somajo_trigger = cand.somajo_doc['entities'][cand.trigger['id']]
+        somajo_argument = cand.somajo_doc['entities'][cand.argument['id']]
+
+        if sentence_start <= m_start + tolerance and m_end <= sentence_end + tolerance and \
+                somajo_trigger in sentence and somajo_argument in sentence:
+            return [entity for entity in cand.entities
+                    if sentence_start <= entity['char_start'] + tolerance and
+                    entity['char_end'] <= sentence_end + tolerance and
+                    somajo_trigger in sentence]
+    return []
+
+
 # only for exploration purposes when gold labels are available
 def get_event_types(cand: DataPoint) -> DataPoint:
     if 'event_triggers' in cand:
@@ -580,6 +612,6 @@ def get_event_arg_roles(cand: DataPoint) -> DataPoint:
                 role_label = np.asarray(event_role['event_argument_probs']).argmax()
                 event_arg_roles.append(((trigger['text'], (trigger['char_start'], trigger['char_end']), event_type),
                                         (argument['text'], argument['entity_type'],
-                                        (argument['char_start'], argument['char_end'])), role_label))
+                                         (argument['char_start'], argument['char_end'])), role_label))
         cand['event_arg_roles'] = event_arg_roles
     return cand
