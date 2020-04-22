@@ -166,75 +166,6 @@ def lf_location_beginning_street_stop_route(x):
 
 
 @labeling_function(pre=[])
-def lf_location_first(x):
-    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN:
-        first_location_entity = get_first_of_entity_types(
-            x.entities, ['location', 'location_route', 'location_street', 'location_stop', 'location_city'])
-        if first_location_entity and first_location_entity['id'] == x.argument['id']:
-            return lf_location(x)
-    return ABSTAIN
-
-
-@labeling_function(pre=[])
-def lf_location_first_nearest(x):
-    between_distance = get_between_distance(x)
-    sentence_trigger_distances = get_sentence_trigger_distances(x)
-    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN:
-        first_location_entity = get_first_of_entity_types(
-            x.entities, ['location', 'location_route', 'location_street', 'location_stop', 'location_city'])
-        if first_location_entity and first_location_entity['id'] == x.argument['id'] and \
-                is_nearest_trigger(between_distance, sentence_trigger_distances):
-            return lf_location(x)
-    return ABSTAIN
-
-
-@labeling_function(pre=[])
-def lf_location_first_street_stop_route(x):
-    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN and \
-            lf_multiple_same_event_type(x) == ABSTAIN and lf_somajo_separate_sentence(x) == ABSTAIN:
-        first_location_entity = get_first_of_entity_types(
-            x.entities, ['location_route', 'location_street', 'location_stop'])
-        if first_location_entity and first_location_entity['id'] == x.argument['id']:
-            return lf_location(x)
-    return ABSTAIN
-
-
-@labeling_function(pre=[])
-def lf_location_first_priorities(x):
-    """
-    Looks at the first location entity. If it is a (general) location/ city entity and a
-    street/stop/route location entity follows immediately, the location argument of interest is
-    probably the latter. There choose that second location entity as the argument.
-    :param x:
-    :return:
-    """
-    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN:
-        first_location_entity = get_first_of_entity_types(
-            get_sentence_entities(x),
-            ['location', 'location_route', 'location_street', 'location_stop', 'location_city'])
-        first_street_stop_route = get_first_of_entity_types(
-            x.entities, ['location_route', 'location_stop', 'location_street'])
-        if first_location_entity:
-            if first_street_stop_route:
-                first_distance = get_entity_distance(first_location_entity, first_street_stop_route)
-                if first_location_entity['id'] != first_street_stop_route['id'] and first_distance < 2:
-                    if first_street_stop_route['id'] == x.argument['id']:
-                        return lf_location(x)
-                    else:
-                        return ABSTAIN
-                elif first_location_entity['id'] == first_street_stop_route['id'] and \
-                        first_street_stop_route['id'] == x.argument['id']:
-                    return lf_location(x)
-            elif first_location_entity['id'] == x.argument['id']:
-                return lf_location(x)
-    return ABSTAIN
-
-
-@labeling_function(pre=[])
 def lf_location_first_sentence(x):
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
             lf_direction_type(x) == ABSTAIN:
@@ -421,8 +352,14 @@ def lf_direction_order(x):
                 if any(token.lower() in ['nach', 'richtung', 'fahrtrichtung', '->']
                        for token in argument_left_tokens[-1:]) or \
                         x.argument['text'].lower() in ['richtung', 'richtungen', 'stadteinwärts', 'stadtauswärts',
-                                                       'beide richtungen', 'gegenrichtung', 'je richtung']:
+                                                       'beide richtungen', 'beiden richtungen', 'gegenrichtung',
+                                                       'je richtung']:
                     return direction
+                elif len(argument_left_tokens) > 2 and argument_left_tokens[-1] == '-':
+                    argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
+                    if argument_left_ner[-3][2:] == 'LOCATION_STREET' and \
+                            argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_CITY']:
+                        return direction
     return ABSTAIN
 
 
@@ -487,12 +424,18 @@ def lf_loc_loc_city_direction_type(x):
             if (any(token.lower() in ['nach', 'richtung', 'fahrtrichtung', '->']
                     for token in argument_left_tokens[-1:]) or
                 x.argument['text'].lower() in ['richtung', 'richtungen', 'stadteinwärts', 'stadtauswärts',
-                                               'beide richtungen', 'gegenrichtung', 'je richtung'] or
+                                               'beide richtungen', 'beiden richtungen', 'gegenrichtung',
+                                               'je richtung'] or
                 (argument_left_ner and argument_left_ner[-1][2:] == 'LOCATION_ROUTE')) and \
                     (event_trigger_lfs.lf_accident_context(x) == event_trigger_lfs.Accident or
                      event_trigger_lfs.lf_obstruction_cat(x) == event_trigger_lfs.Obstruction or
                      event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam):
                 return direction
+            elif len(argument_left_tokens) > 2 and argument_left_tokens[-1] == '-':
+                argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
+                if argument_left_ner[-3][2:] == 'LOCATION_STREET' and \
+                        argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_CITY']:
+                    return direction
     return ABSTAIN
 
 
