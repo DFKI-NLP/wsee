@@ -20,7 +20,13 @@ class TestMixedNer(unittest.TestCase):
         labeled_rows = explore.add_labels(event_role_rows, event_role_rows_y)
         for idx, row in labeled_rows.iterrows():
             if row['argument']['text'] == 'ICE 1141' and row['trigger']['char_start'] == 535:
-                self.assertEqual(lf_somajo_separate_sentence(row), no_arg)
+                self.assertEqual(no_arg, lf_somajo_separate_sentence(row))
+            elif row['trigger']['text'] == 'aus' and row['trigger']['char_start'] == 434 and \
+                    row['argument']['text'] == 'ICE 784' and row['argument']['char_start'] == 440:
+                self.assertEqual(no_arg, lf_somajo_separate_sentence(row))
+            elif row['trigger']['text'] == 'fällt' and row['trigger']['char_start'] == 535 and \
+                    row['argument']['text'] == 'ICE 784' and row['argument']['char_start'] == 440:
+                self.assertEqual(ABSTAIN, lf_somajo_separate_sentence(row))
         self.assertIsNotNone(event_role_rows)
 
 

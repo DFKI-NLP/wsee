@@ -1,7 +1,8 @@
 from fuzzywuzzy import process
 from snorkel.labeling import labeling_function
 from wsee.preprocessors.preprocessors import *
-from wsee.preprocessors.pattern_event_processor import parse_pattern_file, find_best_pattern_match, location_subtypes
+from wsee.preprocessors.pattern_event_processor import parse_pattern_file, find_best_pattern_match, location_subtypes, \
+    escape_regex_chars
 from wsee.labeling import event_trigger_lfs
 from wsee.utils import utils
 
@@ -812,6 +813,8 @@ def lf_stanford_separate_sentence(x):
 
 @labeling_function(pre=[])
 def lf_somajo_separate_sentence(x):
+    if len(x.somajo_doc['sentences']) == 1:
+        return ABSTAIN
     same_sentence = False
     text = ""
     tolerance = 0
@@ -830,8 +833,15 @@ def lf_somajo_separate_sentence(x):
 
         if sentence_start <= m_start + tolerance and m_end <= sentence_end + tolerance and \
                 somajo_trigger in sentence and somajo_argument in sentence:
-            same_sentence = True
-            break
+            trigger_matches = [m.start() for m in re.finditer(escape_regex_chars(somajo_trigger), sentence)]
+            trigger_in_sentence = any(abs(trigger_match + sentence_start - x.trigger['char_start']) < tolerance
+                                      for trigger_match in trigger_matches)
+            argument_matches = [m.start() for m in re.finditer(escape_regex_chars(somajo_argument), sentence)]
+            argument_in_sentence = any(abs(argument_match + sentence_start - x.argument['char_start']) < tolerance
+                                       for argument_match in argument_matches)
+            if trigger_in_sentence and argument_in_sentence:
+                same_sentence = True
+                break
     if same_sentence:
         return ABSTAIN
     else:
