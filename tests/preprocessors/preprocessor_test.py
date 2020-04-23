@@ -2,6 +2,7 @@ import unittest
 
 import pandas as pd
 from wsee.preprocessors import preprocessors
+from wsee.labeling import event_argument_role_lfs
 from wsee.data import pipeline, explore
 
 
@@ -68,12 +69,15 @@ class TestMixedNer(unittest.TestCase):
             'id': 'c/96e1c41b-63ad-4ca0-98fd-89ba7767b33c',
             'text': 'Swisttal', 'entity_type': 'location', 'start': 5, 'end': 6, 'char_start': 46, 'char_end': 54
         }
+        test['somajo_doc'] = preprocessors.get_somajo_doc(test)
         argument_left_ner = preprocessors.get_windowed_left_ner(test['argument'], test['ner_tags'])
         self.assertEqual('O', argument_left_ner[-1])
         self.assertEqual('LOCATION_CITY', argument_left_ner[-2][2:])
 
         argument_left_tokens = preprocessors.get_windowed_left_tokens(test['argument'], test['tokens'])
         self.assertEqual('zwischen', argument_left_tokens[-1])
+
+        self.assertEqual(event_argument_role_lfs.start_loc, event_argument_role_lfs.lf_start_location_type(test))
 
 
 class TestComplexPreprocessors(unittest.TestCase):
