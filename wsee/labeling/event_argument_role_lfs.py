@@ -474,8 +474,8 @@ def lf_start_location_type(x):
         indicator_idx = next((idx for idx, token in enumerate(argument_left_tokens[-3:])
                               if token.lower() in ['zw', 'zw.', 'zwischen', 'ab', 'von']), -1)
         if (indicator_idx > -1 and
-            all(left_ner not in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP']
-                for left_ner in argument_left_ner[indicator_idx:][2:])) or \
+            all(left_ner[2:] not in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP', 'LOCATION_ROUTE']
+                for left_ner in argument_left_ner[indicator_idx:])) or \
                 (argument_right_tokens and argument_right_tokens[0] in ['-', '<', '>', '<>'] and
                  len(argument_right_ner) > 1 and
                  argument_right_ner[1][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP']):
