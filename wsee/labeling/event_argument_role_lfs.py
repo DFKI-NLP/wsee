@@ -467,7 +467,7 @@ def lf_start_location_type(x):
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
             event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
         return ABSTAIN
-    if lf_somajo_separate_sentence(x) != ABSTAIN and lf_not_an_event(x) != ABSTAIN:
+    if lf_somajo_separate_sentence(x) != ABSTAIN or lf_not_an_event(x) != ABSTAIN:
         return ABSTAIN
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
