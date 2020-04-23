@@ -471,16 +471,21 @@ def lf_start_location_type(x):
         return ABSTAIN
     if lf_somajo_separate_sentence(x) != ABSTAIN or lf_not_an_event(x) != ABSTAIN:
         return ABSTAIN
+    if argument_left_tokens and argument_left_tokens[-1].lower() in ['nach', 'richtung', 'fahrtrichtung', '->']:
+        return ABSTAIN
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
         indicator_idx = next((idx for idx, token in enumerate(argument_left_tokens[-3:])
                               if token.lower() in ['zw', 'zw.', 'zwischen', 'ab', 'von']), -1)
-        if (indicator_idx > -1 and
-            all(left_ner[2:] not in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP', 'LOCATION_ROUTE']
-                for left_ner in argument_left_ner[indicator_idx:])) or \
-                (argument_right_tokens and argument_right_tokens[0] in ['-', '<', '>', '<>'] and
-                 len(argument_right_ner) > 1 and
-                 argument_right_ner[1][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP']):
+        entity_between_indicator = indicator_idx > -1 and \
+                                   any(left_ner[2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP',
+                                                        'LOCATION_ROUTE']
+                                       for left_ner in argument_left_ner[-3 + indicator_idx:])
+        end_loc_after_symbol = argument_right_tokens and argument_right_tokens[0] in ['-', '<', '>', '<>'] and \
+                               len(argument_right_ner) > 1 and \
+                               argument_right_ner[1][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY',
+                                                             'LOCATION_STOP']
+        if indicator_idx > -1 and (not entity_between_indicator or end_loc_after_symbol):
             if argument_left_tokens and 'von' == argument_left_tokens[-1] and \
                     len(argument_left_ner) > 1 and \
                     argument_left_ner[-2][2:] in ['LOCATION_ROUTE']:
@@ -506,12 +511,16 @@ def lf_start_location_nearest(x):
         if is_nearest_trigger(between_distance, sentence_trigger_distances) and lf_not_an_event(x) == ABSTAIN:
             indicator_idx = next((idx for idx, token in enumerate(argument_left_tokens[-3:])
                                   if token.lower() in ['zw', 'zw.', 'zwischen', 'ab', 'von']), -1)
-            if (indicator_idx > -1 and
-                all(left_ner not in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP']
-                    for left_ner in argument_left_ner[indicator_idx:][2:])) or \
-                    (argument_right_tokens and argument_right_tokens[0] in ['-', '<', '>', '<>'] and
-                     len(argument_right_ner) > 1 and
-                     argument_right_ner[1][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP']):
+            entity_between_indicator = indicator_idx > -1 and \
+                                       any(left_ner[2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY',
+                                                            'LOCATION_STOP',
+                                                            'LOCATION_ROUTE']
+                                           for left_ner in argument_left_ner[-3 + indicator_idx:])
+            end_loc_after_symbol = argument_right_tokens and argument_right_tokens[0] in ['-', '<', '>', '<>'] and \
+                                   len(argument_right_ner) > 1 and \
+                                   argument_right_ner[1][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY',
+                                                                 'LOCATION_STOP']
+            if indicator_idx > -1 and (not entity_between_indicator or end_loc_after_symbol):
                 if argument_left_tokens and 'von' == argument_left_tokens[-1:] and \
                         len(argument_left_ner) > 1 and \
                         argument_left_ner[-2][2:] in ['LOCATION_ROUTE']:
@@ -531,6 +540,9 @@ def lf_end_location_type(x):
         return ABSTAIN
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
+        if argument_left_tokens and argument_left_tokens[-3].lower() in ['nach', 'richtung', 'fahrtrichtung', '->'] \
+                and argument_left_tokens[-1] == '-':
+            return ABSTAIN
         if len(argument_left_tokens) > 2 and argument_left_tokens[-1] == '-':
             # Avoid patterns like: "A1 Münster - Köln in beiden Richtungen ...", where Köln is a direction
             if argument_left_ner[-3][2:] == 'LOCATION_STREET' and \
@@ -557,6 +569,9 @@ def lf_end_location_nearest(x):
         return ABSTAIN
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
+        if argument_left_tokens and argument_left_tokens[-3].lower() in ['nach', 'richtung', 'fahrtrichtung', '->'] \
+                and argument_left_tokens[-1] == '-':
+            return ABSTAIN
         if len(argument_left_tokens) > 2 and argument_left_tokens[-1] == '-':
             # Avoid patterns like: "A1 Münster - Köln in beiden Richtungen ...", where Köln is a direction
             if argument_left_ner[-3][2:] == 'LOCATION_STREET' and \
@@ -778,39 +793,6 @@ def lf_not_an_event(x):
         return ABSTAIN
 
 
-@labeling_function(pre=[pre_spacy_doc])
-def lf_spacy_separate_sentence(x):
-    # proof of concept that makes use of spaCy sentence splitter parsing feature
-    # see: https://github.com/explosion/spaCy/blob/master/examples/information_extraction/entity_relations.py
-    same_sentence = False
-    for sentence in x.spacy_doc['sentences']:
-        # TODO use check_spans from preprocessors to make sure
-        # edge case: two very similar sentences that both contain trigger text and arg text
-
-        if x.spacy_doc['trigger'] in sentence and x.spacy_doc['argument'] in sentence:
-            same_sentence = True
-            break
-    if same_sentence:
-        return ABSTAIN
-    else:
-        return no_arg
-
-
-@labeling_function(pre=[pre_stanford_doc])
-def lf_stanford_separate_sentence(x):
-    same_sentence = False
-
-    for sentence in x.stanford_doc['sentences']:
-        # edge case: two very similar sentences that both contain trigger text and arg text
-        if x.stanford_doc['trigger'] in sentence and x.stanford_doc['argument'] in sentence:
-            same_sentence = True
-            break
-    if same_sentence:
-        return ABSTAIN
-    else:
-        return no_arg
-
-
 @labeling_function(pre=[])
 def lf_somajo_separate_sentence(x):
     if len(x.somajo_doc['sentences']) == 1:
@@ -913,19 +895,6 @@ def lf_multiple_same_event_type(x):
         return no_arg
     else:
         return ABSTAIN
-
-
-# general
-@labeling_function(pre=[pre_spacy_doc])
-def lf_dependency(x):
-    # proof of concept that makes use of spaCy dependency parsing feature
-    # see: https://github.com/explosion/spaCy/blob/master/examples/information_extraction/entity_relations.py
-    for token in x.spacy_doc:
-        # TODO match tokenization and fix spans
-        if token.text in x.trigger['text']:
-            # MAGIC
-            return ABSTAIN
-    return ABSTAIN
 
 
 def event_patterns_helper(x, rules, general_location=False):

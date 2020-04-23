@@ -1,9 +1,7 @@
 somajo
 python-Levenshtein
 fuzzywuzzy
-stanfordnlp
 fastavro
 snorkel==0.9.3
-spacy
 jupyter
 ipykernel

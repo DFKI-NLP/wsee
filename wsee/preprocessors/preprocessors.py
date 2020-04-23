@@ -1,6 +1,4 @@
 import re
-import stanfordnlp
-import spacy
 import logging
 import numpy as np
 
@@ -14,21 +12,7 @@ punctuation_marks = ["<", "(", "[", "{", "\\", "^", "-", "=", "$", "!", "|",
                      "]", "}", ")", "?", "*", "+", ".", ",", ":", ";", ">",
                      "_", "#", "/"]
 
-nlp_stanford: Optional[stanfordnlp.Pipeline] = None
-nlp_spacy: Optional[Callable] = None
 nlp_somajo: Optional[SoMaJo] = None
-
-
-def load_stanford_model():
-    global nlp_stanford
-    if nlp_stanford is None:
-        nlp_stanford = stanfordnlp.Pipeline(lang='de')
-
-
-def load_spacy_model():
-    global nlp_spacy
-    if nlp_spacy is None:
-        nlp_spacy = spacy.load('de_core_news_md')
 
 
 def load_somajo_model():
@@ -459,76 +443,13 @@ def get_mixed_ner(cand: DataPoint) -> DataPoint:
     return mixed_ner, mixed_ner_spans
 
 
-def get_spacy_doc_tokens(doc):
-    return [token.text for token in doc]
-
-
-def get_stanford_doc_tokens(doc):
-    return [token.text for sentence in doc.sentences for token in sentence.tokens]
-
-
 def get_somajo_doc_tokens(doc):
     return [token.text for sentence in doc for token in sentence]
-
-
-def get_spacy_doc_sentences(doc):
-    return [s.text for s in doc.sents]
-
-
-def get_stanford_doc_sentences(doc):
-    # introduces whitespaces
-    # see: https://github.com/stanfordnlp/stanfordnlp/blob/dev/stanfordnlp/models/common/doc.py
-    # to get original sentence text
-    return [" ".join([token.text for token in sentence.tokens]) for sentence in doc.sentences]
 
 
 def get_somajo_doc_sentences(doc):
     # introduces whitespaces
     return [" ".join([token.text for token in sentence]) for sentence in doc]
-
-
-def get_spacy_doc(cand: DataPoint):
-    load_spacy_model()
-    spacy_doc = nlp_spacy(cand.text)
-    doc = {
-        'doc': spacy_doc,
-        'tokens': get_spacy_doc_tokens(spacy_doc),
-        'sentences': get_spacy_doc_sentences(spacy_doc),  # preserves sentence texts
-        'trigger_text': nlp_spacy(get_entity(cand.trigger['id'], cand.entities)['text']),
-    }
-    if 'argument_id' in cand:
-        doc['argument_text'] = get_entity(cand.argument['id'], cand.entities)['text']
-    return doc
-
-
-@preprocessor()
-def pre_spacy_doc(cand: DataPoint) -> DataPoint:
-    cand['spacy_doc'] = get_spacy_doc(cand)
-    return cand
-
-
-def get_stanford_doc(cand: DataPoint):
-    load_stanford_model()
-    stanford_doc = nlp_stanford(cand.text)
-    trigger_text = get_entity(cand.trigger['id'], cand.entities)['text']
-    tokenized_trigger = get_stanford_doc_tokens(nlp_stanford(trigger_text))
-    doc = {
-        'doc': stanford_doc,
-        'tokens': get_stanford_doc_tokens(stanford_doc),
-        'sentences': get_stanford_doc_sentences(stanford_doc),
-        'trigger': " ".join(tokenized_trigger),
-    }
-    if 'argument_id' in cand:
-        argument_text = get_entity(cand.argument['id'], cand.entities)['text']
-        tokenized_argument = get_stanford_doc_tokens(nlp_stanford(argument_text))
-        doc['argument'] = " ".join(tokenized_argument)
-    return doc
-
-
-@preprocessor()
-def pre_stanford_doc(cand: DataPoint) -> DataPoint:
-    cand['stanford_doc'] = get_stanford_doc(cand)
-    return cand
 
 
 @preprocessor()
