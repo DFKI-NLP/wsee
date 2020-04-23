@@ -1,3 +1,4 @@
+from fuzzywuzzy import process
 from snorkel.labeling import labeling_function
 from wsee.preprocessors.preprocessors import *
 from wsee.preprocessors.pattern_event_processor import parse_pattern_file, find_best_pattern_match, location_subtypes
@@ -529,7 +530,12 @@ def lf_end_location_type(x):
         return ABSTAIN
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
-        if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
+        if len(argument_left_tokens) > 2 and argument_left_tokens[-1] == '-':
+            # Avoid patterns like: "A1 Münster - Köln in beiden Richtungen ...", where Köln is a direction
+            if argument_left_ner[-3][2:] == 'LOCATION_STREET' and \
+                    argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_CITY']:
+                return ABSTAIN
+        elif lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
                 ((any(token.lower() in ['zw.', 'zwischen'] for token in argument_left_tokens[-6:]) and
                   any(token.lower() in ['und', 'u.', '<', '>', '<>', '&'] for token in argument_left_tokens[-1:])) or
                  any(token.lower() in ['bis'] for token in argument_left_tokens[-1:]) or
@@ -550,7 +556,12 @@ def lf_end_location_nearest(x):
         return ABSTAIN
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
-        if is_nearest_trigger(between_distance, sentence_trigger_distances) and lf_not_an_event(x) == ABSTAIN and \
+        if len(argument_left_tokens) > 2 and argument_left_tokens[-1] == '-':
+            # Avoid patterns like: "A1 Münster - Köln in beiden Richtungen ...", where Köln is a direction
+            if argument_left_ner[-3][2:] == 'LOCATION_STREET' and \
+                    argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_CITY']:
+                return ABSTAIN
+        elif is_nearest_trigger(between_distance, sentence_trigger_distances) and lf_not_an_event(x) == ABSTAIN and \
                 ((any(token.lower() in ['zw.', 'zwischen'] for token in argument_left_tokens[-6:]) and
                   any(token.lower() in ['und', 'u.', '<', '>', '<>', '&'] for token in argument_left_tokens[-1:])) or
                  any(token.lower() in ['bis'] for token in argument_left_tokens[-1:]) or
@@ -651,13 +662,40 @@ def lf_cause_type(x):
         return ABSTAIN
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
-        if arg_entity_type in ['trigger']:
+        if arg_entity_type == 'trigger':
             if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
                     (event_trigger_lfs.check_cause_keywords(argument_left_tokens[-4:], x) or
                      (argument_right_tokens and argument_right_tokens[0].lower() in ['erzeugt', 'erzeugen'])):
                 # TODO check trigger-arg order, some event types have higher priority
                 #  often Accident cause for TrafficJam
                 return cause
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_cause_order(x):
+    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
+    argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
+    between_distance = get_entity_distance(x.argument, x.trigger)
+    if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
+        return ABSTAIN
+    if x.argument['start'] < x.trigger['start']:
+        # E.g.: "wegen Unfall gesperrt"
+        return ABSTAIN
+    if check_required_args(x.entity_type_freqs):
+        arg_entity_type = x.argument['entity_type']
+        if arg_entity_type == 'trigger':
+            if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN:
+                if (event_trigger_lfs.check_cause_keywords(argument_left_tokens[-4:], x) or
+                        (argument_right_tokens and argument_right_tokens[0].lower() in ['erzeugt', 'erzeugen'])):
+                    return cause
+                elif between_distance < 5 and \
+                        (event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam or
+                         event_trigger_lfs.lf_obstruction_cat(x) == event_trigger_lfs.Obstruction):
+                    # Accidents are often causes for obstructions/ traffic jams
+                    highest = process.extractOne(x.argument['text'], event_trigger_lfs.accident_keywords)
+                    if highest[1] >= 90:
+                        return cause
     return ABSTAIN
 
 
