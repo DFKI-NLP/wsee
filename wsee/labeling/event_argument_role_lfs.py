@@ -479,7 +479,7 @@ def lf_start_location_type(x):
                 (argument_right_tokens and argument_right_tokens[0] in ['-', '<', '>', '<>'] and
                  len(argument_right_ner) > 1 and
                  argument_right_ner[1][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP']):
-            if 'von' == argument_left_tokens[-1] and \
+            if argument_left_tokens and 'von' == argument_left_tokens[-1] and \
                     len(argument_left_ner) > 1 and \
                     argument_left_ner[-2][2:] in ['LOCATION_ROUTE']:
                 return ABSTAIN
@@ -510,7 +510,7 @@ def lf_start_location_nearest(x):
                     (argument_right_tokens and argument_right_tokens[0] in ['-', '<', '>', '<>'] and
                      len(argument_right_ner) > 1 and
                      argument_right_ner[1][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP']):
-                if 'von' == argument_left_tokens[-1:] and \
+                if argument_left_tokens and 'von' == argument_left_tokens[-1:] and \
                         len(argument_left_ner) > 1 and \
                         argument_left_ner[-2][2:] in ['LOCATION_ROUTE']:
                     return ABSTAIN
