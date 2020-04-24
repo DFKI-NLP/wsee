@@ -457,36 +457,34 @@ def lf_loc_loc_city_direction_order(x):
 
 
 # start_loc
-# TODO: no location_route and check for event types
-#  Accident (loc, loc_city), CanceledRoute (loc_stop), CanceledStop (none), Delay (loc_stop),
-#  Obstruction (all), RailReplacementService (loc_stop), TrafficJam (loc, loc_city, loc_street)
-@labeling_function(pre=[])
-def lf_start_location_type(x):
+def lf_start_location(x, nearest=False):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
     argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
     argument_right_ner = get_windowed_right_ner(x.argument, x.ner_tags)
+    between_distance = get_between_distance(x)
+    sentence_trigger_distances = get_sentence_trigger_distances(x)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
             event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
         return ABSTAIN
     if lf_somajo_separate_sentence(x) != ABSTAIN or lf_not_an_event(x) != ABSTAIN:
         return ABSTAIN
-    if argument_left_tokens and argument_left_tokens[-1].lower() in ['nach', 'richtung', 'fahrtrichtung', '->']:
+    if nearest and not is_nearest_trigger(between_distance, sentence_trigger_distances):
         return ABSTAIN
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
         indicator_idx = next((idx for idx, token in enumerate(argument_left_tokens[-3:])
                               if token.lower() in ['zw', 'zw.', 'zwischen', 'ab', 'von']), -1)
         entity_between_indicator = indicator_idx > -1 and \
-                                   any(left_ner[2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP',
-                                                        'LOCATION_ROUTE']
+                                   any(left_ner[2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY',
+                                                        'LOCATION_STOP', 'LOCATION_ROUTE']
                                        for left_ner in argument_left_ner[-3 + indicator_idx:])
         end_loc_after_symbol = argument_right_tokens and argument_right_tokens[0] in ['-', '<', '>', '<>'] and \
                                len(argument_right_ner) > 1 and \
                                argument_right_ner[1][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY',
-                                                             'LOCATION_STOP']
+                                                             'LOCATION_STOP', 'LOCATION_ROUTE']
         if indicator_idx > -1 and (not entity_between_indicator or end_loc_after_symbol):
-            if argument_left_tokens and 'von' == argument_left_tokens[-1] and \
+            if argument_left_tokens and 'von' == argument_left_tokens[-1:] and \
                     len(argument_left_ner) > 1 and \
                     argument_left_ner[-2][2:] in ['LOCATION_ROUTE']:
                 return ABSTAIN
@@ -496,51 +494,32 @@ def lf_start_location_type(x):
 
 
 @labeling_function(pre=[])
+def lf_start_location_type(x):
+    return lf_start_location(x, nearest=False)
+
+
+@labeling_function(pre=[])
 def lf_start_location_nearest(x):
+    return lf_start_location(x, nearest=True)
+
+
+# end_loc
+def lf_end_location(x, nearest=False):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
-    argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
     argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
-    argument_right_ner = get_windowed_right_ner(x.argument, x.ner_tags)
     between_distance = get_between_distance(x)
     sentence_trigger_distances = get_sentence_trigger_distances(x)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
             event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
         return ABSTAIN
-    arg_entity_type = x.argument['entity_type']
-    if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
-        if is_nearest_trigger(between_distance, sentence_trigger_distances) and lf_not_an_event(x) == ABSTAIN:
-            indicator_idx = next((idx for idx, token in enumerate(argument_left_tokens[-3:])
-                                  if token.lower() in ['zw', 'zw.', 'zwischen', 'ab', 'von']), -1)
-            entity_between_indicator = indicator_idx > -1 and \
-                                       any(left_ner[2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY',
-                                                            'LOCATION_STOP',
-                                                            'LOCATION_ROUTE']
-                                           for left_ner in argument_left_ner[-3 + indicator_idx:])
-            end_loc_after_symbol = argument_right_tokens and argument_right_tokens[0] in ['-', '<', '>', '<>'] and \
-                                   len(argument_right_ner) > 1 and \
-                                   argument_right_ner[1][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY',
-                                                                 'LOCATION_STOP']
-            if indicator_idx > -1 and (not entity_between_indicator or end_loc_after_symbol):
-                if argument_left_tokens and 'von' == argument_left_tokens[-1:] and \
-                        len(argument_left_ner) > 1 and \
-                        argument_left_ner[-2][2:] in ['LOCATION_ROUTE']:
-                    return ABSTAIN
-                else:
-                    return start_loc
-    return ABSTAIN
-
-
-# end_loc
-@labeling_function(pre=[])
-def lf_end_location_type(x):
-    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
-    argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
-    if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
-            event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
+    if lf_somajo_separate_sentence(x) != ABSTAIN or lf_not_an_event(x) != ABSTAIN:
+        return ABSTAIN
+    if nearest and not is_nearest_trigger(between_distance, sentence_trigger_distances):
         return ABSTAIN
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
-        if argument_left_tokens and argument_left_tokens[-3].lower() in ['nach', 'richtung', 'fahrtrichtung', '->'] \
+        if len(argument_left_tokens) > 2 and argument_left_tokens[-3].lower() in ['nach', 'richtung', 'fahrtrichtung',
+                                                                                  '->'] \
                 and argument_left_tokens[-1] == '-':
             return ABSTAIN
         if len(argument_left_tokens) > 2 and argument_left_tokens[-1] == '-':
@@ -548,44 +527,34 @@ def lf_end_location_type(x):
             if argument_left_ner[-3][2:] == 'LOCATION_STREET' and \
                     argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_CITY']:
                 return ABSTAIN
-        elif lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
-                ((any(token.lower() in ['zw.', 'zwischen'] for token in argument_left_tokens[-6:]) and
-                  any(token.lower() in ['und', 'u.', '<', '>', '<>', '&'] for token in argument_left_tokens[-1:])) or
-                 any(token.lower() in ['bis'] for token in argument_left_tokens[-1:]) or
-                 (argument_left_tokens and '-' == argument_left_tokens[-1] and
-                  len(argument_left_ner) > 1 and
-                  argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP'])):
+        preceding_start_loc = any(token.lower() in ['zw.', 'zwischen'] for token in argument_left_tokens[-6:-1])
+        article_preposition_offset = 0
+        if argument_left_tokens and argument_left_tokens[-1] in ['der', 'des', 'dem', 'den', 'zu', 'zur', 'zum']:
+            article_preposition_offset = 1
+            # Should not be possible in a grammatically correct sentence
+            if len(argument_left_tokens) < 2:
+                return ABSTAIN
+        concatenation_prefix = any(token.lower() in ['und', 'u.', '<', '>', '<>', '&']
+                                   for token in argument_left_tokens[-1 - article_preposition_offset:])
+        end_loc_prefix = any(
+            token.lower() in ['bis'] for token in argument_left_tokens[-1 - article_preposition_offset:])
+        hyphenated_start_end_pair = argument_left_tokens and '-' == argument_left_tokens[-1] and \
+                                    len(argument_left_ner) > 1 and \
+                                    argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY',
+                                                                  'LOCATION_STOP']
+        if (preceding_start_loc and concatenation_prefix) or end_loc_prefix or hyphenated_start_end_pair:
             return end_loc
     return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_end_location_type(x):
+    return lf_end_location(x, nearest=False)
 
 
 @labeling_function(pre=[])
 def lf_end_location_nearest(x):
-    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
-    argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
-    between_distance = get_between_distance(x)
-    sentence_trigger_distances = get_sentence_trigger_distances(x)
-    if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
-        return ABSTAIN
-    arg_entity_type = x.argument['entity_type']
-    if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
-        if argument_left_tokens and argument_left_tokens[-3].lower() in ['nach', 'richtung', 'fahrtrichtung', '->'] \
-                and argument_left_tokens[-1] == '-':
-            return ABSTAIN
-        if len(argument_left_tokens) > 2 and argument_left_tokens[-1] == '-':
-            # Avoid patterns like: "A1 Münster - Köln in beiden Richtungen ...", where Köln is a direction
-            if argument_left_ner[-3][2:] == 'LOCATION_STREET' and \
-                    argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_CITY']:
-                return ABSTAIN
-        elif is_nearest_trigger(between_distance, sentence_trigger_distances) and lf_not_an_event(x) == ABSTAIN and \
-                ((any(token.lower() in ['zw.', 'zwischen'] for token in argument_left_tokens[-6:]) and
-                  any(token.lower() in ['und', 'u.', '<', '>', '<>', '&'] for token in argument_left_tokens[-1:])) or
-                 any(token.lower() in ['bis'] for token in argument_left_tokens[-1:]) or
-                 (argument_left_tokens and '-' == argument_left_tokens[-1] and
-                  len(argument_left_ner) > 1 and
-                  argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY', 'LOCATION_STOP'])):
-            return end_loc
-    return ABSTAIN
+    lf_end_location(x, nearest=True)
 
 
 # start_date
