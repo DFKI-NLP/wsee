@@ -248,12 +248,21 @@ def lf_location_first_sentence_priorities(x):
     return ABSTAIN
 
 
-def get_first_of_entity_types(entities, entity_types: List[str]):
+def get_first_of_entity_types(entities, entity_types: List[str], exception_list: List[str] = None):
+    """
+    :param entities: List of entities.
+    :param entity_types: List of desired entity_types.
+    :param exception_list: List of exceptions.
+    :return: First entity, whose entity type is in entity_types and whose text is not in the exception_list.
+    """
     first_entity = None
     for entity in entities:
         if entity['entity_type'] in entity_types and \
                 (first_entity is None or first_entity['start'] > entity['start']):
-            first_entity = entity
+            if exception_list and entity['text'] in exception_list:
+                continue
+            else:
+                first_entity = entity
     return first_entity
 
 
@@ -305,7 +314,7 @@ def lf_delay_event_sentence_check(x):
                 if get_entity_distance(x.trigger, x.argument) > 0 and \
                         x.argument['text'].islower() and \
                         x.argument['start'] < x.trigger['start']:
-                    # Rationale here: duration can only occur after a trigger verb,
+                    # Rationale here: duration can only occur after a lower case trigger,
                     # e.g. "verspätet sich um 15 min"
                     # Only case, where a lower case trigger can occur after the duration "15 später", they are
                     # adjacent
@@ -316,144 +325,48 @@ def lf_delay_event_sentence_check(x):
 
 
 # direction role
-# TODO: no location_route, location_street and check for event types
-#  Accident (loc, loc_city), CanceledRoute (loc_stop, loc_city), CanceledStop (none), Delay (loc_stop),
-#  Obstruction (loc, loc_city), RailReplacementService (loc_stop), TrafficJam (loc, loc_city)
-@labeling_function(pre=[])
-def lf_direction_type(x):
+def lf_direction(x, order=True):
     argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
         return ABSTAIN
+    if lf_somajo_separate_sentence(x) != ABSTAIN or lf_not_an_event(x) != ABSTAIN:
+        return ABSTAIN
     if lf_start_location_type(x) != ABSTAIN or lf_end_location_type(x) != ABSTAIN:
+        return ABSTAIN
+    if order and x.argument['start'] > x.trigger['start']:
         return ABSTAIN
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['location', 'location_city', 'location_stop', 'location_street']:
-            if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN:
-                if any(token.lower() in ['nach', 'richtung', 'fahrtrichtung', '->']
-                       for token in argument_left_tokens[-1:]) or \
-                        x.argument['text'].lower() in ['richtung', 'richtungen', 'stadteinwärts', 'stadtauswärts',
-                                                       'beide richtungen', 'gegenrichtung', 'je richtung']:
+            article_preposition_offset = 0
+            if argument_left_tokens and argument_left_tokens[-1] in ['der', 'des', 'dem', 'den', 'zu', 'zur', 'zum']:
+                article_preposition_offset = 1
+                # Should not be possible in a grammatically correct sentence
+                if len(argument_left_tokens) < 2:
+                    return ABSTAIN
+
+            if any(token.lower() in ['nach', 'richtung', 'fahrtrichtung', '->']
+                   for token in argument_left_tokens[-1-article_preposition_offset:]) or \
+                    x.argument['text'].lower() in ['richtung', 'richtungen', 'stadteinwärts', 'stadtauswärts',
+                                                   'beide richtungen', 'beiden richtungen', 'gegenrichtung',
+                                                   'je richtung']:
+                return direction
+            elif len(argument_left_tokens) > 2 and argument_left_tokens[-1] == '-':
+                argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
+                if argument_left_ner[-3][2:] == 'LOCATION_STREET' and \
+                        argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_CITY']:
                     return direction
-                elif len(argument_left_tokens) > 2 and argument_left_tokens[-1] == '-':
-                    argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
-                    if argument_left_ner[-3][2:] == 'LOCATION_STREET' and \
-                            argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_CITY']:
-                        return direction
     return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_direction_type(x):
+    return lf_direction(x, order=False)
 
 
 @labeling_function(pre=[])
 def lf_direction_order(x):
-    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
-    if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
-        return ABSTAIN
-    if lf_start_location_type(x) != ABSTAIN or lf_end_location_type(x) != ABSTAIN:
-        return ABSTAIN
-    if x.argument['start'] > x.trigger['start']:
-        return ABSTAIN
-    if check_required_args(x.entity_type_freqs):
-        arg_entity_type = x.argument['entity_type']
-        if arg_entity_type in ['location', 'location_city', 'location_stop', 'location_street']:
-            if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN:
-                if any(token.lower() in ['nach', 'richtung', 'fahrtrichtung', '->']
-                       for token in argument_left_tokens[-1:]) or \
-                        x.argument['text'].lower() in ['richtung', 'richtungen', 'stadteinwärts', 'stadtauswärts',
-                                                       'beide richtungen', 'beiden richtungen', 'gegenrichtung',
-                                                       'je richtung']:
-                    return direction
-                elif len(argument_left_tokens) > 2 and argument_left_tokens[-1] == '-':
-                    argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
-                    if argument_left_ner[-3][2:] == 'LOCATION_STREET' and \
-                            argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_CITY']:
-                        return direction
-    return ABSTAIN
-
-
-@labeling_function(pre=[])
-def lf_loc_stop_direction_order(x):
-    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
-    argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
-    if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
-        return ABSTAIN
-    if lf_start_location_type(x) != ABSTAIN or lf_end_location_type(x) != ABSTAIN:
-        return ABSTAIN
-    if x.argument['start'] > x.trigger['start']:
-        return ABSTAIN
-    if check_required_args(x.entity_type_freqs):
-        arg_entity_type = x.argument['entity_type']
-        if arg_entity_type in ['location_stop']:
-            if lf_somajo_separate_sentence(x) == ABSTAIN and lf_not_an_event(x) == ABSTAIN and \
-                    (any(token.lower() in ['nach', 'richtung', 'fahrtrichtung', '->']
-                         for token in argument_left_tokens[-1:]) or
-                     (argument_left_ner and argument_left_ner[-1][2:] == 'LOCATION_ROUTE')) and \
-                    (event_trigger_lfs.lf_canceledroute_cat(x) == event_trigger_lfs.CanceledRoute or
-                     event_trigger_lfs.lf_delay_cat(x) == event_trigger_lfs.Delay or
-                     event_trigger_lfs.lf_railreplacementservice_cat(x) == event_trigger_lfs.RailReplacementService):
-                return direction
-    return ABSTAIN
-
-
-@labeling_function(pre=[])
-def lf_loc_loc_city_direction_type(x):
-    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
-    argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
-    if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
-            lf_somajo_separate_sentence(x) != ABSTAIN:
-        return ABSTAIN
-    if lf_start_location_type(x) != ABSTAIN or lf_end_location_type(x) != ABSTAIN:
-        return ABSTAIN
-    if check_required_args(x.entity_type_freqs):
-        arg_entity_type = x.argument['entity_type']
-        if arg_entity_type in ['location', 'location_city', 'location_stop']:
-            if (any(token.lower() in ['nach', 'richtung', 'fahrtrichtung', '->']
-                    for token in argument_left_tokens[-1:]) or
-                x.argument['text'].lower() in ['richtung', 'richtungen', 'stadteinwärts', 'stadtauswärts',
-                                               'beide richtungen', 'beiden richtungen', 'gegenrichtung',
-                                               'je richtung'] or
-                (argument_left_ner and argument_left_ner[-1][2:] == 'LOCATION_ROUTE')) and \
-                    (event_trigger_lfs.lf_accident_context(x) == event_trigger_lfs.Accident or
-                     event_trigger_lfs.lf_obstruction_cat(x) == event_trigger_lfs.Obstruction or
-                     event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam):
-                return direction
-            elif len(argument_left_tokens) > 2 and argument_left_tokens[-1] == '-':
-                argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
-                if argument_left_ner[-3][2:] == 'LOCATION_STREET' and \
-                        argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_CITY']:
-                    return direction
-    return ABSTAIN
-
-
-@labeling_function(pre=[])
-def lf_loc_loc_city_direction_order(x):
-    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
-    argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
-    if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or \
-            lf_somajo_separate_sentence(x) != ABSTAIN:
-        return ABSTAIN
-    if lf_start_location_type(x) != ABSTAIN or lf_end_location_type(x) != ABSTAIN:
-        return ABSTAIN
-    if x.argument['start'] > x.trigger['start']:
-        return ABSTAIN
-    if check_required_args(x.entity_type_freqs):
-        arg_entity_type = x.argument['entity_type']
-        if arg_entity_type in ['location', 'location_city', 'location_stop']:
-            if (any(token.lower() in ['nach', 'richtung', 'fahrtrichtung', '->']
-                    for token in argument_left_tokens[-1:]) or
-                x.argument['text'].lower() in ['richtung', 'richtungen', 'stadteinwärts', 'stadtauswärts',
-                                               'beide richtungen', 'beiden richtungen', 'gegenrichtung',
-                                               'je richtung'] or
-                (argument_left_ner and argument_left_ner[-1][2:] == 'LOCATION_ROUTE')) and \
-                    (event_trigger_lfs.lf_accident_context(x) == event_trigger_lfs.Accident or
-                     event_trigger_lfs.lf_obstruction_cat(x) == event_trigger_lfs.Obstruction or
-                     event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam):
-                return direction
-            elif len(argument_left_tokens) > 2 and argument_left_tokens[-1] == '-':
-                argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
-                if argument_left_ner[-3][2:] == 'LOCATION_STREET' and \
-                        argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_CITY']:
-                    return direction
-    return ABSTAIN
+    return lf_direction(x, order=True)
 
 
 # start_loc
@@ -569,7 +482,7 @@ def lf_start_date_type(x):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['date', 'time']:
-            if any(left_token == 'gültig' for left_token in argument_left_tokens[-4:]) and \
+            if any(left_token.lower() == 'gültig' for left_token in argument_left_tokens[-4:]) and \
                     'ab' in argument_left_tokens[-3:]:
                 return ABSTAIN
             if ((any(token.lower() in ['ab', 'von', 'vom'] for token in argument_left_tokens[-3:]) and
@@ -581,38 +494,36 @@ def lf_start_date_type(x):
 
 
 @labeling_function(pre=[])
-def lf_start_date_nearest(x):
-    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
-    argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
-    between_distance = get_between_distance(x)
-    sentence_trigger_distances = get_sentence_trigger_distances(x)
-    entity_trigger_distances = get_entity_trigger_distances(x)
-    if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or 'Meldung' in argument_right_tokens \
-            or lf_not_an_event(x) != ABSTAIN or lf_end_date_type(x) != ABSTAIN:
-        return ABSTAIN
-    if check_required_args(x.entity_type_freqs):
-        arg_entity_type = x.argument['entity_type']
-        if any(left_token == 'gültig' for left_token in argument_left_tokens[-4:]) and \
-                'ab' in argument_left_tokens[-3:]:
-            return ABSTAIN
-        if arg_entity_type in ['date', 'time']:
-            if is_nearest_trigger(between_distance, sentence_trigger_distances) and \
-                    entity_trigger_distances[arg_entity_type] and \
-                    between_distance <= min(entity_trigger_distances[arg_entity_type]) and \
-                    lf_not_an_event(x) == ABSTAIN and lf_end_date_type(x) == ABSTAIN:
-                return start_date
-    return ABSTAIN
-
-
-@labeling_function(pre=[])
 def lf_start_date_first(x):
+    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
     argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
     if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or 'Meldung' in argument_right_tokens \
             or lf_not_an_event(x) != ABSTAIN or \
             lf_somajo_separate_sentence(x) != ABSTAIN or lf_end_date_type(x) != ABSTAIN:
         return ABSTAIN
+    if any(left_token.lower() == 'gültig' for left_token in argument_left_tokens[-4:]) and \
+            'ab' in argument_left_tokens[-3:]:
+        return ABSTAIN
     first_date = get_first_of_entity_types(x.entities, ['date', 'time'])
     if check_required_args(x.entity_type_freqs) and first_date and first_date['id'] == x.argument['id']:
+        return start_date
+    else:
+        return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_start_date_adjacent(x):
+    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
+    argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
+    between_distance = get_between_distance(x)
+    if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or 'Meldung' in argument_right_tokens \
+            or lf_not_an_event(x) != ABSTAIN or \
+            lf_somajo_separate_sentence(x) != ABSTAIN or lf_end_date_type(x) != ABSTAIN:
+        return ABSTAIN
+    if any(left_token.lower() == 'gültig' for left_token in argument_left_tokens[-4:]) and \
+            'ab' in argument_left_tokens[-3:]:
+        return ABSTAIN
+    if between_distance < 3:
         return start_date
     else:
         return ABSTAIN
