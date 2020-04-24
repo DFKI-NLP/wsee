@@ -467,7 +467,7 @@ def lf_end_location_type(x):
 
 @labeling_function(pre=[])
 def lf_end_location_nearest(x):
-    lf_end_location(x, nearest=True)
+    return lf_end_location(x, nearest=True)
 
 
 # start_date
