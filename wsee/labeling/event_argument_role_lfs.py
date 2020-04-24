@@ -523,7 +523,8 @@ def lf_start_date_adjacent(x):
     if any(left_token.lower() == 'gültig' for left_token in argument_left_tokens[-4:]) and \
             'ab' in argument_left_tokens[-3:]:
         return ABSTAIN
-    if between_distance < 3:
+    if check_required_args(x.entity_type_freqs) and x.argument['entity_type'] in ['date', 'time'] \
+            and between_distance < 3:
         return start_date
     else:
         return ABSTAIN
