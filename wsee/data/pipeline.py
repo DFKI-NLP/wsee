@@ -280,17 +280,17 @@ def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]]
         label_model = LabelModel(cardinality=11, verbose=True)
         label_model.fit(L_train=df_train, n_epochs=500, log_freq=100, seed=123,
                         class_balance=[
-                             0.0749797352067009,
-                             0.010537692515536342,
-                             0.037017022426371254,
-                             0.03539583896244258,
-                             0.06119967576330721,
-                             0.0045933531477978925,
-                             0.0054039448797622265,
-                             0.013915158065387734,
-                             0.018238313969197513,
-                             0.0031072683058632803,
-                             0.7356119967576331
+                            0.0749797352067009,
+                            0.010537692515536342,
+                            0.037017022426371254,
+                            0.04998649013780059,
+                            0.0466090245879492,
+                            0.0045933531477978925,
+                            0.0054039448797622265,
+                            0.013915158065387734,
+                            0.018238313969197513,
+                            0.0031072683058632803,
+                            0.7356119967576331
                         ])
     event_role_probs = label_model.predict_proba(df_train)
     return merge_event_trigger_examples(event_role_examples, event_role_probs)
