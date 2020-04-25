@@ -108,7 +108,7 @@ def get_events(relations, one_hot):
         # collect trigger(s) in relation mention
         trigger = next((arg for arg in rm['args'] if arg['role'] == 'trigger'), None)
         if trigger is None or trigger['conceptMention']['type'] not in ['TRIGGER', 'trigger']:
-            print('Skipping invalid event')
+            print(f'Skipping invalid event: {rm}')
             continue
         trigger_id = trigger['conceptMention']['id']
         event_trigger = {'id': trigger_id}
@@ -195,38 +195,40 @@ def update_events(event_triggers, event_roles, relations, one_hot):
     ]
     for rm in filtered_relations:
         # collect trigger(s) in relation mention
-        trigger = next((arg for arg in rm['args'] if arg['role'] == 'trigger'), None)
-        if trigger is None or trigger['conceptMention']['type'] not in ['TRIGGER', 'trigger']:
-            print('Skipping invalid event')
-            continue
-        trigger_id = trigger['conceptMention']['id']
-        # update event type (probs) in event_triggers
-        try:
-            trigger_idx = get_index_for_id(trigger_id, event_triggers)
-            if one_hot:
-                event_triggers[trigger_idx]['event_type_probs'] = encode.one_hot_encode(
-                    rm['name'],
-                    SD4M_RELATION_TYPES
-                )
-            else:
-                event_triggers[trigger_idx]['event_type'] = rm['name']
-        except Exception as e:
-            print(f'{e}\n Did not find {trigger_id} in: {event_triggers}.')
-            continue
-
-        role_args = [arg for arg in rm['args'] if arg['role'] != 'trigger']
-        for event_role in event_roles:
-            if event_role['trigger'] == trigger_id:
-                arg_role = next((arg['role'] for arg in role_args
-                                 if arg['conceptMention']['id'] == event_role['argument']),
-                                NEGATIVE_ARGUMENT_LABEL)
+        triggers = [arg for arg in rm['args'] if arg['role'] == 'trigger']
+        for trigger in triggers:
+            if trigger['conceptMention']['type'] not in ['TRIGGER', 'trigger',
+                                                         'disaster_type', 'disaster-type', 'DISASTER_TYPE']:
+                print(f'Skipping invalid event: {rm}')
+                continue
+            trigger_id = trigger['conceptMention']['id']
+            # update event type (probs) in event_triggers
+            try:
+                trigger_idx = get_index_for_id(trigger_id, event_triggers)
                 if one_hot:
-                    event_role['event_argument_probs'] = encode.one_hot_encode(
-                        arg_role,
-                        ROLE_LABELS
+                    event_triggers[trigger_idx]['event_type_probs'] = encode.one_hot_encode(
+                        rm['name'],
+                        SD4M_RELATION_TYPES
                     )
                 else:
-                    event_role['event_argument'] = arg_role
+                    event_triggers[trigger_idx]['event_type'] = rm['name']
+            except Exception as e:
+                print(f'{e}\n Did not find {trigger_id} in: {event_triggers}.')
+                continue
+
+            role_args = [arg for arg in rm['args'] if arg['role'] != 'trigger']
+            for event_role in event_roles:
+                if event_role['trigger'] == trigger_id:
+                    arg_role = next((arg['role'] for arg in role_args
+                                     if arg['conceptMention']['id'] == event_role['argument']),
+                                    NEGATIVE_ARGUMENT_LABEL)
+                    if one_hot:
+                        event_role['event_argument_probs'] = encode.one_hot_encode(
+                            arg_role,
+                            ROLE_LABELS
+                        )
+                    else:
+                        event_role['event_argument'] = arg_role
 
     return event_triggers, event_roles
 
