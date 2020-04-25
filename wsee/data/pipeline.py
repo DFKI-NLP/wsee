@@ -5,7 +5,7 @@ from typing import Optional, List
 
 import pandas as pd
 import numpy as np
-from snorkel.labeling import LabelModel, PandasLFApplier, labeling_function
+from snorkel.labeling import LabelModel, PandasLFApplier, labeling_function, filter_unlabeled_dataframe
 from tqdm import tqdm
 
 from wsee.preprocessors import preprocessors
@@ -193,17 +193,19 @@ def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_prob
     return event_role_rows_copy.groupby('id').agg(aggregation_functions)
 
 
-def get_trigger_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]] = None,
+def get_trigger_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
+                      lfs: Optional[List[labeling_function]] = None,
                       label_model: LabelModel = None):
     """
     Takes "raw" data frame, builds trigger examples, (trains LabelModel), calculates event_trigger_probs
     and returns merged trigger examples with event_trigger_probs.
+    :param filter_abstains: Filters rows where all labeling functions abstained
     :param l_train:
     :param lfs:
     :param label_model:
     :return:
     """
-    event_trigger_examples, _ = build_event_trigger_examples(l_train)
+    df_train, _ = build_event_trigger_examples(l_train)
     if lfs is None:
         lfs = [
             event_trigger_lfs.lf_accident_context,
@@ -225,26 +227,35 @@ def get_trigger_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_functio
         ]
     logging.info("Running Event Trigger Labeling Function Applier")
     applier = PandasLFApplier(lfs)
-    df_train = applier.apply(event_trigger_examples)
+    L_train = applier.apply(df_train)
     logging.info("Fitting LabelModel on the data and predicting class probabilities")
     if label_model is None:
         label_model = LabelModel(cardinality=8, verbose=True)
-        label_model.fit(L_train=df_train, n_epochs=500, log_freq=100, seed=123,
+        label_model.fit(L_train=L_train, n_epochs=500, log_freq=100, seed=123,
                         class_balance=[
-                            0.070991432,
-                            0.074663403,
-                            0.030599755,
-                            0.079559364,
-                            0.123623011,
-                            0.026927785,
-                            0.189718482,
-                            0.403916769]
+                            0.07099143206854346,
+                            0.13219094247246022,
+                            0.03182374541003672,
+                            0.0795593635250918,
+                            0.12607099143206854,
+                            0.028151774785801713,
+                            0.189718482252142,
+                            0.34149326805385555]
                         )
-    event_trigger_probs = label_model.predict_proba(df_train)
-    return merge_event_trigger_examples(event_trigger_examples, event_trigger_probs)
+    event_trigger_probs = label_model.predict_proba(L_train)
+
+    if filter_abstains:
+        df_train_filtered, probs_train_filtered = filter_unlabeled_dataframe(
+            X=df_train, y=event_trigger_probs, L=L_train
+        )
+
+        return merge_event_trigger_examples(df_train_filtered, probs_train_filtered)
+    else:
+        return merge_event_trigger_examples(df_train, event_trigger_probs)
 
 
-def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]] = None,
+def get_role_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
+                   lfs: Optional[List[labeling_function]] = None,
                    label_model: LabelModel = None):
     """
 
@@ -253,7 +264,7 @@ def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]]
     :param label_model:
     :return:
     """
-    event_role_examples, _ = build_event_role_examples(l_train)
+    df_train, _ = build_event_role_examples(l_train)
     if lfs is None:
         lfs = [
             event_argument_role_lfs.lf_location_adjacent_markers,
@@ -291,26 +302,34 @@ def get_role_probs(l_train: pd.DataFrame, lfs: Optional[List[labeling_function]]
         ]
     logging.info("Running Event Role Labeling Function Applier")
     applier = PandasLFApplier(lfs)
-    df_train = applier.apply(event_role_examples)
+    L_train = applier.apply(df_train)
     logging.info("Fitting LabelModel on the data and predicting class probabilities")
     if label_model is None:
         label_model = LabelModel(cardinality=11, verbose=True)
-        label_model.fit(L_train=df_train, n_epochs=500, log_freq=100, seed=123,
+        label_model.fit(L_train=L_train, n_epochs=500, log_freq=100, seed=123,
                         class_balance=[
-                            0.0749797352067009,
+                            0.08200486355039178,
                             0.010537692515536342,
-                            0.037017022426371254,
-                            0.04998649013780059,
-                            0.0466090245879492,
-                            0.0045933531477978925,
-                            0.0054039448797622265,
+                            0.03971899486625236,
+                            0.056606322615509325,
+                            0.05322885706565793,
+                            0.005133747635774115,
+                            0.005944339367738449,
                             0.013915158065387734,
                             0.018238313969197513,
-                            0.0031072683058632803,
-                            0.7356119967576331
+                            0.0032423669278573357,
+                            0.7114293434206971
                         ])
-    event_role_probs = label_model.predict_proba(df_train)
-    return merge_event_trigger_examples(event_role_examples, event_role_probs)
+    event_role_probs = label_model.predict_proba(L_train)
+
+    if filter_abstains:
+        df_train_filtered, probs_train_filtered = filter_unlabeled_dataframe(
+            X=df_train, y=event_role_probs, L=L_train
+        )
+
+        return merge_event_trigger_examples(df_train_filtered, probs_train_filtered)
+    else:
+        return merge_event_trigger_examples(df_train, event_role_probs)
 
 
 def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) -> pd.DataFrame:
