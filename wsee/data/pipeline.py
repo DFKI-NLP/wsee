@@ -259,6 +259,7 @@ def get_role_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
                    label_model: LabelModel = None):
     """
 
+    :param filter_abstains: Filters rows where all labeling functions abstained
     :param l_train:
     :param lfs:
     :param label_model:
@@ -327,9 +328,9 @@ def get_role_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
             X=df_train, y=event_role_probs, L=L_train
         )
 
-        return merge_event_trigger_examples(df_train_filtered, probs_train_filtered)
+        return merge_event_role_examples(df_train_filtered, probs_train_filtered)
     else:
-        return merge_event_trigger_examples(df_train, event_role_probs)
+        return merge_event_role_examples(df_train, event_role_probs)
 
 
 def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) -> pd.DataFrame:
