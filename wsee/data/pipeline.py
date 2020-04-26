@@ -367,6 +367,10 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) ->
             print(e)
 
     merged_examples: pd.DataFrame = utils.get_deep_copy(lf_train)
+    # Make sure to remove event_triggers and roles that were built per default
+    for idx, row in merged_examples.iterrows():
+        row['event_triggers'] = []
+        row['event_roles'] = []
     if 'id' in merged_examples:
         merged_examples.set_index('id', inplace=True)
 
