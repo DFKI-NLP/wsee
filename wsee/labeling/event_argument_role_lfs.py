@@ -127,6 +127,22 @@ def lf_location(x, same_sentence=True, nearest=False, check_event_type=True,
 
 
 @labeling_function(pre=[])
+def lf_location_same_sentence_is_event(x):
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and lf_direction_type(x) == ABSTAIN:
+        return lf_location(x, nearest=False)
+    else:
+        return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_location_same_sentence_nearest_is_event(x):
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and lf_direction_type(x) == ABSTAIN:
+        return lf_location(x, nearest=True)
+    else:
+        return ABSTAIN
+
+
+@labeling_function(pre=[])
 def lf_location_chained(x):
     if any(location_lf(x) == location for location_lf in
            [
