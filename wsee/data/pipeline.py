@@ -268,6 +268,9 @@ def get_role_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
     df_train, _ = build_event_role_examples(l_train)
     if lfs is None:
         lfs = [
+            event_argument_role_lfs.lf_location_same_sentence_is_event,
+            event_argument_role_lfs.lf_location_same_sentence_nearest_is_event,
+            event_argument_role_lfs.lf_location_chained,
             event_argument_role_lfs.lf_location_adjacent_markers,
             event_argument_role_lfs.lf_location_beginning_street_stop_route,
             event_argument_role_lfs.lf_location_first_sentence,
