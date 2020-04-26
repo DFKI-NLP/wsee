@@ -2,7 +2,6 @@ from snorkel.labeling import labeling_function
 from fuzzywuzzy import process
 from wsee.preprocessors.preprocessors import *
 
-
 Accident = 0
 CanceledRoute = 1
 CanceledStop = 2
@@ -13,58 +12,57 @@ TrafficJam = 6
 O = 7
 ABSTAIN = -1
 
-
 # Keyword-based LFs
 public_transport_keywords = [
-        'Oberleitungsschaden', 'Signalstörung', 'Weichenstörung', 'Stellwerksstörung', 'Bahnstreik',
-        'Fahrzeugstörung', 'Bahnübergangsstörung', 'Stellwerksausfall', 'Teilausfall', 'Teilausfällen',  'Ampelstörung',
-        'Triebwagenstörung'
+    'Oberleitungsschaden', 'Signalstörung', 'Weichenstörung', 'Stellwerksstörung', 'Bahnstreik',
+    'Fahrzeugstörung', 'Bahnübergangsstörung', 'Stellwerksausfall', 'Teilausfall', 'Teilausfällen', 'Ampelstörung',
+    'Triebwagenstörung'
 ]
 intervention_keywords = [
-        'Intervention', 'Notarzteinsatz', 'Notarzt', 'Notarzteinsatzes', 'Polizeieinsatz',
-        'Polizeieinsatzes', 'Feuerwehreinsatz', 'Feuerwehreinsatzes'
+    'Intervention', 'Notarzteinsatz', 'Notarzt', 'Notarzteinsatzes', 'Polizeieinsatz',
+    'Polizeieinsatzes', 'Feuerwehreinsatz', 'Feuerwehreinsatzes'
 ]
 accident_keywords = [
-        'Unfall', 'Unfälle', 'Verkehrsunfall', 'Verkehrsunfälle', 'Autounfall', 'Autounfälle', 'Massenkarambolage',
-        'Auffahrunfall', 'Zusammenstoß', 'Geisterfahrer', 'Falschfahrer', 'Unfallstelle', 'Zugkollision',
-        'Zugkollisionen', 'Zugunglück', 'Personenschaden', 'Bergungsarbeit', 'Bergungsarbeiten', 'Unfalles',
-        'Verkehrsunfalls'
+    'Unfall', 'Unfälle', 'Verkehrsunfall', 'Verkehrsunfälle', 'Autounfall', 'Autounfälle', 'Massenkarambolage',
+    'Auffahrunfall', 'Zusammenstoß', 'Geisterfahrer', 'Falschfahrer', 'Unfallstelle', 'Zugkollision',
+    'Zugkollisionen', 'Zugunglück', 'Personenschaden', 'Bergungsarbeit', 'Bergungsarbeiten', 'Unfalles',
+    'Verkehrsunfalls'
 ]
 canceledroute_keywords = [
-        'Zugausfall', 'Zugausfälle', 'Zugausfällen', 'S-Bahn-Ausfall', 'fällt aus', 'ausgefallen', 'aus', 'fällt',
-        'fallen', 'unterbrochen', 'Ausfälle', 'Einstellung', 'Teilausfall', 'Ausfall', 'streichen', 'gestrichen',
-        'Streckensperrung', 'gesperrt'
+    'Zugausfall', 'Zugausfälle', 'Zugausfällen', 'S-Bahn-Ausfall', 'fällt aus', 'ausgefallen', 'fällt',
+    'fallen', 'unterbrochen', 'Ausfälle', 'Einstellung', 'Teilausfall', 'Ausfall', 'streichen', 'gestrichen',
+    'Streckensperrung', 'gesperrt'
 ]
 canceledstop_keywords = [
-        'hält nicht', 'halten nicht', 'hält', 'geschlossen', 'gesperrt'
+    'hält nicht', 'halten nicht', 'hält', 'geschlossen', 'gesperrt'
 ]
 delay_keywords = [
-        'Verspätung', 'Verspätungen', 'Verzögerung', 'Verzögerungen', 'Folgeverspätung', 'Folgeverspätungen',
-        'Verspätungskürzung', 'verspäten', 'verspäten sich', 'verzögert', 'verspätet', 'später', 'Wartezeit', 'warten'
+    'Verspätung', 'Verspätungen', 'Verzögerung', 'Verzögerungen', 'Folgeverspätung', 'Folgeverspätungen',
+    'Verspätungskürzung', 'verspäten', 'verspäten sich', 'verzögert', 'verspätet', 'später', 'Wartezeit', 'warten'
 ]
 delay_lower_priority_keywords = [
-        '#Störung', 'Technische Störung', 'Technische_Störung', 'Fahrplanabweichung', 'unregelmäßiger Zugverkehr',
-        'unregelmäßigem Zugverkehr', 'unregelmäßigen Zugverkehr', 'Störung', 'Störungsinformation',
+    '#Störung', 'Technische Störung', 'Technische_Störung', 'Fahrplanabweichung', 'unregelmäßiger Zugverkehr',
+    'unregelmäßigem Zugverkehr', 'unregelmäßigen Zugverkehr', 'Störung', 'Störungsinformation',
 ]
 obstruction_keywords = [
-        'Umleitung', 'Umleitungen', 'umgeleitet',  'Sperrung', 'gesperrt', 'Vollsperrung', 'Verkehrsbehinderung',
-        'Behinderung', 'behindern', 'blockiert', 'Blockade', 'unterbrochen', 'Behinderungen'
+    'Umleitung', 'Umleitungen', 'umgeleitet', 'Sperrung', 'gesperrt', 'Vollsperrung', 'Verkehrsbehinderung',
+    'Behinderung', 'behindern', 'blockiert', 'Blockade', 'unterbrochen', 'Behinderungen'
 ]
 obstruction_lower_priority_keywords = [
-        'Großbaustelle', 'Nachtbaustelle', 'Tagesbaustelle', 'Baustelle', 'Bauarbeiten', 'Straßenbauarbeiten',
-        'Straßenbau', 'Fliegerbombe', 'Fliegerbomben', 'Bombenentschärfung', 'Schwertransport', 'Vorsicht',
-        'brennender PKW', 'Störung'
+    'Großbaustelle', 'Nachtbaustelle', 'Tagesbaustelle', 'Baustelle', 'Bauarbeiten', 'Straßenbauarbeiten',
+    'Straßenbau', 'Fliegerbombe', 'Fliegerbomben', 'Bombenentschärfung', 'Schwertransport', 'Vorsicht',
+    'brennender PKW', 'Störung'
 ]
 railreplacementservice_keywords = [
-        'Schienenersatzverkehr', '#SEV', 'Ersatzverkehr', 'Busnotverkehr', 'Pendelverkehr', 'durch Busse ersetzt',
-        'Ersatzzug', 'Ersatzbus', 'Bus ersetzt'
+    'Schienenersatzverkehr', '#SEV', 'Ersatzverkehr', 'Busnotverkehr', 'Pendelverkehr', 'durch Busse ersetzt',
+    'Ersatzzug', 'Ersatzbus', 'Bus ersetzt'
 ]
 trafficjam_keywords = [
-        'Stau', 'Staus', 'Staumeldung', 'Stauwarnung', 'stockender Verkehr',
-        '#stautweet', 'Verkehrsüberlastung', 'Rückstau', 'Verkehrsüberlastung', 'Hohes Verkehrsaufkommen'
+    'Stau', 'Staus', 'Staumeldung', 'Stauwarnung', 'stockender Verkehr',
+    '#stautweet', 'Verkehrsüberlastung', 'Rückstau', 'Verkehrsüberlastung', 'Hohes Verkehrsaufkommen'
 ]
 trafficjam_exact_keywords = [
-        'Blechlawine', 'Blechlawinen'
+    'Blechlawine', 'Blechlawinen'
 ]
 
 
@@ -116,7 +114,7 @@ def check_cause_keywords(left_tokens, x):
             if highest[1] >= 90 and 'location_route' in x.entity_type_freqs:
                 return False
         # make sure that no other entity occurs after the causal keyword or is the one containing the cause_keyword
-        if cause_token_idx == len(left_tokens)-1:
+        if cause_token_idx == len(left_tokens) - 1:
             # adjacent to trigger
             return True
         for entity in x.entities:
@@ -155,14 +153,11 @@ def lf_canceledroute_cat(x):
     :param x:
     :return:
     """
-    # trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
-    # trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
+    trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], canceledroute_keywords)
     if highest[1] >= 90 and 'location_route' in x.entity_type_freqs:
-        # TODO handle special case?
-        # if x.trigger['text'] in ['fällt', 'fallen'] and 'aus' in trigger_right_tokens:
-        # if x.trigger['text'] == 'aus' and any(fall in trigger_left_tokens for fall in ['fällt', 'fallen']):
-        #    return ABSTAIN
+        if x.trigger['text'] in ['aus', 'aus.'] and any(fall in trigger_left_tokens for fall in ['fällt', 'fallen']):
+            return ABSTAIN
         return CanceledRoute
     return ABSTAIN
 
