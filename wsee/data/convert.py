@@ -16,6 +16,7 @@ def main(args):
 
     one_hot = args.one_hot
     build_defaults = args.build_default_events
+    use_first_trigger = args.use_first_trigger
 
     daystream = []
     for split in ['train', 'dev', 'test']:
@@ -24,7 +25,7 @@ def main(args):
             output_file = input_path.joinpath(split, f'{split}_with_events_and_defaults.jsonl')
         else:
             output_file = input_path.joinpath(split, f'{split}_with_events.jsonl')
-        smart_data, daystream_part = convert_file(input_file, one_hot, build_defaults)
+        smart_data, daystream_part = convert_file(input_file, one_hot, build_defaults, use_first_trigger)
         smart_data.to_json(output_file, orient='records', lines=True, force_ascii=False)
         daystream.append(daystream_part)
     daystream = pd.concat(daystream, sort=False).reset_index(drop=True)
@@ -32,13 +33,14 @@ def main(args):
     daystream.to_json(daystream_output_file, orient='records', lines=True, force_ascii=False)
 
 
-def convert_file(file_path, one_hot=False, build_defaults=False):
+def convert_file(file_path, one_hot=False, build_defaults=False, use_first_trigger: bool = False):
     sd_list = []
     daystream_list = []
     with open(file_path, 'rb') as input_file:
         avro_reader = reader(input_file)
         for doc in tqdm(avro_reader):
-            converted_doc = convert_doc(doc=doc, one_hot=one_hot, build_defaults=build_defaults)
+            converted_doc = convert_doc(doc=doc, one_hot=one_hot, build_defaults=build_defaults,
+                                        use_first_trigger=use_first_trigger)
             if converted_doc:
                 if _is_smart_data_doc(doc):
                     sd_list.append(converted_doc)
@@ -49,7 +51,7 @@ def convert_file(file_path, one_hot=False, build_defaults=False):
     return smart_data, daystream
 
 
-def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults=False):
+def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults=False, use_first_trigger: bool = False):
     if doc_text is None:
         try:
             doc_text = str(doc['text'])
@@ -75,10 +77,10 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults=F
             event_triggers, event_roles = build_default_events(entities, one_hot)
             if doc['relationMentions']:
                 event_triggers, event_roles = update_events(event_triggers, event_roles, doc['relationMentions'],
-                                                            one_hot)
+                                                            one_hot, use_first_trigger)
         else:
             # 2. Or does it make more sense to only create events for corresponding relation mentions in doc?
-            event_triggers, event_roles = get_events(doc['relationMentions'], one_hot)
+            event_triggers, event_roles = get_events(doc['relationMentions'], one_hot, use_first_trigger)
 
     else:
         # Daystream documents do not have relation mention annotation
@@ -90,10 +92,11 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults=F
             'event_triggers': event_triggers, 'event_roles': event_roles}
 
 
-def get_events(relations, one_hot):
+def get_events(relations, one_hot, use_first_trigger: bool = False):
     """
     Only creates event_triggers and event_roles for relation mentions in document
 
+    :param use_first_trigger:
     :param relations: relation mentions in document
     :param one_hot: whether to one hot encode labels
     :return: event_triggers and event_roles for relation mentions in document
@@ -106,29 +109,42 @@ def get_events(relations, one_hot):
     ]
     for rm in filtered_relations:
         # collect trigger(s) in relation mention
-        trigger = next((arg for arg in rm['args'] if arg['role'] == 'trigger'), None)
-        if trigger is None or trigger['conceptMention']['type'] not in ['TRIGGER', 'trigger']:
+        triggers = [arg for arg in rm['args'] if arg['role'] == 'trigger']
+        if not triggers:
             print(f'Skipping invalid event: {rm}')
             continue
-        trigger_id = trigger['conceptMention']['id']
-        event_trigger = {'id': trigger_id}
-        if one_hot:
-            event_trigger['event_type_probs'] = encode.one_hot_encode(rm['name'], SD4M_RELATION_TYPES)
-        else:
-            event_trigger['event_type'] = rm['name']
-        event_triggers.append(event_trigger)
-
-        args = [arg for arg in rm['args'] if arg['role'] != 'trigger' and arg['conceptMention']['id'] != trigger_id]
-        for arg in args:
-            event_role = {
-                'trigger': trigger_id,
-                'argument': arg['conceptMention']['id'],
-            }
+        if use_first_trigger:
+            # if there is a "aus" in triggers choose the "fallen"/"fällt"
+            if len(triggers) > 1:
+                aus_trigger = next(
+                    (trigger for trigger in triggers if trigger['conceptMention']['text'] == 'aus'), None)
+                fallen_trigger = next(
+                    (trigger for trigger in triggers
+                     if trigger['conceptMention']['text'] in ['fällt', 'faellt', 'fallen']), None)
+                if aus_trigger and fallen_trigger:
+                    triggers = [fallen_trigger]
+                else:
+                    triggers = triggers[0:1]
+        for trigger in triggers:
+            trigger_id = trigger['conceptMention']['id']
+            event_trigger = {'id': trigger_id}
             if one_hot:
-                event_role['event_argument_probs'] = encode.one_hot_encode(arg['role'], ROLE_LABELS)
+                event_trigger['event_type_probs'] = encode.one_hot_encode(rm['name'], SD4M_RELATION_TYPES)
             else:
-                event_role['event_argument'] = arg['role']
-            event_roles.append(event_role)
+                event_trigger['event_type'] = rm['name']
+            event_triggers.append(event_trigger)
+
+            args = [arg for arg in rm['args'] if arg['role'] != 'trigger' and arg['conceptMention']['id'] != trigger_id]
+            for arg in args:
+                event_role = {
+                    'trigger': trigger_id,
+                    'argument': arg['conceptMention']['id'],
+                }
+                if one_hot:
+                    event_role['event_argument_probs'] = encode.one_hot_encode(arg['role'], ROLE_LABELS)
+                else:
+                    event_role['event_argument'] = arg['role']
+                event_roles.append(event_role)
 
     return event_triggers, event_roles
 
@@ -179,11 +195,12 @@ def build_default_events(entities, one_hot):
     return event_triggers, event_roles
 
 
-def update_events(event_triggers, event_roles, relations, one_hot):
+def update_events(event_triggers, event_roles, relations, one_hot: bool = True, use_first_trigger: bool = False):
     """
     Assumes preceding build_defaults_events step and uses relationMentions of the document
     to update the event_type/ event_role attributes.
 
+    :param use_first_trigger: Only use the first trigger in relation mention arguments.
     :param event_triggers: Entities of type 'trigger'
     :param event_roles: trigger-entity pairs
     :param relations: relation mentions in document
@@ -196,6 +213,21 @@ def update_events(event_triggers, event_roles, relations, one_hot):
     for rm in filtered_relations:
         # collect trigger(s) in relation mention
         triggers = [arg for arg in rm['args'] if arg['role'] == 'trigger']
+        if not triggers:
+            print(f'Skipping invalid event: {rm}')
+            continue
+        if use_first_trigger:
+            # if there is a "aus" in triggers choose the "fallen"/"fällt"
+            if len(triggers) > 1:
+                aus_trigger = next(
+                    (trigger for trigger in triggers if trigger['conceptMention']['text'] == 'aus'), None)
+                fallen_trigger = next(
+                    (trigger for trigger in triggers
+                     if trigger['conceptMention']['text'] in ['fällt', 'faellt', 'fallen']), None)
+                if aus_trigger and fallen_trigger:
+                    triggers = [fallen_trigger]
+                else:
+                    triggers = triggers[0:1]
         for trigger in triggers:
             if trigger['conceptMention']['type'] not in ['TRIGGER', 'trigger',
                                                          'disaster_type', 'disaster-type', 'DISASTER_TYPE']:
@@ -297,6 +329,8 @@ if __name__ == '__main__':
     parser.add_argument("--build_default_events", action="store_true", help='Build default events and update them')
     parser.add_argument("--no_default_events", dest='build_default_events', action="store_false",
                         help='Build default events and update them')
+    parser.add_argument("--use_first_trigger", dest='use_first_trigger', action="store_false",
+                        help='Only use first/ most expressive trigger argument in relation')
     parser.add_argument('-f', dest='force_output', action='store_true',
                         help='Force creation of new output folder')
     parser.set_defaults(feature=True)
