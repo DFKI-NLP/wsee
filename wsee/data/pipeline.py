@@ -233,14 +233,14 @@ def get_trigger_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
         label_model = LabelModel(cardinality=8, verbose=True)
         label_model.fit(L_train=L_train, n_epochs=500, log_freq=100, seed=123,
                         class_balance=[
-                            0.07099143206854346,
-                            0.13219094247246022,
-                            0.03182374541003672,
+                            0.07221542227662178,
+                            0.07466340269277846,
+                            0.030599755201958383,
                             0.0795593635250918,
-                            0.12607099143206854,
-                            0.028151774785801713,
+                            0.12362301101591187,
+                            0.02692778457772338,
                             0.189718482252142,
-                            0.34149326805385555]
+                            0.40269277845777235]
                         )
     event_trigger_probs = label_model.predict_proba(L_train)
 
@@ -268,6 +268,9 @@ def get_role_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
     df_train, _ = build_event_role_examples(l_train)
     if lfs is None:
         lfs = [
+            event_argument_role_lfs.lf_location_same_sentence_is_event,
+            event_argument_role_lfs.lf_location_same_sentence_nearest_is_event,
+            event_argument_role_lfs.lf_location_chained,
             event_argument_role_lfs.lf_location_adjacent_markers,
             event_argument_role_lfs.lf_location_beginning_street_stop_route,
             event_argument_role_lfs.lf_location_first_sentence,
@@ -309,17 +312,17 @@ def get_role_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
         label_model = LabelModel(cardinality=11, verbose=True)
         label_model.fit(L_train=L_train, n_epochs=500, log_freq=100, seed=123,
                         class_balance=[
-                            0.08200486355039178,
+                            0.07511483382869495,
                             0.010537692515536342,
-                            0.03971899486625236,
-                            0.056606322615509325,
-                            0.05322885706565793,
-                            0.005133747635774115,
-                            0.005944339367738449,
+                            0.037017022426371254,
+                            0.04998649013780059,
+                            0.0466090245879492,
+                            0.0045933531477978925,
+                            0.0054039448797622265,
                             0.013915158065387734,
                             0.018238313969197513,
-                            0.0032423669278573357,
-                            0.7114293434206971
+                            0.0031072683058632803,
+                            0.735476898135639
                         ])
     event_role_probs = label_model.predict_proba(L_train)
 
@@ -344,7 +347,24 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) ->
     if sample and len(lf_train) > 100:
         lf_train = lf_train.sample(100)
     merged_event_trigger_examples = get_trigger_probs(lf_train)
+
+    if save_path:
+        try:
+            logging.info(f"Writing Snorkel Trigger data to {save_path + 'daystream_triggers.jsonl'}")
+            merged_event_trigger_examples.to_json(
+                save_path + 'daystream_triggers.jsonl', orient='records', lines=True, force_ascii=False)
+        except Exception as e:
+            print(e)
+
     merged_event_role_examples = get_role_probs(lf_train)
+
+    if save_path:
+        try:
+            logging.info(f"Writing Snorkel Role data to {save_path + 'daystream_roles.jsonl'}")
+            merged_event_role_examples.to_json(
+                save_path + 'daystream_roles.jsonl', orient='records', lines=True, force_ascii=False)
+        except Exception as e:
+            print(e)
 
     merged_examples: pd.DataFrame = utils.get_deep_copy(lf_train)
     if 'id' in merged_examples:
@@ -355,10 +375,14 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) ->
 
     merged_examples.reset_index(level=0, inplace=True)
 
+    # Removes rows with no events
+    merged_examples = merged_examples[merged_examples['event_triggers'].map(lambda d: len(d)) > 0]
+
     if save_path:
         try:
-            logging.info(f"Writing Snorkel Labeled data to {save_path}")
-            merged_examples.to_json(save_path, orient='records', lines=True, force_ascii=False)
+            logging.info(f"Writing Snorkel Labeled data to {save_path+'daystream_snorkeledv6_pipeline.jsonl'}")
+            merged_examples.to_json(
+                save_path + 'daystream_snorkeledv6_pipeline.jsonl', orient='records', lines=True, force_ascii=False)
         except Exception as e:
             print(e)
     return merged_examples
