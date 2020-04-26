@@ -350,9 +350,9 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) ->
 
     if save_path:
         try:
-            logging.info(f"Writing Snorkel Trigger data to {save_path + 'daystream_triggers.jsonl'}")
+            logging.info(f"Writing Snorkel Trigger data to {save_path + '/daystream_triggers.jsonl'}")
             merged_event_trigger_examples.to_json(
-                save_path + 'daystream_triggers.jsonl', orient='records', lines=True, force_ascii=False)
+                save_path + '/daystream_triggers.jsonl', orient='records', lines=True, force_ascii=False)
         except Exception as e:
             print(e)
 
@@ -360,9 +360,9 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) ->
 
     if save_path:
         try:
-            logging.info(f"Writing Snorkel Role data to {save_path + 'daystream_roles.jsonl'}")
+            logging.info(f"Writing Snorkel Role data to {save_path + '/daystream_roles.jsonl'}")
             merged_event_role_examples.to_json(
-                save_path + 'daystream_roles.jsonl', orient='records', lines=True, force_ascii=False)
+                save_path + '/daystream_roles.jsonl', orient='records', lines=True, force_ascii=False)
         except Exception as e:
             print(e)
 
@@ -384,9 +384,9 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) ->
 
     if save_path:
         try:
-            logging.info(f"Writing Snorkel Labeled data to {save_path+'daystream_snorkeledv6_pipeline.jsonl'}")
+            logging.info(f"Writing Snorkel Labeled data to {save_path+'/daystream_snorkeledv6_pipeline.jsonl'}")
             merged_examples.to_json(
-                save_path + 'daystream_snorkeledv6_pipeline.jsonl', orient='records', lines=True, force_ascii=False)
+                save_path + '/daystream_snorkeledv6_pipeline.jsonl', orient='records', lines=True, force_ascii=False)
         except Exception as e:
             print(e)
     return merged_examples
