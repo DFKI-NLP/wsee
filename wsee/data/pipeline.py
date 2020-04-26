@@ -351,7 +351,7 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) ->
     if save_path:
         try:
             logging.info(f"Writing Snorkel Trigger data to {save_path + '/daystream_triggers.jsonl'}")
-            merged_event_trigger_examples.to_json(
+            merged_event_trigger_examples.reset_index(level=0).to_json(
                 save_path + '/daystream_triggers.jsonl', orient='records', lines=True, force_ascii=False)
         except Exception as e:
             print(e)
@@ -361,7 +361,7 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) ->
     if save_path:
         try:
             logging.info(f"Writing Snorkel Role data to {save_path + '/daystream_roles.jsonl'}")
-            merged_event_role_examples.to_json(
+            merged_event_role_examples.reset_index(level=0).to_json(
                 save_path + '/daystream_roles.jsonl', orient='records', lines=True, force_ascii=False)
         except Exception as e:
             print(e)
