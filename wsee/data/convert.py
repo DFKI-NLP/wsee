@@ -18,6 +18,10 @@ def main(args):
     build_defaults = args.build_default_events
     use_first_trigger = args.use_first_trigger
 
+    print(f"Reading input from: {input_path}")
+    print(f"With settings: one_hot ({one_hot}), build_defaults ({build_defaults}), "
+          f"use_first_trigger ({use_first_trigger})")
+
     daystream = []
     for split in ['train', 'dev', 'test']:
         input_file = input_path.joinpath(split, f'{split}.avro')
@@ -117,10 +121,10 @@ def get_events(relations, one_hot, use_first_trigger: bool = False):
             # if there is a "aus" in triggers choose the "fallen"/"fällt"
             if len(triggers) > 1:
                 aus_trigger = next(
-                    (trigger for trigger in triggers if trigger['conceptMention']['text'] == 'aus'), None)
+                    (trigger for trigger in triggers if trigger['conceptMention']['normalizedValue'] == 'aus'), None)
                 fallen_trigger = next(
                     (trigger for trigger in triggers
-                     if trigger['conceptMention']['text'] in ['fällt', 'faellt', 'fallen']), None)
+                     if trigger['conceptMention']['normalizedValue'] in ['fällt', 'faellt', 'fallen']), None)
                 if aus_trigger and fallen_trigger:
                     triggers = [fallen_trigger]
                 else:
@@ -220,10 +224,10 @@ def update_events(event_triggers, event_roles, relations, one_hot: bool = True, 
             # if there is a "aus" in triggers choose the "fallen"/"fällt"
             if len(triggers) > 1:
                 aus_trigger = next(
-                    (trigger for trigger in triggers if trigger['conceptMention']['text'] == 'aus'), None)
+                    (trigger for trigger in triggers if trigger['conceptMention']['normalizedValue'] == 'aus'), None)
                 fallen_trigger = next(
                     (trigger for trigger in triggers
-                     if trigger['conceptMention']['text'] in ['fällt', 'faellt', 'fallen']), None)
+                     if trigger['conceptMention']['normalizedValue'] in ['fällt', 'faellt', 'fallen']), None)
                 if aus_trigger and fallen_trigger:
                     triggers = [fallen_trigger]
                 else:
@@ -329,7 +333,7 @@ if __name__ == '__main__':
     parser.add_argument("--build_default_events", action="store_true", help='Build default events and update them')
     parser.add_argument("--no_default_events", dest='build_default_events', action="store_false",
                         help='Build default events and update them')
-    parser.add_argument("--use_first_trigger", dest='use_first_trigger', action="store_false",
+    parser.add_argument("--use_first_trigger", action="store_true",
                         help='Only use first/ most expressive trigger argument in relation')
     parser.add_argument('-f', dest='force_output', action='store_true',
                         help='Force creation of new output folder')
