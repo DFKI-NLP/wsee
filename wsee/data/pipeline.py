@@ -420,11 +420,20 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) ->
     # Removes rows with no events
     merged_examples = merged_examples[merged_examples['event_triggers'].map(lambda d: len(d)) > 0]
 
+    # # Create additional version where the most probable class gets probability 1.0
+    # dominated_examples: pd.DataFrame = utils.get_deep_copy(merged_examples)
+    # dominated_examples.apply(utils.let_most_probable_class_dominate, axis=1)
+
     if save_path:
         try:
             logging.info(f"Writing Snorkel Labeled data to {save_path+'/daystream_snorkeledv6_pipeline.jsonl'}")
             merged_examples.to_json(
                 save_path + '/daystream_snorkeledv6_pipeline.jsonl', orient='records', lines=True, force_ascii=False)
+            # logging.info(f"Writing Snorkel Labeled data where probability of most probable class is set to 1.0 "
+            #              f"to {save_path + '/daystream_snorkeledv6_pipeline_dominated.jsonl'}")
+            # dominated_examples.to_json(
+            #     save_path + '/daystream_snorkeledv6_pipeline_dominated.jsonl', orient='records', lines=True,
+            #     force_ascii=False)
         except Exception as e:
             print(e)
     return merged_examples
