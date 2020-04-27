@@ -347,7 +347,24 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) ->
     if sample and len(lf_train) > 100:
         lf_train = lf_train.sample(100)
     merged_event_trigger_examples = get_trigger_probs(lf_train)
+
+    if save_path:
+        try:
+            logging.info(f"Writing Snorkel Trigger data to {save_path + '/daystream_triggers.jsonl'}")
+            merged_event_trigger_examples.reset_index(level=0).to_json(
+                save_path + '/daystream_triggers.jsonl', orient='records', lines=True, force_ascii=False)
+        except Exception as e:
+            print(e)
+
     merged_event_role_examples = get_role_probs(lf_train)
+
+    if save_path:
+        try:
+            logging.info(f"Writing Snorkel Role data to {save_path + '/daystream_roles.jsonl'}")
+            merged_event_role_examples.reset_index(level=0).to_json(
+                save_path + '/daystream_roles.jsonl', orient='records', lines=True, force_ascii=False)
+        except Exception as e:
+            print(e)
 
     merged_examples: pd.DataFrame = utils.get_deep_copy(lf_train)
     # Make sure to remove event_triggers and roles that were built per default
@@ -362,10 +379,14 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) ->
 
     merged_examples.reset_index(level=0, inplace=True)
 
+    # Removes rows with no events
+    merged_examples = merged_examples[merged_examples['event_triggers'].map(lambda d: len(d)) > 0]
+
     if save_path:
         try:
-            logging.info(f"Writing Snorkel Labeled data to {save_path}")
-            merged_examples.to_json(save_path, orient='records', lines=True, force_ascii=False)
+            logging.info(f"Writing Snorkel Labeled data to {save_path+'/daystream_snorkeledv6_pipeline.jsonl'}")
+            merged_examples.to_json(
+                save_path + '/daystream_snorkeledv6_pipeline.jsonl', orient='records', lines=True, force_ascii=False)
         except Exception as e:
             print(e)
     return merged_examples
