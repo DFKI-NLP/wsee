@@ -470,9 +470,46 @@ def get_somajo_doc(cand: DataPoint):
         'doc': somajo_doc,
         'tokens': get_somajo_doc_tokens(somajo_doc),
         'sentences': get_somajo_doc_sentences(somajo_doc),
-        'entities': entities
+        'entities': entities,
     }
     return doc
+
+
+def get_somajo_separate_sentence(cand: DataPoint):
+    assert 'somajo_doc' in cand, 'You need to run get_somajo_doc first and add somajo_doc to the dataframe.'
+    if len(cand.somajo_doc['sentences']) == 1:
+        return False
+    same_sentence = False
+    text = ""
+    tolerance = 0
+    for sentence, sent_tokens in zip(cand.somajo_doc['sentences'], cand.somajo_doc['doc']):
+        sentence_start = len(text)
+        text += sentence
+        sentence_end = len(text)
+        # allow for some tolerance for wrong whitespaces: number of punctuation marks, new lines  for now
+        # factor 2 because for each punctuation marks we are adding at most 2 wrong whitespaces
+        tolerance += 2 * len([token for token in sent_tokens if token.text in punctuation_marks]) + sentence.count('\n')
+        m_start = min(cand.trigger['char_start'], cand.argument['char_start'])
+        m_end = max(cand.trigger['char_end'], cand.argument['char_end'])
+
+        somajo_trigger = cand.somajo_doc['entities'][cand.trigger['id']]
+        somajo_argument = cand.somajo_doc['entities'][cand.argument['id']]
+
+        if sentence_start <= m_start + tolerance and m_end <= sentence_end + tolerance and \
+                somajo_trigger in sentence and somajo_argument in sentence:
+            trigger_matches = [m.start() for m in re.finditer(escape_regex_chars(somajo_trigger), sentence)]
+            trigger_in_sentence = any(abs(trigger_match + sentence_start - cand.trigger['char_start']) < tolerance
+                                      for trigger_match in trigger_matches)
+            argument_matches = [m.start() for m in re.finditer(escape_regex_chars(somajo_argument), sentence)]
+            argument_in_sentence = any(abs(argument_match + sentence_start - cand.argument['char_start']) < tolerance
+                                       for argument_match in argument_matches)
+            if trigger_in_sentence and argument_in_sentence:
+                same_sentence = True
+                break
+    if same_sentence:
+        return False
+    else:
+        return True
 
 
 def get_sentence_entities(cand: DataPoint):
@@ -505,6 +542,15 @@ def get_sentence_entities(cand: DataPoint):
                     entity['char_end'] <= sentence_end + tolerance and
                     somajo_trigger in sentence]
     return []
+
+
+def is_multiple_same_event_type(cand: DataPoint):
+    between_tokens = get_between_tokens(cand)
+    trigger_text = cand.trigger['text']
+    if trigger_text in between_tokens:
+        return True
+    else:
+        return False
 
 
 # only for exploration purposes when gold labels are available

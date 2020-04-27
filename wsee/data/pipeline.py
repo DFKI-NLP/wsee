@@ -1,7 +1,7 @@
 import os
 import logging
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
 
 import pandas as pd
 import numpy as np
@@ -15,6 +15,27 @@ from wsee.utils import utils
 
 
 logging.basicConfig(level=logging.INFO)
+
+
+event_type_lf_map: Dict[int, Any] = {
+    event_trigger_lfs.Accident: event_trigger_lfs.lf_accident_context,
+    event_trigger_lfs.CanceledRoute: event_trigger_lfs.lf_canceledroute_cat,
+    event_trigger_lfs.CanceledStop: event_trigger_lfs.lf_canceledstop_cat,
+    event_trigger_lfs.Delay: event_trigger_lfs.lf_delay_cat,
+    event_trigger_lfs.Obstruction: event_trigger_lfs.lf_obstruction_cat,
+    event_trigger_lfs.RailReplacementService: event_trigger_lfs.lf_railreplacementservice_cat,
+    event_trigger_lfs.TrafficJam: event_trigger_lfs.lf_trafficjam_cat
+}
+
+event_type_location_type_map: Dict[int, List[str]] = {
+    event_trigger_lfs.Accident: ['location', 'location_street', 'location_city', 'location_route'],
+    event_trigger_lfs.CanceledRoute: ['location_route'],
+    event_trigger_lfs.CanceledStop: ['location_stop'],
+    event_trigger_lfs.Delay: ['location_route'],
+    event_trigger_lfs.Obstruction: ['location', 'location_street', 'location_city', 'location_route'],
+    event_trigger_lfs.RailReplacementService: ['location_route'],
+    event_trigger_lfs.TrafficJam: ['location', 'location_street', 'location_city', 'location_route']
+}
 
 
 def load_data(path, use_build_defaults=True):
@@ -85,11 +106,20 @@ def build_event_trigger_examples(dataframe):
     return event_trigger_rows, event_trigger_rows_y
 
 
+def arg_location_type_event_type_match(cand):
+    arg_entity_type = cand.argument['entity_type']
+    for event_class, location_types in event_type_location_type_map.items():
+        if arg_entity_type in location_types and event_type_lf_map[event_class](cand) == event_class:
+            return True
+    return False
+
+
 def build_event_role_examples(dataframe):
     """
     Takes a dataframe containing one document per row with all its annotations
     (event roles are of interest here) and creates one row for each trigger-entity
-    (event role) pair.
+    (event role) pair. Also adds attributes beforehand instead of using preprocessors in
+    order not to do it for each row or even each row*labeling functions.
     :param dataframe: Annotated documents.
     :return: DataFrame containing event role examples and NumPy array containing labels.
     """
@@ -101,6 +131,9 @@ def build_event_role_examples(dataframe):
 
     logging.info("Building event role examples")
     logging.info(f"DataFrame has {len(dataframe.index)} rows")
+    logging.info("Adding the following attributes to each row: "
+                 "entity_type_freqs, somajo_doc, mixed_ner, mixed_ner_spans, not_an_event, arg_type_event_type_match, "
+                 "between_distance, is_multiple_same_event_type")
     for index, row in tqdm(dataframe.iterrows()):
         entity_type_freqs = preprocessors.get_entity_type_freqs(row)
         somajo_doc = preprocessors.get_somajo_doc(row)
@@ -111,8 +144,13 @@ def build_event_role_examples(dataframe):
             role_row['argument'] = preprocessors.get_entity(event_role['argument'], row.entities)
             role_row['entity_type_freqs'] = entity_type_freqs
             role_row['somajo_doc'] = somajo_doc
+            role_row['separate_sentence'] = preprocessors.get_somajo_separate_sentence(role_row)
             role_row['mixed_ner'] = mixed_ner
             role_row['mixed_ner_spans'] = mixed_ner_spans
+            role_row['not_an_event'] = event_trigger_lfs.lf_negative(role_row) == event_trigger_lfs.O
+            role_row['arg_location_type_event_type_match'] = arg_location_type_event_type_match(role_row)
+            role_row['between_distance'] = preprocessors.get_between_distance(role_row)
+            role_row['is_multiple_same_event_type'] = preprocessors.is_multiple_same_event_type(role_row)
             event_role_rows_list.append(role_row)
             event_role_num = np.asarray(event_role['event_argument_probs']).argmax()
             event_role_rows_y.append(event_role_num)
