@@ -40,14 +40,16 @@ def get_entity(entity_id: str, entities: List[Dict[str, Any]]) -> Dict:
 
 @preprocessor()
 def pre_trigger_idx(cand: DataPoint) -> DataPoint:
-    trigger_idx: int = get_entity_idx(cand.trigger['id'], cand.entities)
+    trigger: Dict[str, Any] = cand.trigger
+    trigger_idx: int = get_entity_idx(trigger['id'], cand.entities)
     cand['trigger_idx']: int = trigger_idx
     return cand
 
 
 @preprocessor()
 def pre_argument_idx(cand: DataPoint) -> DataPoint:
-    argument_idx: int = get_entity_idx(cand.argument['id'], cand.entities)
+    argument: Dict[str, Any] = cand.argument
+    argument_idx: int = get_entity_idx(argument['id'], cand.entities)
     cand['argument_idx']: int = argument_idx
     return cand
 
@@ -187,15 +189,17 @@ def pre_between_tokens(cand: DataPoint) -> DataPoint:
 
 
 def get_between_tokens(cand: DataPoint) -> List[str]:
-    if cand.trigger['end'] <= cand.argument['start']:
-        start: int = cand.trigger['end']
-        end: int = cand.argument['start']
-    elif cand.argument['end'] <= cand.trigger['start']:
-        start: int = cand.argument['end']
-        end: int = cand.trigger['start']
+    trigger: Dict[str, Any] = cand.trigger
+    argument: Dict[str, Any] = cand.argument
+    if trigger['end'] <= argument['start']:
+        start: int = trigger['end']
+        end: int = argument['start']
+    elif argument['end'] <= trigger['start']:
+        start: int = argument['end']
+        end: int = trigger['start']
     else:
-        logging.debug(f"Trigger {cand.trigger['text']}({cand.trigger['start']}, {cand.trigger['end']}) and "
-                      f"argument {cand.argument['text']}({cand.argument['start']}, {cand.argument['end']}) are "
+        logging.debug(f"Trigger {trigger['text']}({trigger['start']}, {trigger['end']}) and "
+                      f"argument {argument['text']}({argument['start']}, {argument['end']}) are "
                       f"overlapping.")
         return []
 
@@ -224,11 +228,10 @@ def get_all_trigger_distances(cand: DataPoint) -> Dict[str, int]:
     argument: Dict[str, Any] = cand.argument
     all_trigger_distances: Dict[str, int] = {}
     event_triggers: List[Dict] = cand.event_triggers
-    entities: List[Dict] = cand.entities
     for event_trigger in event_triggers:
         trigger_id = event_trigger['id']
         if trigger_id != argument['id']:
-            trigger: Dict[str, Any] = get_entity(trigger_id, entities)
+            trigger: Dict[str, Any] = get_entity(trigger_id, cand.entities)
             distance: int = get_entity_distance(trigger, argument)
             all_trigger_distances[trigger_id]: int = distance
     return all_trigger_distances
@@ -278,7 +281,7 @@ def get_closest_entity(cand: DataPoint) -> Optional[Dict]:
     trigger: Dict[str, Any] = cand.trigger
     for entity in entities:
         if entity['id'] != trigger['id']:
-            distance: int = get_entity_distance(cand.trigger, entity)
+            distance: int = get_entity_distance(trigger, entity)
             if distance < min_distance:
                 closest_entity = entity
                 min_distance = distance
@@ -300,9 +303,8 @@ def get_sentence_trigger_distances(cand: DataPoint) -> Dict[str, int]:
     somajo_dictionary: Dict[str, Any] = cand.somajo_doc
     somajo_doc: List[List[Token]] = somajo_dictionary['doc']
     sentences: List[str] = somajo_dictionary['sentences']
-    somajo_argument: str = somajo_dictionary['entities'][cand.argument['id']]
-
     argument: Dict[str, Any] = cand.argument
+    somajo_argument: str = somajo_dictionary['entities'][argument['id']]
 
     sentence_trigger_distances: Dict[str, int] = {}
     event_triggers: List[Dict] = cand.event_triggers
@@ -334,7 +336,7 @@ def get_sentence_trigger_distances(cand: DataPoint) -> Dict[str, int]:
     return sentence_trigger_distances
 
 
-def get_entity_distance(entity1: Dict, entity2: Dict) -> int:
+def get_entity_distance(entity1: Dict[str, Any], entity2: Dict[str, Any]) -> int:
     if entity1['end'] <= entity2['start']:
         return entity2['start'] - entity1['end']
     elif entity2['end'] <= entity1['start']:
@@ -355,8 +357,8 @@ def get_entity_type_freqs(cand: DataPoint) -> DataPoint:
     return get_windowed_entity_type_freqs(entities=cand.entities)
 
 
-def get_windowed_entity_type_freqs(entities: List[Dict], entity: Optional[Dict] = None, window_size: int = None) \
-        -> Dict[str, int]:
+def get_windowed_entity_type_freqs(entities: List[Dict[str, Any]], entity: Optional[Dict[str, Any]] = None,
+                                   window_size: int = None) -> Dict[str, int]:
     entity_type_freqs: Dict[str, int] = {}
 
     # Token based start, end numbers
@@ -505,8 +507,8 @@ def get_somajo_separate_sentence(cand: DataPoint) -> bool:
         # allow for some tolerance for wrong whitespaces: number of punctuation marks, new lines  for now
         # factor 2 because for each punctuation marks we are adding at most 2 wrong whitespaces
         tolerance += 2 * len([token for token in sent_tokens if token.text in punctuation_marks]) + sentence.count('\n')
-        m_start: int = min(cand.trigger['char_start'], argument['char_start'])
-        m_end: int = max(cand.trigger['char_end'], argument['char_end'])
+        m_start: int = min(trigger['char_start'], argument['char_start'])
+        m_end: int = max(trigger['char_end'], argument['char_end'])
 
         somajo_trigger: str = somajo_doc['entities'][trigger['id']]
         somajo_argument: str = somajo_doc['entities'][argument['id']]
@@ -515,11 +517,11 @@ def get_somajo_separate_sentence(cand: DataPoint) -> bool:
                 somajo_trigger in sentence and somajo_argument in sentence:
             trigger_matches = [m.start() for m in re.finditer(escape_regex_chars(somajo_trigger), sentence)]
             trigger_in_sentence: bool = any(
-                abs(trigger_match + sentence_start - cand.trigger['char_start']) < tolerance
+                abs(trigger_match + sentence_start - trigger['char_start']) < tolerance
                 for trigger_match in trigger_matches)
             argument_matches = [m.start() for m in re.finditer(escape_regex_chars(somajo_argument), sentence)]
             argument_in_sentence: bool = any(
-                abs(argument_match + sentence_start - cand.argument['char_start']) < tolerance
+                abs(argument_match + sentence_start - argument['char_start']) < tolerance
                 for argument_match in argument_matches)
             if trigger_in_sentence and argument_in_sentence:
                 same_sentence = True
@@ -543,6 +545,7 @@ def get_sentence_entities(cand: DataPoint) -> List[Dict[str, Any]]:
     trigger: Dict[str, Any] = cand.trigger
     argument: Dict[str, Any] = cand.argument
     somajo_doc: Dict[str, Any] = cand.somajo_doc
+    entities: List[Dict[str, Any]] = cand.entities
     for sentence, sent_tokens in zip(somajo_doc['sentences'], somajo_doc['doc']):
         sentence_start: int = len(text)
         text += sentence
@@ -550,15 +553,15 @@ def get_sentence_entities(cand: DataPoint) -> List[Dict[str, Any]]:
         # allow for some tolerance for wrong whitespaces: number of punctuation marks, new lines  for now
         # factor 2 because for each punctuation marks we are adding at most 2 wrong whitespaces
         tolerance += 2 * len([token for token in sent_tokens if token.text in punctuation_marks]) + sentence.count('\n')
-        m_start: int = min(cand.trigger['char_start'], argument['char_start'])
-        m_end: int = max(cand.trigger['char_end'], argument['char_end'])
+        m_start: int = min(trigger['char_start'], argument['char_start'])
+        m_end: int = max(trigger['char_end'], argument['char_end'])
 
-        somajo_trigger: str = cand.somajo_doc['entities'][trigger['id']]
-        somajo_argument: str = cand.somajo_doc['entities'][argument['id']]
+        somajo_trigger: str = somajo_doc['entities'][trigger['id']]
+        somajo_argument: str = somajo_doc['entities'][argument['id']]
 
         if sentence_start <= m_start + tolerance and m_end <= sentence_end + tolerance and \
                 somajo_trigger in sentence and somajo_argument in sentence:
-            return [entity for entity in cand.entities
+            return [entity for entity in entities
                     if sentence_start <= entity['char_start'] + tolerance and
                     entity['char_end'] <= sentence_end + tolerance and
                     somajo_trigger in sentence]
