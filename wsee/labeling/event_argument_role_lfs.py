@@ -82,10 +82,10 @@ def lf_location(x, same_sentence=True, nearest=False, check_event_type=True,
     all_trigger_distances = get_all_trigger_distances(x)
     if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type or \
             (x.trigger['text'] in ['aus', 'aus.']):
-        return no_arg
+        return ABSTAIN
     if same_sentence:
         if x.separate_sentence:
-            return no_arg
+            return ABSTAIN
     if nearest:
         if same_sentence:
             if not is_nearest_trigger(between_distance, sentence_trigger_distances):
@@ -143,6 +143,20 @@ def lf_location_adjacent_markers(x):
                 (x.trigger['start'] < x.argument['start'] and between_distance < 3 and
                  no_entity_in_between(x) and
                  (any(token for token in between_tokens if token in ['auf', 'bei', 'in']))):
+            return lf_location(x)
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_location_adjacent_markers_b(x):
+    between_distance = x.between_distance
+    between_tokens = get_between_tokens(x)
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
+            lf_direction_type(x) == ABSTAIN and no_entity_in_between(x):
+        if (':' in between_tokens and between_distance <= 1) or \
+                (x.trigger['start'] < x.argument['start'] and between_distance < 3 and
+                 no_entity_in_between(x) and
+                 (any(token for token in between_tokens if token in ['auf', 'bei', 'in', 'ist', 'sind', ':']))):
             return lf_location(x)
     return ABSTAIN
 
@@ -473,11 +487,11 @@ def lf_start_date_type(x):
             argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
             argument_right_ner = get_windowed_right_ner(x.argument, x.ner_tags)
             if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(
-                    x) != ABSTAIN or 'Meldung' in argument_right_tokens \
-                    or x.not_an_event or x.separate_sentence:
-                return no_arg
-            elif any(left_token.lower() == 'gültig' for left_token in argument_left_tokens[-4:]) and \
-                    'ab' in argument_left_tokens[-3:]:
+                    x) != ABSTAIN or x.separate_sentence:
+                return ABSTAIN
+            elif (any(left_token.lower() == 'gültig' for left_token in argument_left_tokens[-4:]) and
+                    'ab' in argument_left_tokens[-3:]) or 'Meldung' in argument_right_tokens \
+                    or x.not_an_event:
                 return no_arg
             elif ((any(token.lower() in ['ab', 'von', 'vom'] for token in argument_left_tokens[-3:]) and
                    not any(token.lower() in ['bis'] for token in argument_left_tokens[-3:])) or
@@ -493,10 +507,10 @@ def lf_start_date_first(x):
     if check_required_args(x.entity_type_freqs) and first_date and first_date['id'] == x.argument['id']:
         argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
         argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
-        if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(
-                x) != ABSTAIN or 'Meldung' in argument_right_tokens \
-                or x.not_an_event or \
-                x.separate_sentence or \
+        if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or x.not_an_event or \
+                x.separate_sentence:
+            return ABSTAIN
+        elif 'Meldung' in argument_right_tokens or \
                 (any(left_token.lower() == 'gültig' for left_token in argument_left_tokens[-4:]) and
                  'ab' in argument_left_tokens[-3:]):
             return no_arg
@@ -515,10 +529,10 @@ def lf_start_date_adjacent(x):
     between_distance = x.between_distance
     if check_required_args(x.entity_type_freqs) and x.argument['entity_type'] in ['date', 'time'] \
             and between_distance < 3:
-        if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(
-                x) != ABSTAIN or 'Meldung' in argument_right_tokens \
-                or x.not_an_event or \
-                x.separate_sentence or \
+        if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or x.not_an_event or \
+                x.separate_sentence:
+            return ABSTAIN
+        elif 'Meldung' in argument_right_tokens or \
                 (any(left_token.lower() == 'gültig' for left_token in argument_left_tokens[-4:]) and
                  'ab' in argument_left_tokens[-3:]):
             return no_arg
@@ -539,9 +553,9 @@ def lf_end_date_type(x):
             argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
             argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
             argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
-            if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(
-                    x) != ABSTAIN or 'Meldung' in argument_right_tokens or \
-                    x.separate_sentence or x.not_an_event:
+            if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
+                return ABSTAIN
+            elif 'Meldung' in argument_right_tokens or x.separate_sentence or x.not_an_event:
                 return no_arg
             elif ((any(token.lower() in ['bis', 'endet', 'enden'] for token in argument_left_tokens[-3:]) and
                    not any(token.lower() in ['von', 'ab', 'vom'] for token in argument_left_tokens[-2:])) or
@@ -556,12 +570,12 @@ def lf_end_date_type(x):
 def lf_cause_type(x):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
-        if arg_entity_type == 'trigger':
+        if arg_entity_type in ['trigger', 'event_cause']:
             argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
             argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
             if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type or \
                     x.separate_sentence or x.not_an_event:
-                return no_arg
+                return ABSTAIN
             if (event_trigger_lfs.check_cause_keywords(argument_left_tokens[-4:], x) or
                     (argument_right_tokens and argument_right_tokens[0].lower() in ['erzeugt', 'erzeugen'])):
                 # TODO check trigger-arg order, some event types have higher priority
@@ -574,13 +588,13 @@ def lf_cause_type(x):
 def lf_cause_order(x):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
-        if arg_entity_type == 'trigger':
+        if arg_entity_type in ['trigger', 'event_cause']:
             argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
             argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
             between_distance = get_entity_distance(x.argument, x.trigger)
             if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type or \
                     x.separate_sentence or x.not_an_event:
-                return no_arg
+                return ABSTAIN
             if x.argument['start'] < x.trigger['start']:
                 # E.g.: "wegen Unfall gesperrt", but "gesperrt nach Unfall"
                 return ABSTAIN
@@ -614,7 +628,7 @@ def lf_distance_type(x):
         if arg_entity_type in ['distance']:
             if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type or \
                     x.separate_sentence:
-                return no_arg
+                return ABSTAIN
             elif event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam:
                 return jam_length
     return ABSTAIN
@@ -629,7 +643,7 @@ def lf_distance_nearest(x):
             sentence_trigger_distances = get_sentence_trigger_distances(x)
             entity_trigger_distances = get_entity_trigger_distances(x)
             if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type:
-                return no_arg
+                return ABSTAIN
             elif is_nearest_trigger(between_distance, sentence_trigger_distances) and \
                     entity_trigger_distances[arg_entity_type] and \
                     between_distance <= min(entity_trigger_distances[arg_entity_type]) and \
