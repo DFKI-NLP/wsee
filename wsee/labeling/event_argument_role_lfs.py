@@ -476,7 +476,7 @@ def lf_start_date_type(x):
                     x) != ABSTAIN or x.separate_sentence:
                 return ABSTAIN
             elif (any(left_token.lower() == 'gültig' for left_token in argument_left_tokens[-4:]) and
-                    'ab' in argument_left_tokens[-3:]) or 'Meldung' in argument_right_tokens \
+                  'ab' in argument_left_tokens[-3:]) or 'Meldung' in argument_right_tokens \
                     or x.not_an_event:
                 return no_arg
             elif ((any(token.lower() in ['ab', 'von', 'vom'] for token in argument_left_tokens[-3:]) and
@@ -510,11 +510,11 @@ def lf_start_date_first(x):
 
 @labeling_function(pre=[])
 def lf_start_date_adjacent(x):
-    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
-    argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
     between_distance = x.between_distance
     if check_required_args(x.entity_type_freqs) and x.argument['entity_type'] in ['date', 'time'] \
             and between_distance < 3:
+        argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
+        argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
         if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or x.not_an_event or \
                 x.separate_sentence:
             return ABSTAIN
@@ -585,7 +585,7 @@ def lf_cause_order(x):
                 # E.g.: "wegen Unfall gesperrt", but "gesperrt nach Unfall"
                 return ABSTAIN
             if (event_trigger_lfs.check_cause_keywords(argument_left_tokens[-4:], x) or
-                        (argument_right_tokens and argument_right_tokens[0].lower() in ['erzeugt', 'erzeugen'])):
+                    (argument_right_tokens and argument_right_tokens[0].lower() in ['erzeugt', 'erzeugen'])):
                 return cause
             elif between_distance < 5 and \
                     (event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam or
@@ -669,7 +669,7 @@ def lf_route_type_order(x):
 # no_args
 @labeling_function(pre=[])
 def lf_not_an_event(x):
-    if event_trigger_lfs.lf_negative(x) == event_trigger_lfs.O:
+    if x.not_an_event:
         return no_arg
     else:
         return ABSTAIN
