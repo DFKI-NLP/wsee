@@ -148,20 +148,6 @@ def lf_location_adjacent_markers(x):
 
 
 @labeling_function(pre=[])
-def lf_location_adjacent_markers_b(x):
-    between_distance = x.between_distance
-    between_tokens = get_between_tokens(x)
-    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN and no_entity_in_between(x):
-        if (':' in between_tokens and between_distance <= 1) or \
-                (x.trigger['start'] < x.argument['start'] and between_distance < 3 and
-                 no_entity_in_between(x) and
-                 (any(token for token in between_tokens if token in ['auf', 'bei', 'in', 'ist', 'sind', ':']))):
-            return lf_location(x)
-    return ABSTAIN
-
-
-@labeling_function(pre=[])
 def lf_location_beginning_street_stop_route(x):
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
             lf_direction_type(x) == ABSTAIN and x.argument['start'] == 0 and \
