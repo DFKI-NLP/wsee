@@ -17,14 +17,15 @@ def main(args):
     one_hot = args.one_hot
     build_defaults = args.build_default_events
     use_first_trigger = args.use_first_trigger
-    convert_event_cause = args.conver_event_cause
+    convert_event_cause = args.convert_event_cause
 
     print(f"Reading input from: {input_path}")
     print(f"With settings: one_hot ({one_hot}), build_defaults ({build_defaults}), "
-          f"use_first_trigger ({use_first_trigger})")
+          f"use_first_trigger ({use_first_trigger}), convert_event_cause ({convert_event_cause})")
 
     daystream = []
     for split in ['train', 'dev', 'test']:
+        print(f'Working on {split}-split')
         input_file = input_path.joinpath(split, f'{split}.avro')
         if build_defaults:
             output_file = input_path.joinpath(split, f'{split}_with_events_and_defaults.jsonl')
@@ -239,6 +240,7 @@ def update_events(event_triggers, event_roles, relations, one_hot: bool = True, 
                     triggers = triggers[0:1]
         for trigger in triggers:
             if trigger['conceptMention']['type'] not in ['TRIGGER', 'trigger',
+                                                         'EVENT_CAUSE', 'event-cause', 'event_cause',
                                                          'disaster_type', 'disaster-type', 'DISASTER_TYPE']:
                 print(f'Skipping invalid event: {rm}')
                 continue
@@ -304,9 +306,9 @@ def convert_entity(text: str, tokens: List[str], entity: Dict[str, Any], convert
         # The disaster type relations are not annotated with a trigger but with a disaster type.
         # However they can be used interchangeably, thus convert disaster types to triggers.
         entity_type = entity['type'].lower()
-        if entity_type == ['disaster-type', 'disaster_type']:
+        if entity_type in ['disaster-type', 'disaster_type']:
             entity_type = 'trigger'
-        elif convert_event_cause and entity_type == ['event-cause', 'event_cause']:
+        elif convert_event_cause and entity_type in ['event-cause', 'event_cause']:
             entity_type = 'trigger'
         return {
             'id': entity['id'],
