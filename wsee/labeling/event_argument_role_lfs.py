@@ -747,12 +747,12 @@ def lf_multiple_same_event_type(x):
         return ABSTAIN
 
 
-def event_patterns_helper(x, rules, general_location=False):
+def event_patterns_helper(x, rules, trigger_idx, argument_idx, general_location=False):
     # find best matching pattern and use corresponding rule (slots) to return role label
     # need to find range of match
     if x.mixed_ner_spans and x.mixed_ner:
-        trigger_spans = x.mixed_ner_spans[x.trigger_idx]
-        argument_spans = x.mixed_ner_spans[x.argument_idx]
+        trigger_spans = x.mixed_ner_spans[trigger_idx]
+        argument_spans = x.mixed_ner_spans[argument_idx]
 
         # Change formatting to match the formatting used for the converter rule slots
         trigger_entity_type = x.trigger['entity_type'].upper()
@@ -805,14 +805,22 @@ def event_patterns_helper(x, rules, general_location=False):
     return ABSTAIN
 
 
-@labeling_function(resources=dict(rules=original_rules), pre=[pre_trigger_idx, pre_argument_idx])
+@labeling_function(resources=dict(rules=original_rules), pre=[])
 def lf_event_patterns(x, rules):
-    return event_patterns_helper(x, rules)
+    trigger: Dict[str, Any] = x.trigger
+    trigger_idx: int = get_entity_idx(trigger['id'], x.entities)
+    argument: Dict[str, Any] = x.argument
+    argument_idx: int = get_entity_idx(argument['id'], x.entities)
+    return event_patterns_helper(x, rules, trigger_idx, argument_idx, general_location=False)
 
 
-@labeling_function(resources=dict(rules=general_location_rules), pre=[pre_trigger_idx, pre_argument_idx])
+@labeling_function(resources=dict(rules=general_location_rules), pre=[])
 def lf_event_patterns_general_location(x, rules):
-    label = event_patterns_helper(x, rules, general_location=True)
+    trigger: Dict[str, Any] = x.trigger
+    trigger_idx: int = get_entity_idx(trigger['id'], x.entities)
+    argument: Dict[str, Any] = x.argument
+    argument_idx: int = get_entity_idx(argument['id'], x.entities)
+    label = event_patterns_helper(x, rules, trigger_idx, argument_idx, general_location=True)
     if label == route:
         return ABSTAIN
     else:
