@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 from fastavro import reader
 from tqdm import tqdm
-from typing import Dict
+from typing import Dict, List, Any
 
 from wsee import NEGATIVE_ARGUMENT_LABEL, NEGATIVE_TRIGGER_LABEL, SD4M_RELATION_TYPES, ROLE_LABELS
 from wsee.utils import encode
@@ -17,6 +17,7 @@ def main(args):
     one_hot = args.one_hot
     build_defaults = args.build_default_events
     use_first_trigger = args.use_first_trigger
+    convert_event_cause = args.conver_event_cause
 
     print(f"Reading input from: {input_path}")
     print(f"With settings: one_hot ({one_hot}), build_defaults ({build_defaults}), "
@@ -29,7 +30,8 @@ def main(args):
             output_file = input_path.joinpath(split, f'{split}_with_events_and_defaults.jsonl')
         else:
             output_file = input_path.joinpath(split, f'{split}_with_events.jsonl')
-        smart_data, daystream_part = convert_file(input_file, one_hot, build_defaults, use_first_trigger)
+        smart_data, daystream_part = convert_file(input_file, one_hot, build_defaults,
+                                                  use_first_trigger, convert_event_cause)
         smart_data.to_json(output_file, orient='records', lines=True, force_ascii=False)
         daystream.append(daystream_part)
     daystream = pd.concat(daystream, sort=False).reset_index(drop=True)
@@ -37,14 +39,15 @@ def main(args):
     daystream.to_json(daystream_output_file, orient='records', lines=True, force_ascii=False)
 
 
-def convert_file(file_path, one_hot=False, build_defaults=False, use_first_trigger: bool = False):
+def convert_file(file_path, one_hot=False, build_defaults=False, use_first_trigger: bool = False,
+                 convert_event_cause: bool = False):
     sd_list = []
     daystream_list = []
     with open(file_path, 'rb') as input_file:
         avro_reader = reader(input_file)
         for doc in tqdm(avro_reader):
             converted_doc = convert_doc(doc=doc, one_hot=one_hot, build_defaults=build_defaults,
-                                        use_first_trigger=use_first_trigger)
+                                        use_first_trigger=use_first_trigger, convert_event_cause=convert_event_cause)
             if converted_doc:
                 if _is_smart_data_doc(doc):
                     sd_list.append(converted_doc)
@@ -55,7 +58,8 @@ def convert_file(file_path, one_hot=False, build_defaults=False, use_first_trigg
     return smart_data, daystream
 
 
-def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults=False, use_first_trigger: bool = False):
+def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults: bool = False,
+                use_first_trigger: bool = False, convert_event_cause: bool = False):
     if doc_text is None:
         try:
             doc_text = str(doc['text'])
@@ -66,12 +70,13 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults=F
     text = span_to_text(doc_text, doc['span']) if 'span' in doc else doc_text
     tokens = [span_to_text(doc_text, token['span']) for token in
               doc['tokens']]
-    ner_tags = _convert_ner_tags([token['ner'] for token in doc['tokens']])
+    ner_tags = _convert_ner_tags([token['ner'] for token in doc['tokens']], convert_event_cause)
     pos_tags = [token['posTag'] for token in doc['tokens']]
 
     entities = []
     for cm in doc['conceptMentions']:
-        converted_entity = convert_entity(text=doc_text, tokens=doc['tokens'], entity=cm)
+        converted_entity = convert_entity(text=doc_text, tokens=doc['tokens'], entity=cm,
+                                          convert_event_cause=convert_event_cause)
         if converted_entity:
             entities.append(converted_entity)
 
@@ -269,20 +274,39 @@ def update_events(event_triggers, event_roles, relations, one_hot: bool = True, 
     return event_triggers, event_roles
 
 
-def _convert_ner_tags(ner_tags):
-    return [ner_tag[:2] + 'TRIGGER' if ner_tag != 'O' and ner_tag[2:] == 'DISASTER_TYPE' else ner_tag
-            for ner_tag in ner_tags]
+def _convert_ner_tags(ner_tags: List[str], convert_event_cause: bool = False):
+    """
+    Replaces legacy ner tag DISASTER_TYPE with TRIGGER.
+    :param ner_tags: List of ner tags for the document tokens in BIO format
+    :param convert_event_cause: Whether to replace EVENT_CAUSE with TRIGGER
+    :return: Updated list of ner tags
+    """
+    if convert_event_cause:
+        return [ner_tag[:2] + 'TRIGGER' if ner_tag != 'O' and ner_tag[2:] == 'DISASTER_TYPE' else ner_tag
+                for ner_tag in ner_tags]
+    else:
+        return [ner_tag[:2] + 'TRIGGER' if ner_tag != 'O' and ner_tag[2:] in ['DISASTER_TYPE', 'EVENT_CAUSE']
+                else ner_tag
+                for ner_tag in ner_tags]
 
 
-def convert_entity(text, tokens, entity):
+def convert_entity(text: str, tokens: List[str], entity: Dict[str, Any], convert_event_cause: bool = False):
+    """
+    Takes avro entity and converts it into a more compact dictionary representation.
+    :param text: Document text
+    :param tokens: Document tokens
+    :param entity: Avro entity as dictionary
+    :param convert_event_cause: Whether to replace the entity type event_cause with trigger
+    :return: Compact entity dictionary representation
+    """
     try:
         start_token_idx, end_token_idx = span_to_token_idxs(tokens, entity['span'])
         # The disaster type relations are not annotated with a trigger but with a disaster type.
         # However they can be used interchangeably, thus convert disaster types to triggers.
         entity_type = entity['type'].lower()
-        if entity_type == 'disaster-type':
+        if entity_type == ['disaster-type', 'disaster_type']:
             entity_type = 'trigger'
-        elif entity_type == 'disaster_type':
+        elif convert_event_cause and entity_type == ['event-cause', 'event_cause']:
             entity_type = 'trigger'
         return {
             'id': entity['id'],
@@ -335,6 +359,8 @@ if __name__ == '__main__':
                         help='Build default events and update them')
     parser.add_argument("--use_first_trigger", action="store_true",
                         help='Only use first/ most expressive trigger argument in relation')
+    parser.add_argument("--convert_event_cause", action="store_true",
+                        help='Convert EVENT_CAUSE NER tag and event_cause entity type to TRIGGER/ trigger')
     parser.add_argument('-f', dest='force_output', action='store_true',
                         help='Force creation of new output folder')
     parser.set_defaults(feature=True)
