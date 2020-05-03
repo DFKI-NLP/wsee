@@ -23,10 +23,14 @@ intervention_keywords = [
     'Polizeieinsatzes', 'Feuerwehreinsatz', 'Feuerwehreinsatzes'
 ]
 accident_keywords = [
-    'Unfall', 'Unfälle', 'Verkehrsunfall', 'Verkehrsunfälle', 'Autounfall', 'Autounfälle', 'Massenkarambolage',
-    'Auffahrunfall', 'Zusammenstoß', 'Geisterfahrer', 'Falschfahrer', 'Unfallstelle', 'Zugkollision',
-    'Zugkollisionen', 'Zugunglück', 'Personenschaden', 'Bergungsarbeit', 'Bergungsarbeiten', 'Unfalles',
-    'Verkehrsunfalls'
+    'Unfall', 'Unfälle', 'Unfalles', 'verunglückt', 'Zusammenstoß', 'Massenkarambolage'
+]
+accident_exact_keywords = [
+    'Verkehrsunfall',  'Verkehrsunfalls', 'Verkehrsunfälle', 'Autounfall', 'Autounfälle', 'Auffahrunfall'
+]
+accident_lower_priority_keywords = [
+    'Geisterfahrer', 'Falschfahrer', 'Unfallstelle', 'Zugkollision',
+    'Zugkollisionen', 'Zugunglück', 'Personenschaden', 'Bergungsarbeit', 'Bergungsarbeiten'
 ]
 canceledroute_keywords = [
     'Zugausfall', 'Zugausfälle', 'Zugausfällen', 'S-Bahn-Ausfall', 'fällt aus', 'ausgefallen', 'fällt',
@@ -46,7 +50,8 @@ delay_lower_priority_keywords = [
 ]
 obstruction_keywords = [
     'Umleitung', 'Umleitungen', 'umgeleitet', 'Sperrung', 'gesperrt', 'Vollsperrung', 'Verkehrsbehinderung',
-    'Behinderung', 'behindern', 'blockiert', 'Blockade', 'unterbrochen', 'Behinderungen'
+    'Behinderung', 'behindern', 'blockiert', 'Blockade', 'unterbrochen', 'Behinderungen', 'Beeinträchtigung',
+    'beeinträchtigt', 'beeinträchtigen'
 ]
 obstruction_lower_priority_keywords = [
     'Großbaustelle', 'Nachtbaustelle', 'Tagesbaustelle', 'Baustelle', 'Bauarbeiten', 'Straßenbauarbeiten',
@@ -71,7 +76,8 @@ def lf_accident_context(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], accident_keywords)
-    if highest[1] >= 90:
+    highest_lower_priority = process.extractOne(x.trigger['text'], accident_lower_priority_keywords)
+    if highest[1] >= 90 or highest_lower_priority[1] > 90:
         if (check_cause_keywords(trigger_left_tokens[-4:], x) or
             check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
@@ -86,12 +92,27 @@ def lf_accident_context_street(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], accident_keywords)
-    if highest[1] >= 90:
+    highest_lower_priority = process.extractOne(x.trigger['text'], accident_lower_priority_keywords)
+    if highest[1] >= 90 or highest_lower_priority[1] > 90 or x.trigger['text'] in accident_exact_keywords:
         if (check_cause_keywords(trigger_left_tokens[-4:], x) or
             check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens)) \
                 and x.entity_type_freqs['trigger'] > 1:
             return ABSTAIN
         elif 'location_street' in x.entity_type_freqs:
+            return Accident
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_accident_context_no_cause_check(x):
+    trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
+    trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
+    highest = process.extractOne(x.trigger['text'], accident_keywords)
+    if highest[1] >= 90:
+        if check_in_parentheses(x.trigger['text'], trigger_left_tokens, trigger_right_tokens) \
+                and x.entity_type_freqs['trigger'] > 1:
+            return ABSTAIN
+        else:
             return Accident
     return ABSTAIN
 
@@ -367,6 +388,7 @@ def lf_negative(x):
     lfs = [
         lf_accident_context,
         lf_accident_context_street,
+        lf_accident_context_no_cause_check,
         lf_canceledroute_cat,
         lf_canceledstop_cat,
         lf_delay_cat,
