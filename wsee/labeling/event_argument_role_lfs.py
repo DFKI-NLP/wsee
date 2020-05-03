@@ -80,7 +80,7 @@ def lf_location(x, same_sentence=True, nearest=False, check_event_type=True,
     between_distance = x.between_distance
     sentence_trigger_distances = get_sentence_trigger_distances(x)
     all_trigger_distances = get_all_trigger_distances(x)
-    if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type or \
+    if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
             (x.trigger['text'] in ['aus', 'aus.']):
         return ABSTAIN
     if same_sentence:
@@ -272,7 +272,7 @@ def lf_delay_event_sentence(x):
         if arg_entity_type in ['duration']:
             argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
             argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
-            if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type or \
+            if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
                     (x.separate_sentence and 'Zeitverlust' not in argument_left_tokens[-4:]):
                 return ABSTAIN
             if 'früher' in argument_right_tokens[:2]:
@@ -293,7 +293,7 @@ def lf_delay_event_sentence_check(x):
         if arg_entity_type in ['duration']:
             argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
             argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
-            if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type or \
+            if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
                     (x.separate_sentence and 'Zeitverlust' not in argument_left_tokens[-4:]):
                 return ABSTAIN
             if 'früher' in argument_right_tokens[:2]:
@@ -321,20 +321,13 @@ def lf_direction(x, order=True):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['location', 'location_city', 'location_stop', 'location_street']:
             argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
-            if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type:
-                return ABSTAIN
-            if x.separate_sentence or x.not_an_event:
+            if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or x.separate_sentence or x.not_an_event:
                 return ABSTAIN
             if lf_start_location_type(x) != ABSTAIN or lf_end_location_type(x) != ABSTAIN:
                 return ABSTAIN
             if order and x.argument['start'] > x.trigger['start']:
                 return ABSTAIN
-            article_preposition_offset = 0
-            if argument_left_tokens and argument_left_tokens[-1] in ['der', 'des', 'dem', 'den', 'zu', 'zur', 'zum']:
-                article_preposition_offset = 1
-                # Should not be possible in a grammatically correct sentence
-                if len(argument_left_tokens) < 2:
-                    return ABSTAIN
+            article_preposition_offset = get_article_preposition_offset(argument_left_tokens)
 
             if any(token.lower() in ['nach', 'richtung', 'fahrtrichtung', '->']
                    for token in argument_left_tokens[-1 - article_preposition_offset:]) or \
@@ -348,6 +341,14 @@ def lf_direction(x, order=True):
                         argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_CITY']:
                     return direction
     return ABSTAIN
+
+
+def has_direction_markers(argument_text, argument_left_tokens, article_preposition_offset=0):
+    return any(token.lower() in ['nach', 'richtung', 'fahrtrichtung', '->']
+               for token in argument_left_tokens[-1 - article_preposition_offset:]) or \
+           argument_text.lower() in ['richtung', 'richtungen', 'stadteinwärts', 'stadtauswärts',
+                                     'beide richtungen', 'beiden richtungen', 'gegenrichtung',
+                                     'je richtung']
 
 
 @labeling_function(pre=[])
@@ -370,7 +371,7 @@ def lf_start_location(x, nearest=False):
         argument_right_ner = get_windowed_right_ner(x.argument, x.ner_tags)
         between_distance = x.between_distance
         sentence_trigger_distances = get_sentence_trigger_distances(x)
-        if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type or \
+        if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
                 event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
             return ABSTAIN
         if x.separate_sentence or x.not_an_event:
@@ -380,12 +381,12 @@ def lf_start_location(x, nearest=False):
 
         indicator_idx = next((idx for idx, token in enumerate(argument_left_tokens[-3:])
                               if token.lower() in ['zw', 'zw.', 'zwischen', 'ab', 'von']), -1)
-        entity_between_indicator = indicator_idx > -1 and \
-                                   any(left_ner[2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY',
-                                                        'LOCATION_STOP', 'LOCATION_ROUTE']
-                                       for left_ner in argument_left_ner[-3 + indicator_idx:])
-        end_loc_after_symbol = argument_right_tokens and argument_right_tokens[0] in ['-', '<', '>', '<>'] and \
-                               len(argument_right_ner) > 1 and \
+        entity_between_indicator = indicator_idx > -1 and any(left_ner[2:]
+                                                              in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY',
+                                                                  'LOCATION_STOP', 'LOCATION_ROUTE']
+                                                              for left_ner in argument_left_ner[-3 + indicator_idx:])
+        end_loc_after_symbol = argument_right_tokens and argument_right_tokens[0] \
+                               in ['-', '<', '>', '<>'] and len(argument_right_ner) > 1 and \
                                argument_right_ner[1][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY',
                                                              'LOCATION_STOP', 'LOCATION_ROUTE']
         if indicator_idx > -1 and (not entity_between_indicator or end_loc_after_symbol):
@@ -416,10 +417,8 @@ def lf_end_location(x, nearest=False):
         argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
         between_distance = x.between_distance
         sentence_trigger_distances = get_sentence_trigger_distances(x)
-        if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type or \
+        if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or x.separate_sentence or x.not_an_event or \
                 event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
-            return ABSTAIN
-        if x.separate_sentence or x.not_an_event:
             return ABSTAIN
         if nearest and not is_nearest_trigger(between_distance, sentence_trigger_distances):
             return ABSTAIN
@@ -433,24 +432,33 @@ def lf_end_location(x, nearest=False):
             if argument_left_ner[-3][2:] == 'LOCATION_STREET' and \
                     argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_CITY']:
                 return ABSTAIN
-        preceding_start_loc = any(token.lower() in ['zw.', 'zwischen'] for token in argument_left_tokens[-6:-1])
-        article_preposition_offset = 0
-        if argument_left_tokens and argument_left_tokens[-1] in ['der', 'des', 'dem', 'den', 'zu', 'zur', 'zum']:
-            article_preposition_offset = 1
-            # Should not be possible in a grammatically correct sentence
-            if len(argument_left_tokens) < 2:
-                return ABSTAIN
-        concatenation_prefix = any(token.lower() in ['und', 'u.', '<', '>', '<>', '&']
-                                   for token in argument_left_tokens[-1 - article_preposition_offset:])
-        end_loc_prefix = any(
-            token.lower() in ['bis'] for token in argument_left_tokens[-1 - article_preposition_offset:])
-        hyphenated_start_end_pair = argument_left_tokens and '-' == argument_left_tokens[-1] and \
-                                    len(argument_left_ner) > 1 and \
-                                    argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY',
-                                                                  'LOCATION_STOP']
-        if (preceding_start_loc and concatenation_prefix) or end_loc_prefix or hyphenated_start_end_pair:
+        if has_end_loc_prefix(argument_left_tokens) or has_preceding_start_loc(argument_left_tokens, argument_left_ner):
             return end_loc
     return ABSTAIN
+
+
+def has_end_loc_prefix(argument_left_tokens):
+    article_preposition_offset = get_article_preposition_offset(argument_left_tokens)
+    return any(token.lower() in ['bis'] for token in argument_left_tokens[-1 - article_preposition_offset:])
+
+
+def has_preceding_start_loc(argument_left_tokens, argument_left_ner):
+    article_preposition_offset = get_article_preposition_offset(argument_left_tokens)
+    preceding_start_loc = any(token.lower() in ['zw.', 'zwischen'] for token in argument_left_tokens[-6:-1])
+    concatenation_prefix = any(token.lower() in ['und', 'u.', '<', '>', '<>', '&']
+                               for token in argument_left_tokens[-1 - article_preposition_offset:])
+    hyphenated_start_end_pair = argument_left_tokens and '-' == argument_left_tokens[-1] and \
+                                len(argument_left_ner) > 1 and \
+                                argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY',
+                                                              'LOCATION_STOP']
+    return (preceding_start_loc and concatenation_prefix) or hyphenated_start_end_pair
+
+
+def get_article_preposition_offset(argument_left_tokens):
+    article_preposition_offset = 0
+    if argument_left_tokens and argument_left_tokens[-1] in ['der', 'des', 'dem', 'den', 'zu', 'zur', 'zum']:
+        article_preposition_offset = 1
+    return article_preposition_offset
 
 
 @labeling_function(pre=[])
@@ -472,19 +480,24 @@ def lf_start_date_type(x):
             argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
             argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
             argument_right_ner = get_windowed_right_ner(x.argument, x.ner_tags)
-            if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(
-                    x) != ABSTAIN or x.separate_sentence:
+            if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or x.separate_sentence or x.not_an_event:
                 return ABSTAIN
             elif (any(left_token.lower() == 'gültig' for left_token in argument_left_tokens[-4:]) and
-                  'ab' in argument_left_tokens[-3:]) or 'Meldung' in argument_right_tokens \
-                    or x.not_an_event:
+                  'ab' in argument_left_tokens[-3:]) or 'Meldung' in argument_right_tokens:
                 return no_arg
-            elif ((any(token.lower() in ['ab', 'von', 'vom'] for token in argument_left_tokens[-3:]) and
-                   not any(token.lower() in ['bis'] for token in argument_left_tokens[-3:])) or
-                  (argument_right_tokens and argument_right_tokens[0] in ['und', '/', '-', '->'] and
-                   len(argument_right_ner) > 1 and argument_right_ner[1][2:] in ['DATE', 'TIME'])):
+            elif has_start_date_markers(argument_left_tokens, argument_right_tokens, argument_right_ner):
                 return start_date
     return ABSTAIN
+
+
+def has_start_date_markers(argument_left_tokens, argument_right_tokens, argument_right_ner):
+    if ((any(token.lower() in ['ab', 'von', 'vom'] for token in argument_left_tokens[-3:]) and
+         not any(token.lower() in ['bis'] for token in argument_left_tokens[-3:])) or
+            (argument_right_tokens and argument_right_tokens[0] in ['und', '/', '-', '->'] and
+             len(argument_right_ner) > 1 and argument_right_ner[1][2:] in ['DATE', 'TIME'])):
+        return True
+    else:
+        return False
 
 
 @labeling_function(pre=[])
@@ -493,7 +506,7 @@ def lf_start_date_first(x):
     if check_required_args(x.entity_type_freqs) and first_date and first_date['id'] == x.argument['id']:
         argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
         argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
-        if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or x.not_an_event or \
+        if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or x.not_an_event or \
                 x.separate_sentence:
             return ABSTAIN
         elif 'Meldung' in argument_right_tokens or \
@@ -515,19 +528,35 @@ def lf_start_date_adjacent(x):
             and between_distance < 3:
         argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
         argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
-        if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN or x.not_an_event or \
+        if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or x.not_an_event or \
                 x.separate_sentence:
             return ABSTAIN
         elif 'Meldung' in argument_right_tokens or \
                 (any(left_token.lower() == 'gültig' for left_token in argument_left_tokens[-4:]) and
                  'ab' in argument_left_tokens[-3:]):
             return no_arg
-        elif lf_end_date_type(x) != ABSTAIN:
-            return ABSTAIN
         else:
-            return start_date
+            argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
+            if has_end_date_markers(argument_left_tokens, argument_left_ner):
+                return ABSTAIN
+            else:
+                return start_date
     else:
         return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_start_date_negative(x):
+    if check_required_args(x.entity_type_freqs) and x.argument['entity_type'] in ['date', 'time']:
+        argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
+        argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
+        if 'Meldung' in argument_right_tokens or \
+                (any(left_token.lower() == 'gültig' for left_token in argument_left_tokens[-4:]) and
+                 'ab' in argument_left_tokens[-3:]):
+            return no_arg
+        else:
+            return ABSTAIN
+    return ABSTAIN
 
 
 # end_date
@@ -539,16 +568,23 @@ def lf_end_date_type(x):
             argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
             argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
             argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
-            if lf_too_far_40(x) != ABSTAIN or lf_multiple_same_event_type(x) != ABSTAIN:
+            if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or x.separate_sentence or x.not_an_event:
                 return ABSTAIN
-            elif 'Meldung' in argument_right_tokens or x.separate_sentence or x.not_an_event:
+            elif 'Meldung' in argument_right_tokens:
                 return no_arg
-            elif ((any(token.lower() in ['bis', 'endet', 'enden'] for token in argument_left_tokens[-3:]) and
-                   not any(token.lower() in ['von', 'ab', 'vom'] for token in argument_left_tokens[-2:])) or
-                  (argument_left_tokens and argument_left_tokens[-1] in ['und', '/', '-'] and
-                   len(argument_left_ner) > 1 and argument_left_ner[1][2:] in ['DATE', 'TIME'])):
+            elif has_end_date_markers(argument_left_tokens, argument_left_ner):
                 return end_date
     return ABSTAIN
+
+
+def has_end_date_markers(argument_left_tokens, argument_left_ner):
+    if ((any(token.lower() in ['bis', 'endet', 'enden'] for token in argument_left_tokens[-3:]) and
+         not any(token.lower() in ['von', 'ab', 'vom'] for token in argument_left_tokens[-2:])) or
+            (argument_left_tokens and argument_left_tokens[-1] in ['und', '/', '-'] and
+             len(argument_left_ner) > 1 and argument_left_ner[1][2:] in ['DATE', 'TIME'])):
+        return True
+    else:
+        return False
 
 
 # cause
@@ -559,7 +595,7 @@ def lf_cause_type(x):
         if arg_entity_type in ['trigger', 'event_cause']:
             argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
             argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
-            if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type or \
+            if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
                     x.separate_sentence or x.not_an_event:
                 return ABSTAIN
             if (event_trigger_lfs.check_cause_keywords(argument_left_tokens[-4:], x) or
@@ -578,7 +614,7 @@ def lf_cause_order(x):
             argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
             argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
             between_distance = get_entity_distance(x.argument, x.trigger)
-            if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type or \
+            if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
                     x.separate_sentence or x.not_an_event:
                 return ABSTAIN
             if x.argument['start'] < x.trigger['start']:
@@ -612,7 +648,7 @@ def lf_distance_type(x):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['distance']:
-            if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type or \
+            if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
                     x.separate_sentence:
                 return ABSTAIN
             elif event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam:
@@ -628,7 +664,7 @@ def lf_distance_nearest(x):
             between_distance = x.between_distance
             sentence_trigger_distances = get_sentence_trigger_distances(x)
             entity_trigger_distances = get_entity_trigger_distances(x)
-            if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type:
+            if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type:
                 return ABSTAIN
             elif is_nearest_trigger(between_distance, sentence_trigger_distances) and \
                     entity_trigger_distances[arg_entity_type] and \
@@ -644,7 +680,7 @@ def lf_route_type(x):
     # purely distance based for now: could use dependency parsing/ context words
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location_route']:
-        if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type or \
+        if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
                 x.separate_sentence:
             return ABSTAIN
         elif event_trigger_lfs.lf_canceledstop_cat(x) == event_trigger_lfs.CanceledStop:
@@ -657,7 +693,7 @@ def lf_route_type_order(x):
     # purely distance based for now: could use dependency parsing/ context words
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location_route']:
-        if lf_too_far_40(x) != ABSTAIN or x.is_multiple_same_event_type or \
+        if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
                 x.separate_sentence:
             return ABSTAIN
         if event_trigger_lfs.lf_canceledstop_cat(x) == event_trigger_lfs.CanceledStop and \
@@ -710,7 +746,7 @@ def lf_not_nearest_event_argument(x):
     entity_trigger_distances = get_entity_trigger_distances(x)
     argument_type = x.argument['entity_type']
     if argument_type not in ['location', 'location_city', 'location_route', 'location_stop', 'location_street', 'date',
-                             'time', 'duration', 'distance', 'trigger']:
+                             'time', 'duration', 'distance', 'trigger', 'event_cause']:
         return no_arg
     if is_nearest_trigger(between_distance, sentence_trigger_distances) and \
             'entity_trigger_distances' in x and \
