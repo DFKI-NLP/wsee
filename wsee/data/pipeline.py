@@ -289,7 +289,7 @@ def get_trigger_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
 
         return merge_event_trigger_examples(df_train_filtered, probs_train_filtered)
     else:
-        return merge_event_trigger_examples(df_train, event_trigger_probs)
+        return merge_event_trigger_examples(df_train, utils.zero_out_abstains(event_trigger_probs, L_train))
 
 
 def get_role_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
@@ -371,7 +371,7 @@ def get_role_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
 
         return merge_event_role_examples(df_train_filtered, probs_train_filtered)
     else:
-        return merge_event_role_examples(df_train, event_role_probs)
+        return merge_event_role_examples(df_train, utils.zero_out_abstains(event_role_probs, L_train))
 
 
 def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) -> pd.DataFrame:
