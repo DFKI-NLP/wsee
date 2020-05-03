@@ -140,6 +140,22 @@ def lf_location_chained(x):
 
 
 @labeling_function(pre=[])
+def lf_location_adjacent_trigger_verb(x):
+    arg_entity_type = x.argument['entity_type']
+    if not is_location_entity_type(arg_entity_type):
+        return ABSTAIN
+    if argument_is_direction_word(x.argument['text']):
+        return ABSTAIN
+    between_distance = x.between_distance
+    trigger_text: str = x.trigger['text']
+    # TODO replace islower() check with PoS verb check
+    if trigger_text.islower() and between_distance < 1 and x.argument['start'] < x.trigger['start']:
+        return lf_location(x)
+    else:
+        return ABSTAIN
+
+
+@labeling_function(pre=[])
 def lf_location_adjacent_markers(x):
     arg_entity_type = x.argument['entity_type']
     if not is_location_entity_type(arg_entity_type):
@@ -182,12 +198,15 @@ def lf_location_first_sentence(x):
     arg_entity_type = x.argument['entity_type']
     if not is_location_entity_type(arg_entity_type):
         return ABSTAIN
+    between_distance = x.between_distance
+    sentence_trigger_distances = get_sentence_trigger_distances(x)
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
             lf_direction(x) == ABSTAIN:
         first_location_entity = get_first_of_entity_types(
             get_sentence_entities(x),
             ['location', 'location_route', 'location_street', 'location_stop', 'location_city'])
-        if first_location_entity and first_location_entity['id'] == x.argument['id']:
+        if first_location_entity and first_location_entity['id'] == x.argument['id'] and \
+                is_nearest_trigger(between_distance, sentence_trigger_distances):
             return lf_location(x)
     return ABSTAIN
 
@@ -235,6 +254,27 @@ def lf_location_first_sentence_street_stop_route(x):
             get_sentence_entities(x), ['location_route', 'location_street', 'location_stop'])
         if first_location_entity and first_location_entity['id'] == x.argument['id']:
             return lf_location(x)
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_location_first_sentence_priorities(x):
+    arg_entity_type = x.argument['entity_type']
+    if not is_location_entity_type(arg_entity_type):
+        return ABSTAIN
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
+            lf_direction(x) == ABSTAIN:
+        first_location_entity = get_first_of_entity_types(
+            get_sentence_entities(x),
+            ['location', 'location_city'])
+        first_street_stop_route = get_first_of_entity_types(
+            get_sentence_entities(x), ['location_route', 'location_stop', 'location_street'])
+        if first_street_stop_route and first_street_stop_route['id'] == x.argument['id']:
+            return lf_location(x)
+        elif first_location_entity and first_location_entity['id'] == x.argument['id']:
+            if not (x.argument['start'] < 2 and first_street_stop_route and
+                    get_entity_distance(first_street_stop_route, first_location_entity) < 2):
+                return lf_location(x)
     return ABSTAIN
 
 
@@ -343,17 +383,22 @@ def lf_direction(x, order=False, markers=True, pattern=True):
                 return ABSTAIN
             article_preposition_offset = get_article_preposition_offset(argument_left_tokens)
 
-            if markers and has_direction_markers(x.argument['text'], argument_left_tokens, article_preposition_offset):
+            if argument_is_direction_word(x.argument['text']):
+                return direction
+            if markers and has_direction_markers(argument_left_tokens, article_preposition_offset):
                 return direction
             if pattern and has_direction_pattern(argument_left_tokens, get_windowed_left_ner(x.argument, x.ner_tags)):
                 return direction
     return ABSTAIN
 
 
-def has_direction_markers(argument_text, argument_left_tokens, article_preposition_offset=0):
+def has_direction_markers(argument_left_tokens, article_preposition_offset=0):
     return any(token.lower() in ['nach', 'richtung', 'fahrtrichtung', '->']
-               for token in argument_left_tokens[-1 - article_preposition_offset:]) or \
-           argument_text.lower() in ['richtung', 'richtungen', 'stadteinwärts', 'stadtauswärts',
+               for token in argument_left_tokens[-1 - article_preposition_offset:])
+
+
+def argument_is_direction_word(argument_text):
+    return argument_text.lower() in ['richtung', 'richtungen', 'stadteinwärts', 'stadtauswärts',
                                      'beide richtungen', 'beiden richtungen', 'gegenrichtung',
                                      'je richtung']
 
