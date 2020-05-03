@@ -78,7 +78,6 @@ def lf_location(x, same_sentence=True, nearest=False, check_event_type=True,
         return ABSTAIN
 
     between_distance = x.between_distance
-    sentence_trigger_distances = get_sentence_trigger_distances(x)
     all_trigger_distances = get_all_trigger_distances(x)
     if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
             (x.trigger['text'] in ['aus', 'aus.']):
@@ -87,12 +86,8 @@ def lf_location(x, same_sentence=True, nearest=False, check_event_type=True,
         if x.separate_sentence:
             return ABSTAIN
     if nearest:
-        if same_sentence:
-            if not is_nearest_trigger(between_distance, sentence_trigger_distances):
-                return ABSTAIN
-        else:
-            if not is_nearest_trigger(between_distance, all_trigger_distances):
-                return ABSTAIN
+        if not is_nearest_trigger(between_distance, all_trigger_distances):
+            return ABSTAIN
 
     if not check_event_type or x.arg_location_type_event_type_match:
         return location
@@ -391,8 +386,8 @@ def lf_start_location(x, nearest=False):
             return ABSTAIN
         if nearest:
             between_distance = x.between_distance
-            sentence_trigger_distances = get_sentence_trigger_distances(x)
-            if not is_nearest_trigger(between_distance, sentence_trigger_distances):
+            all_trigger_distances = get_all_trigger_distances(x)
+            if not is_nearest_trigger(between_distance, all_trigger_distances):
                 return ABSTAIN
         if has_start_location_markers(argument_left_tokens, argument_right_tokens,
                                       argument_left_ner, argument_right_ner):
