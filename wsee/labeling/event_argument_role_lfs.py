@@ -62,19 +62,17 @@ def is_nearest_trigger(between_distance: int, all_trigger_distances: Dict[str, i
 #  Obstruction (all except loc_stop), RailReplacementService (loc_route),
 #  TrafficJam (loc, loc_city, loc_street, loc_route)
 
-def lf_location(x, same_sentence=True, nearest=False, check_event_type=True,
-                entity_types=('location', 'location_street', 'location_route', 'location_city', 'location_stop')):
+def lf_location(x, same_sentence=True, nearest=False, check_event_type=True):
     """
     Generalized labeling function for location argument type.
     :param x: DataPoint containing additional columns defined via the preprocessors argument.
     :param same_sentence: Abstain if trigger and argument are not in the same sentence.
     :param nearest: Abstain if trigger is not the nearest trigger of the argument.
     :param check_event_type: Check if argument entity type matches trigger event type.
-    :param entity_types: General list of allowed entity types for the argument.
     :return: location label or ABSTAIN
     """
     arg_entity_type = x.argument['entity_type']
-    if arg_entity_type not in entity_types:
+    if not is_location_entity_type(arg_entity_type):
         return ABSTAIN
 
     if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
@@ -94,8 +92,15 @@ def lf_location(x, same_sentence=True, nearest=False, check_event_type=True,
     return ABSTAIN
 
 
+def is_location_entity_type(entity_type):
+    return entity_type in ['location', 'location_street', 'location_route', 'location_city', 'location_stop']
+
+
 @labeling_function(pre=[])
 def lf_location_same_sentence_is_event(x):
+    arg_entity_type = x.argument['entity_type']
+    if not is_location_entity_type(arg_entity_type):
+        return ABSTAIN
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and lf_direction(x) == ABSTAIN:
         return lf_location(x, nearest=False)
     else:
@@ -104,6 +109,9 @@ def lf_location_same_sentence_is_event(x):
 
 @labeling_function(pre=[])
 def lf_location_same_sentence_nearest_is_event(x):
+    arg_entity_type = x.argument['entity_type']
+    if not is_location_entity_type(arg_entity_type):
+        return ABSTAIN
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and lf_direction(x) == ABSTAIN:
         return lf_location(x, nearest=True)
     else:
@@ -112,6 +120,9 @@ def lf_location_same_sentence_nearest_is_event(x):
 
 @labeling_function(pre=[])
 def lf_location_chained(x):
+    arg_entity_type = x.argument['entity_type']
+    if not is_location_entity_type(arg_entity_type):
+        return ABSTAIN
     if any(location_lf(x) == location for location_lf in
            [
                lf_location_adjacent_markers,
@@ -130,20 +141,35 @@ def lf_location_chained(x):
 
 @labeling_function(pre=[])
 def lf_location_adjacent_markers(x):
+    arg_entity_type = x.argument['entity_type']
+    if not is_location_entity_type(arg_entity_type):
+        return ABSTAIN
     between_distance = x.between_distance
     between_tokens = get_between_tokens(x)
+    trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
             lf_direction(x) == ABSTAIN and no_entity_in_between(x):
-        if (':' in between_tokens and between_distance <= 1) or \
-                (x.trigger['start'] < x.argument['start'] and between_distance < 3 and
-                 no_entity_in_between(x) and
-                 (any(token for token in between_tokens if token in ['auf', 'bei', 'in']))):
+        if has_location_preposition(trigger_right_tokens):
+            if x.trigger['start'] < x.argument['start'] and between_distance < 3:
+                return lf_location(x)
+        elif has_colon_in_between(between_tokens, between_distance):
             return lf_location(x)
     return ABSTAIN
 
 
+def has_location_preposition(trigger_right_tokens):
+    return trigger_right_tokens and (any(token for token in trigger_right_tokens[:2] if token in ['auf', 'bei', 'in']))
+
+
+def has_colon_in_between(between_tokens, between_distance):
+    return ':' in between_tokens and between_distance <= 1
+
+
 @labeling_function(pre=[])
 def lf_location_beginning_street_stop_route(x):
+    arg_entity_type = x.argument['entity_type']
+    if not is_location_entity_type(arg_entity_type):
+        return ABSTAIN
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
             x.argument['start'] == 0 and \
             x.argument['entity_type'] not in ['location_city', 'location']:
@@ -153,6 +179,9 @@ def lf_location_beginning_street_stop_route(x):
 
 @labeling_function(pre=[])
 def lf_location_first_sentence(x):
+    arg_entity_type = x.argument['entity_type']
+    if not is_location_entity_type(arg_entity_type):
+        return ABSTAIN
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
             lf_direction(x) == ABSTAIN:
         first_location_entity = get_first_of_entity_types(
@@ -165,6 +194,9 @@ def lf_location_first_sentence(x):
 
 @labeling_function(pre=[])
 def lf_location_first_sentence_nearest(x):
+    arg_entity_type = x.argument['entity_type']
+    if not is_location_entity_type(arg_entity_type):
+        return ABSTAIN
     between_distance = x.between_distance
     sentence_trigger_distances = get_sentence_trigger_distances(x)
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
@@ -180,6 +212,9 @@ def lf_location_first_sentence_nearest(x):
 
 @labeling_function(pre=[])
 def lf_location_first_sentence_not_city(x):
+    arg_entity_type = x.argument['entity_type']
+    if not is_location_entity_type(arg_entity_type):
+        return ABSTAIN
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
             lf_direction(x) == ABSTAIN:
         first_location_entity = get_first_of_entity_types(
@@ -191,44 +226,15 @@ def lf_location_first_sentence_not_city(x):
 
 @labeling_function(pre=[])
 def lf_location_first_sentence_street_stop_route(x):
+    arg_entity_type = x.argument['entity_type']
+    if not is_location_entity_type(arg_entity_type):
+        return ABSTAIN
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
             lf_direction(x) == ABSTAIN:
         first_location_entity = get_first_of_entity_types(
             get_sentence_entities(x), ['location_route', 'location_street', 'location_stop'])
         if first_location_entity and first_location_entity['id'] == x.argument['id']:
             return lf_location(x)
-    return ABSTAIN
-
-
-@labeling_function(pre=[])
-def lf_location_first_sentence_priorities(x):
-    """
-    Looks at the first location entity. If it is a (general) location/ city entity and a
-    street/stop/route location entity follows immediately, the location argument of interest is
-    probably the latter. There choose that second location entity as the argument.
-    :param x:
-    :return:
-    """
-    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction(x) == ABSTAIN:
-        first_location_entity = get_first_of_entity_types(
-            get_sentence_entities(x),
-            ['location', 'location_route', 'location_street', 'location_stop', 'location_city'])
-        first_street_stop_route = get_first_of_entity_types(
-            get_sentence_entities(x), ['location_route', 'location_stop', 'location_street'])
-        if first_location_entity:
-            if first_street_stop_route:
-                first_distance = get_entity_distance(first_location_entity, first_street_stop_route)
-                if first_location_entity['id'] != first_street_stop_route['id'] and first_distance < 2:
-                    if first_street_stop_route['id'] == x.argument['id']:
-                        return lf_location(x)
-                    else:
-                        return ABSTAIN
-                elif first_location_entity['id'] == first_street_stop_route['id'] and \
-                        first_street_stop_route['id'] == x.argument['id']:
-                    return lf_location(x)
-            elif first_location_entity['id'] == x.argument['id']:
-                return lf_location(x)
     return ABSTAIN
 
 
@@ -434,13 +440,14 @@ def lf_end_location(x, nearest=False):
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
         argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
         argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
-        between_distance = x.between_distance
-        sentence_trigger_distances = get_sentence_trigger_distances(x)
         if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or x.separate_sentence or x.not_an_event or \
                 event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
             return ABSTAIN
-        if nearest and not is_nearest_trigger(between_distance, sentence_trigger_distances):
-            return ABSTAIN
+        if nearest:
+            between_distance = x.between_distance
+            all_trigger_distances = get_all_trigger_distances(x)
+            if not is_nearest_trigger(between_distance, all_trigger_distances):
+                return ABSTAIN
 
         if len(argument_left_tokens) > 2 and argument_left_tokens[-3].lower() in ['nach', 'richtung', 'fahrtrichtung',
                                                                                   '->'] \
