@@ -1,6 +1,7 @@
 import pickle
 import json
 import re
+
 import pandas as pd
 import numpy as np
 
@@ -39,3 +40,17 @@ def let_most_probable_class_dominate(x: pd.Series) -> pd.Series:
         arg_probs[max_idx] = 1.0
         role_pair['event_argument_probs'] = list(arg_probs)
     return x
+
+
+def zero_out_abstains(y: np.ndarray, L: np.ndarray) -> np.ndarray:
+    """
+    Finds all the rows, where all the LFs abstained and sets all the class probabilities to zero.
+    The Snorkel model in eventx will ignore these during loss & metrics calculation.
+    :param y: Matrix of probabilities output by label model's predict_proba method.
+    :param L: Matrix of labels emitted by LFs.
+    :return: Probabilities matrix where the probabilities for data points that were labeled by none of the LF in L
+            are set to zero.
+    """
+    mask = (L == -1).all(axis=1)
+    y[mask] += 0.0
+    return y
