@@ -77,8 +77,6 @@ def lf_location(x, same_sentence=True, nearest=False, check_event_type=True,
     if arg_entity_type not in entity_types:
         return ABSTAIN
 
-    between_distance = x.between_distance
-    all_trigger_distances = get_all_trigger_distances(x)
     if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
             (x.trigger['text'] in ['aus', 'aus.']):
         return ABSTAIN
@@ -86,6 +84,8 @@ def lf_location(x, same_sentence=True, nearest=False, check_event_type=True,
         if x.separate_sentence:
             return ABSTAIN
     if nearest:
+        between_distance = x.between_distance
+        all_trigger_distances = get_all_trigger_distances(x)
         if not is_nearest_trigger(between_distance, all_trigger_distances):
             return ABSTAIN
 
@@ -96,7 +96,7 @@ def lf_location(x, same_sentence=True, nearest=False, check_event_type=True,
 
 @labeling_function(pre=[])
 def lf_location_same_sentence_is_event(x):
-    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and lf_direction_type(x) == ABSTAIN:
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and lf_direction(x) == ABSTAIN:
         return lf_location(x, nearest=False)
     else:
         return ABSTAIN
@@ -104,7 +104,7 @@ def lf_location_same_sentence_is_event(x):
 
 @labeling_function(pre=[])
 def lf_location_same_sentence_nearest_is_event(x):
-    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and lf_direction_type(x) == ABSTAIN:
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and lf_direction(x) == ABSTAIN:
         return lf_location(x, nearest=True)
     else:
         return ABSTAIN
@@ -133,7 +133,7 @@ def lf_location_adjacent_markers(x):
     between_distance = x.between_distance
     between_tokens = get_between_tokens(x)
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN and no_entity_in_between(x):
+            lf_direction(x) == ABSTAIN and no_entity_in_between(x):
         if (':' in between_tokens and between_distance <= 1) or \
                 (x.trigger['start'] < x.argument['start'] and between_distance < 3 and
                  no_entity_in_between(x) and
@@ -145,7 +145,7 @@ def lf_location_adjacent_markers(x):
 @labeling_function(pre=[])
 def lf_location_beginning_street_stop_route(x):
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN and x.argument['start'] == 0 and \
+            x.argument['start'] == 0 and \
             x.argument['entity_type'] not in ['location_city', 'location']:
         return lf_location(x)
     return ABSTAIN
@@ -154,7 +154,7 @@ def lf_location_beginning_street_stop_route(x):
 @labeling_function(pre=[])
 def lf_location_first_sentence(x):
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN:
+            lf_direction(x) == ABSTAIN:
         first_location_entity = get_first_of_entity_types(
             get_sentence_entities(x),
             ['location', 'location_route', 'location_street', 'location_stop', 'location_city'])
@@ -168,7 +168,7 @@ def lf_location_first_sentence_nearest(x):
     between_distance = x.between_distance
     sentence_trigger_distances = get_sentence_trigger_distances(x)
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN:
+            lf_direction(x) == ABSTAIN:
         first_location_entity = get_first_of_entity_types(
             get_sentence_entities(x),
             ['location', 'location_route', 'location_street', 'location_stop', 'location_city'])
@@ -181,7 +181,7 @@ def lf_location_first_sentence_nearest(x):
 @labeling_function(pre=[])
 def lf_location_first_sentence_not_city(x):
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN:
+            lf_direction(x) == ABSTAIN:
         first_location_entity = get_first_of_entity_types(
             get_sentence_entities(x), ['location', 'location_route', 'location_street', 'location_stop'])
         if first_location_entity and first_location_entity['id'] == x.argument['id']:
@@ -192,7 +192,7 @@ def lf_location_first_sentence_not_city(x):
 @labeling_function(pre=[])
 def lf_location_first_sentence_street_stop_route(x):
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN:
+            lf_direction(x) == ABSTAIN:
         first_location_entity = get_first_of_entity_types(
             get_sentence_entities(x), ['location_route', 'location_street', 'location_stop'])
         if first_location_entity and first_location_entity['id'] == x.argument['id']:
@@ -210,7 +210,7 @@ def lf_location_first_sentence_priorities(x):
     :return:
     """
     if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and \
-            lf_direction_type(x) == ABSTAIN:
+            lf_direction(x) == ABSTAIN:
         first_location_entity = get_first_of_entity_types(
             get_sentence_entities(x),
             ['location', 'location_route', 'location_street', 'location_stop', 'location_city'])
@@ -326,30 +326,21 @@ def lf_delay_earlier_negative(x):
 
 
 # direction role
-def lf_direction(x, order=True):
+def lf_direction(x, order=False, markers=True, pattern=True):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['location', 'location_city', 'location_stop', 'location_street']:
             argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
             if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or x.separate_sentence or x.not_an_event:
                 return ABSTAIN
-            if lf_start_location_type(x) != ABSTAIN or lf_end_location_type(x) != ABSTAIN:
-                return ABSTAIN
             if order and x.argument['start'] > x.trigger['start']:
                 return ABSTAIN
             article_preposition_offset = get_article_preposition_offset(argument_left_tokens)
 
-            if any(token.lower() in ['nach', 'richtung', 'fahrtrichtung', '->']
-                   for token in argument_left_tokens[-1 - article_preposition_offset:]) or \
-                    x.argument['text'].lower() in ['richtung', 'richtungen', 'stadteinwärts', 'stadtauswärts',
-                                                   'beide richtungen', 'beiden richtungen', 'gegenrichtung',
-                                                   'je richtung']:
+            if markers and has_direction_markers(x.argument['text'], argument_left_tokens, article_preposition_offset):
                 return direction
-            elif len(argument_left_tokens) > 2 and argument_left_tokens[-1] == '-':
-                argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
-                if argument_left_ner[-3][2:] == 'LOCATION_STREET' and \
-                        argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_CITY']:
-                    return direction
+            if pattern and has_direction_pattern(argument_left_tokens, get_windowed_left_ner(x.argument, x.ner_tags)):
+                return direction
     return ABSTAIN
 
 
@@ -361,14 +352,25 @@ def has_direction_markers(argument_text, argument_left_tokens, article_prepositi
                                      'je richtung']
 
 
-@labeling_function(pre=[])
-def lf_direction_type(x):
-    return lf_direction(x, order=False)
+def has_direction_pattern(argument_left_tokens, argument_left_ner):
+    return len(argument_left_tokens) > 2 and argument_left_tokens[-1] == '-' and \
+           argument_left_ner[-3][2:] == 'LOCATION_STREET' and \
+           argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_CITY']
 
 
 @labeling_function(pre=[])
-def lf_direction_order(x):
-    return lf_direction(x, order=True)
+def lf_direction_markers(x):
+    return lf_direction(x, order=False, markers=True, pattern=False)
+
+
+@labeling_function(pre=[])
+def lf_direction_markers_order(x):
+    return lf_direction(x, order=True, markers=True, pattern=False)
+
+
+@labeling_function(pre=[])
+def lf_direction_pattern(x):
+    return lf_direction(x, order=False, markers=False, pattern=True)
 
 
 # start_loc
@@ -397,7 +399,7 @@ def lf_start_location(x, nearest=False):
 
 def has_start_location_markers(argument_left_tokens, argument_right_tokens,
                                argument_left_ner, argument_right_ner):
-    indicator_idx, match_token = next((idx, token for idx, token in enumerate(argument_left_tokens[-3:])
+    indicator_idx, match_token = next(((idx, token) for idx, token in enumerate(argument_left_tokens[-3:])
                                        if token.lower() in ['zw', 'zw.', 'zwischen', 'ab', 'von']), (-1, None))
     entity_between_indicator = indicator_idx > -1 and any(left_ner[2:]
                                                           in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY',
