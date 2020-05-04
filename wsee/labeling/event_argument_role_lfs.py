@@ -81,12 +81,16 @@ def lf_location(x, same_sentence=True, nearest=False, check_event_type=True):
     if same_sentence:
         if x.separate_sentence:
             return ABSTAIN
+    between_distance = x.between_distance
     if nearest:
-        between_distance = x.between_distance
         all_trigger_distances = get_all_trigger_distances(x)
         if not is_nearest_trigger(between_distance, all_trigger_distances):
             return ABSTAIN
-
+    if event_trigger_lfs.lf_canceledstop_cat(x) == event_trigger_lfs.CanceledStop and between_distance > 2:
+        return ABSTAIN
+    trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
+    if has_location_preposition(trigger_right_tokens) and x.argument['start'] < x.trigger['start']:
+        return ABSTAIN
     if not check_event_type or x.arg_location_type_event_type_match:
         return location
     return ABSTAIN
@@ -127,8 +131,6 @@ def lf_location_chained(x):
            [
                lf_location_adjacent_markers,
                lf_location_beginning_street_stop_route,
-               lf_location_first_sentence,
-               lf_location_first_sentence_nearest,
                lf_location_first_sentence_street_stop_route,
                lf_location_first_sentence_priorities,
                lf_event_patterns,
@@ -144,7 +146,9 @@ def lf_location_adjacent_trigger_verb(x):
     arg_entity_type = x.argument['entity_type']
     if not is_location_entity_type(arg_entity_type):
         return ABSTAIN
-    if argument_is_direction_word(x.argument['text']):
+    argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
+    if argument_is_direction_word(x.argument['text']) or contains_concatenation_token(argument_left_tokens[-2:]) \
+            or lf_end_location(x) == end_loc:
         return ABSTAIN
     between_distance = x.between_distance
     trigger_text: str = x.trigger['text']
@@ -181,6 +185,7 @@ def has_colon_in_between(between_tokens, between_distance):
     return ':' in between_tokens and between_distance <= 1
 
 
+# TODO check all firsts: if preposition follows trigger and argument precedes trigger, ABSTAIN
 @labeling_function(pre=[])
 def lf_location_beginning_street_stop_route(x):
     arg_entity_type = x.argument['entity_type']
@@ -266,14 +271,14 @@ def lf_location_first_sentence_priorities(x):
             lf_direction(x) == ABSTAIN:
         first_location_entity = get_first_of_entity_types(
             get_sentence_entities(x),
-            ['location', 'location_city'])
+            ['location', 'location_city', 'location_route', 'location_stop', 'location_street'])
         first_street_stop_route = get_first_of_entity_types(
             get_sentence_entities(x), ['location_route', 'location_stop', 'location_street'])
         if first_street_stop_route and first_street_stop_route['id'] == x.argument['id']:
             return lf_location(x)
         elif first_location_entity and first_location_entity['id'] == x.argument['id']:
             if not (x.argument['start'] < 2 and first_street_stop_route and
-                    get_entity_distance(first_street_stop_route, first_location_entity) < 2):
+                    get_entity_distance(first_street_stop_route, first_location_entity) < 3):
                 return lf_location(x)
     return ABSTAIN
 
@@ -400,7 +405,7 @@ def has_direction_markers(argument_left_tokens, article_preposition_offset=0):
 def argument_is_direction_word(argument_text):
     return argument_text.lower() in ['richtung', 'richtungen', 'stadteinwärts', 'stadtauswärts',
                                      'beide richtungen', 'beiden richtungen', 'gegenrichtung',
-                                     'je richtung']
+                                     'je richtung', 'beide fahrtrichtungen', 'beiden fahrtrichtungen']
 
 
 def has_direction_pattern(argument_left_tokens, argument_left_ner):
@@ -516,13 +521,17 @@ def has_end_loc_prefix(argument_left_tokens):
 def has_preceding_start_loc(argument_left_tokens, argument_left_ner):
     article_preposition_offset = get_article_preposition_offset(argument_left_tokens)
     preceding_start_loc = any(token.lower() in ['zw.', 'zwischen'] for token in argument_left_tokens[-6:-1])
-    concatenation_prefix = any(token.lower() in ['und', 'u.', '<', '>', '<>', '&']
-                               for token in argument_left_tokens[-1 - article_preposition_offset:])
+    concatenation_prefix = contains_concatenation_token(argument_left_tokens[-1 - article_preposition_offset:])
     hyphenated_start_end_pair = argument_left_tokens and '-' == argument_left_tokens[-1] and \
                                 len(argument_left_ner) > 1 and \
                                 argument_left_ner[-2][2:] in ['LOCATION', 'LOCATION_STREET', 'LOCATION_CITY',
                                                               'LOCATION_STOP']
     return (preceding_start_loc and concatenation_prefix) or hyphenated_start_end_pair
+
+
+def contains_concatenation_token(tokens):
+    return any(token.lower() in ['und', 'u.', '<', '>', '<>', '&', '-']
+               for token in tokens)
 
 
 def get_article_preposition_offset(argument_left_tokens):
