@@ -173,13 +173,19 @@ def lf_location_adjacent_markers(x):
         if has_location_preposition(trigger_right_tokens):
             if x.trigger['start'] < x.argument['start'] and between_distance < 3:
                 return lf_location(x)
+        elif has_article_in_between(between_tokens, between_distance) and x.trigger['start'] < x.argument['start']:
+            return lf_location(x)
         elif has_colon_in_between(between_tokens, between_distance):
             return lf_location(x)
     return ABSTAIN
 
 
 def has_location_preposition(trigger_right_tokens):
-    return trigger_right_tokens and (any(token for token in trigger_right_tokens[:2] if token in ['auf', 'bei', 'in']))
+    return trigger_right_tokens and any(token for token in trigger_right_tokens[:2] if token in ['auf', 'bei', 'in'])
+
+
+def has_article_in_between(between_tokens, between_distance):
+    return between_tokens and between_tokens[-1] in ['der', 'des'] and between_distance <= 1
 
 
 def has_colon_in_between(between_tokens, between_distance):
@@ -405,7 +411,8 @@ def has_direction_markers(argument_left_tokens, article_preposition_offset=0):
 def argument_is_direction_word(argument_text):
     return argument_text.lower() in ['richtung', 'richtungen', 'stadteinwärts', 'stadtauswärts',
                                      'beide richtungen', 'beiden richtungen', 'gegenrichtung',
-                                     'je richtung', 'beide fahrtrichtungen', 'beiden fahrtrichtungen']
+                                     'je richtung', 'beide fahrtrichtungen', 'beiden fahrtrichtungen',
+                                     'norden', 'süden', 'westen', 'osten']
 
 
 def has_direction_pattern(argument_left_tokens, argument_left_ner):
