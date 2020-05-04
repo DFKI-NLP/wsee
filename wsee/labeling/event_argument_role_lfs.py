@@ -129,6 +129,7 @@ def lf_location_chained(x):
         return ABSTAIN
     if any(location_lf(x) == location for location_lf in
            [
+               lf_location_adjacent_trigger_verb,
                lf_location_adjacent_markers,
                lf_location_beginning_street_stop_route,
                lf_location_first_sentence_street_stop_route,
@@ -185,7 +186,6 @@ def has_colon_in_between(between_tokens, between_distance):
     return ':' in between_tokens and between_distance <= 1
 
 
-# TODO check all firsts: if preposition follows trigger and argument precedes trigger, ABSTAIN
 @labeling_function(pre=[])
 def lf_location_beginning_street_stop_route(x):
     arg_entity_type = x.argument['entity_type']
