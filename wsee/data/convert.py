@@ -376,9 +376,23 @@ def span_to_text(text: str, span: Dict[str, Any]):
 
 
 def fix_entity_spans(text: str, entity_span: Dict[str, Any], normalizedValue: str) -> Tuple[bool, Dict[str, Any]]:
+    """
+    Compares normalizedValue with text substring acquired via entity spans and tries to fix the spans.
+    This is done by shifting the entity spans to the left and looking at the fuzz.ratio.
+    It stops if the fuzz.ratio gets worse. A fuzz.ratio of below 97 is treated as an unsuccessful attempt.
+    :param text: Document text.
+    :param entity_span: Character span of the entity.
+    :param normalizedValue: Joined tokens of the entity.
+    :return: Tuple of boolean, that indicates whether the attempt was successful, and the (fixed) entity span.
+    """
     original_entity_text = span_to_text(text, entity_span)
     shifted_entity_span = {}
     tmp_fuzz_ratio = 0
+    tmp_entity_span = {
+        'start': entity_span['start'],
+        'end': entity_span['end']
+    }
+    tmp_text = original_entity_text
     for shift in range(1, len(normalizedValue)):
         shifted_entity_span['start'] = entity_span['start'] - shift
         shifted_entity_span['end'] = entity_span['end'] - shift
@@ -387,17 +401,19 @@ def fix_entity_spans(text: str, entity_span: Dict[str, Any], normalizedValue: st
         entity_text = span_to_text(text, shifted_entity_span)
         fuzz_ratio = fuzz.ratio(entity_text.replace(' ', ''),
                                 normalizedValue.replace(' ', ''))
-        if fuzz_ratio > 97:
-            if entity_text.replace(' ', '') != normalizedValue.replace(' ', ''):
-                logging.debug(f"String mismatch")
-                logging.debug(f"{entity_text.replace(' ', '')} vs. {normalizedValue.replace(' ', '')}")
-                break
+        if fuzz_ratio == 100:
             return True, shifted_entity_span
         elif fuzz_ratio < tmp_fuzz_ratio:
-            break
+            if tmp_fuzz_ratio > 97:
+                return True, tmp_entity_span
+            else:
+                break
         tmp_fuzz_ratio = fuzz_ratio
+        tmp_text = entity_text
+        tmp_entity_span['start'] = shifted_entity_span['start']
+        tmp_entity_span['end'] = shifted_entity_span['end']
     logging.info(f"Unable to fix entity_span for {original_entity_text}. Last try with shifted entity spans: "
-                 f"{span_to_text(text, shifted_entity_span)} vs. {normalizedValue} (normalized value)")
+                 f"{tmp_text} vs. {normalizedValue} (normalized value)")
     return False, entity_span
 
 
