@@ -289,22 +289,22 @@ def lf_location_first_sentence_priorities(x):
     return ABSTAIN
 
 
-def get_first_of_entity_types(entities, entity_types: List[str], exception_list: List[str] = None):
+def get_first_of_entity_types(entities: List[Dict[str, Any]], entity_types: List[str],
+                              exception_list: List[str] = None) -> Optional[Dict[str, Any]]:
     """
     :param entities: List of entities.
     :param entity_types: List of desired entity_types.
     :param exception_list: List of exceptions.
     :return: First entity, whose entity type is in entity_types and whose text is not in the exception_list.
     """
-    first_entity = None
+    entities.sort(key=lambda e: e['start'])
     for entity in entities:
-        if entity['entity_type'] in entity_types and \
-                (first_entity is None or first_entity['start'] > entity['start']):
+        if entity['entity_type'] in entity_types:
             if exception_list and entity['text'] in exception_list:
                 continue
             else:
-                first_entity = entity
-    return first_entity
+                return entity
+    return None
 
 
 def no_entity_in_between(x):

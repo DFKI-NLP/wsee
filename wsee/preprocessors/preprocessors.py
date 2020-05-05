@@ -38,6 +38,24 @@ def get_entity(entity_id: str, entities: List[Dict[str, Any]]) -> Dict:
         raise Exception(f'The entity_id {entity_id} was not found in:\n {entities}')
 
 
+def get_left_neighbor_entity(entity: Dict[str, Any], entities: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    entities.sort(key=lambda e: e['start'])
+    entity_idx: int = next(idx for idx, item in enumerate(entities) if item['id'] == entity['id'])
+    if entity_idx - 1 >= 0:
+        return entities[entity_idx - 1]
+    else:
+        return None
+
+
+def get_right_neighbor_entity(entity, entities):
+    entities.sort(key=lambda e: e['start'])
+    entity_idx: int = next(idx for idx, item in enumerate(entities) if item['id'] == entity['id'])
+    if entity_idx + 1 < len(entities):
+        return entities[entity_idx + 1]
+    else:
+        return None
+
+
 @preprocessor()
 def pre_trigger_idx(cand: DataPoint) -> DataPoint:
     trigger: Dict[str, Any] = cand.trigger
