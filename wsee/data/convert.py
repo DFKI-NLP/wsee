@@ -5,7 +5,7 @@ import pandas as pd
 import logging
 from fastavro import reader
 from tqdm import tqdm
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 from fuzzywuzzy import fuzz
 
 from wsee import NEGATIVE_ARGUMENT_LABEL, NEGATIVE_TRIGGER_LABEL, SD4M_RELATION_TYPES, ROLE_LABELS
@@ -13,6 +13,7 @@ from wsee.utils import encode
 
 logging.basicConfig(level=logging.INFO)
 check_counter: int = 0
+fix_counter: int = 0
 
 
 def main(args):
@@ -41,7 +42,9 @@ def main(args):
         smart_data.to_json(output_file, orient='records', lines=True, force_ascii=False)
         daystream.append(daystream_part)
         global check_counter
+        global fix_counter
         logging.info(f"Found {check_counter} entity span issues (running sum)")
+        logging.info(f"Fixed {fix_counter} entity span issues (running sum)")
     daystream = pd.concat(daystream, sort=False).reset_index(drop=True)
     daystream_output_file = input_path.joinpath('daystream.jsonl')
     daystream.to_json(daystream_output_file, orient='records', lines=True, force_ascii=False)
@@ -331,18 +334,36 @@ def convert_entity(text: str, tokens: List[str], entity: Dict[str, Any], convert
         if 'normalizedValue' in entity and len(converted_entity['text']) > 5:
             fuzz_ratio = fuzz.ratio(converted_entity['text'].replace(' ', ''),
                                     entity['normalizedValue'].replace(' ', ''))
-            if fuzz_ratio < 90 and converted_entity['text'][0] not in ['@', '#']:
+            if fuzz_ratio < 90 and entity['normalizedValue'] not in converted_entity['text']:
                 entity_span: Dict[str, Any] = entity['span']
+                global check_counter
+                check_counter += 1
                 if doc_id:
                     logging.debug(f"Check document {doc_id} for entity span issue:")
                 else:
                     logging.debug("Entity span issue:")
                 logging.debug(f"{converted_entity['text']} (text[{entity_span['start']}:{entity_span['end']}]) vs. "
                               f"{entity['normalizedValue']} (entity['normalizedValue'])")
-                logging.debug(f"Overwriting entity text with normalized value: {entity['normalizedValue']}")
-                converted_entity['text'] = entity['normalizedValue']
-                global check_counter
-                check_counter += 1
+                if len(entity['normalizedValue'])+1 >= len(converted_entity['text']):
+                    # +1 because hashtags are sometimes removed in normalizedValue
+                    successful_fix, fixed_entity_span = fix_entity_spans(text, entity_span, entity['normalizedValue'])
+                    if successful_fix:
+                        converted_entity['text'] = span_to_text(text, fixed_entity_span)
+                        converted_entity['char_start'] = fixed_entity_span['start']
+                        converted_entity['char_end'] = fixed_entity_span['end']
+                        logging.debug(f"Fixed entity spans from: "
+                                      f"{span_to_text(text, entity['span'])} "
+                                      f"(text[{entity_span['start']}:{entity_span['end']}]) to"
+                                      f"{converted_entity['text']} "
+                                      f"(text[{fixed_entity_span['start']}:{fixed_entity_span['end']}])")
+                        global fix_counter
+                        fix_counter += 1
+                else:
+                    logging.debug(f"Normalized value is substring of entity text")
+                    logging.debug(f"Difference in length:"
+                                  f"{len(entity['normalizedValue'].replace(' ', ''))} (normalizedValue) vs."
+                                  f"{len(converted_entity['text'].replace(' ', ''))} (entity_text)")
+                    logging.debug(f"Check anyways")
         return converted_entity
     except StopIteration:
         logging.warning('Token offset issue')
@@ -350,8 +371,34 @@ def convert_entity(text: str, tokens: List[str], entity: Dict[str, Any], convert
         return None
 
 
-def span_to_text(text, span):
+def span_to_text(text: str, span: Dict[str, Any]):
     return text[span['start']:span['end']]
+
+
+def fix_entity_spans(text: str, entity_span: Dict[str, Any], normalizedValue: str) -> Tuple[bool, Dict[str, Any]]:
+    original_entity_text = span_to_text(text, entity_span)
+    shifted_entity_span = {}
+    tmp_fuzz_ratio = 0
+    for shift in range(1, len(normalizedValue)):
+        shifted_entity_span['start'] = entity_span['start'] - shift
+        shifted_entity_span['end'] = entity_span['end'] - shift
+        if shifted_entity_span['start'] < 0:
+            break
+        entity_text = span_to_text(text, shifted_entity_span)
+        fuzz_ratio = fuzz.ratio(entity_text.replace(' ', ''),
+                                normalizedValue.replace(' ', ''))
+        if fuzz_ratio > 97:
+            if entity_text.replace(' ', '') != normalizedValue.replace(' ', ''):
+                logging.debug(f"String mismatch")
+                logging.debug(f"{entity_text.replace(' ', '')} vs. {normalizedValue.replace(' ', '')}")
+                break
+            return True, shifted_entity_span
+        elif fuzz_ratio < tmp_fuzz_ratio:
+            break
+        tmp_fuzz_ratio = fuzz_ratio
+    logging.info(f"Unable to fix entity_span for {original_entity_text}. Last try with shifted entity spans: "
+                 f"{span_to_text(text, shifted_entity_span)} vs. {normalizedValue} (normalized value)")
+    return False, entity_span
 
 
 def span_to_token_idxs(tokens, span):
