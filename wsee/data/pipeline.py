@@ -13,9 +13,7 @@ from wsee.labeling import event_trigger_lfs as trigger_lfs
 from wsee.labeling import event_argument_role_lfs as role_lfs
 from wsee.utils import utils
 
-
 logging.basicConfig(level=logging.INFO)
-
 
 event_type_lf_map: Dict[int, Any] = {
     trigger_lfs.Accident: trigger_lfs.lf_accident_chained,
@@ -193,6 +191,11 @@ def merge_event_trigger_examples(event_trigger_rows, event_trigger_probs):
     event_trigger_rows['event_type_probs'] = list(event_trigger_probs)
     event_trigger_rows = event_trigger_rows.apply(build_labeled_event_trigger, axis=1)
     aggregation_functions = {
+        'text': 'first',
+        'tokens': 'first',
+        # 'pos_tags': 'first',
+        'ner_tags': 'first',
+        'entities': 'first',
         'event_triggers': 'sum',  # expects list of one trigger per row
     }
     return event_trigger_rows.groupby('id').agg(aggregation_functions)
@@ -226,6 +229,11 @@ def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_prob
     event_role_rows_copy['event_argument_probs'] = list(event_argument_probs)
     event_role_rows_copy = event_role_rows_copy.apply(build_labeled_event_role, axis=1)
     aggregation_functions = {
+        'text': 'first',
+        'tokens': 'first',
+        # 'pos_tags': 'first',
+        'ner_tags': 'first',
+        'entities': 'first',
         'event_roles': 'sum'  # expects list of one event role per row
     }
     return event_role_rows_copy.groupby('id').agg(aggregation_functions)
@@ -417,8 +425,10 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) ->
     if 'id' in merged_examples:
         merged_examples.set_index('id', inplace=True)
 
-    merged_examples.update(merged_event_trigger_examples)
-    merged_examples.update(merged_event_role_examples)
+    merged_examples.update(
+        merged_event_trigger_examples.drop(['text', 'tokens', 'ner_tags', 'entities'], axis=1, inplace=True))
+    merged_examples.update(
+        merged_event_role_examples.drop(['text', 'tokens', 'ner_tags', 'entities'], axis=1, inplace=True))
 
     merged_examples.reset_index(level=0, inplace=True)
 
@@ -431,7 +441,7 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) ->
 
     if save_path:
         try:
-            logging.info(f"Writing Snorkel Labeled data to {save_path+'/daystream_snorkeledv6_pipeline.jsonl'}")
+            logging.info(f"Writing Snorkel Labeled data to {save_path + '/daystream_snorkeledv6_pipeline.jsonl'}")
             merged_examples.to_json(
                 save_path + '/daystream_snorkeledv6_pipeline.jsonl', orient='records', lines=True, force_ascii=False)
             # logging.info(f"Writing Snorkel Labeled data where probability of most probable class is set to 1.0 "
