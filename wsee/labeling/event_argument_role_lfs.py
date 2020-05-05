@@ -308,6 +308,7 @@ def get_first_of_entity_types(entities: List[Dict[str, Any]], entity_types: List
 
 
 def no_entity_in_between(x):
+    # TODO use sorted entities/ use get left/right neighbor entity
     no_in_between = True
     for entity in x.entities:
         if x.argument['start'] < entity['start'] < x.trigger['start'] or \
@@ -329,41 +330,48 @@ def lf_delay_event_sentence(x):
                 return ABSTAIN
             if 'früher' in argument_right_tokens[:2]:
                 return ABSTAIN
-            if event_trigger_lfs.lf_delay_cat(x) == event_trigger_lfs.Delay or \
-                    event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam or \
-                    event_trigger_lfs.lf_obstruction_cat(x) == event_trigger_lfs.Obstruction or \
-                    event_trigger_lfs.lf_accident_context(x) == event_trigger_lfs.Accident:
+            if event_trigger_lfs.lf_delay_chained(x) == event_trigger_lfs.Delay or \
+                    event_trigger_lfs.lf_trafficjam_chained(x) == event_trigger_lfs.TrafficJam:
                 return delay
     return ABSTAIN
 
 
 # delay role
 @labeling_function(pre=[])
-def lf_delay_event_sentence_check(x):
+def lf_delay_preceding_arg(x):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['duration']:
-            argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
             argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
-            if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
-                    (x.separate_sentence and 'Zeitverlust' not in argument_left_tokens[-4:]):
+            if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or x.separate_sentence:
                 return ABSTAIN
             if 'früher' in argument_right_tokens[:2]:
                 return ABSTAIN
             if event_trigger_lfs.lf_delay_cat(x) == event_trigger_lfs.Delay or \
-                    event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam or \
-                    event_trigger_lfs.lf_obstruction_cat(x) == event_trigger_lfs.Obstruction or \
-                    event_trigger_lfs.lf_accident_context(x) == event_trigger_lfs.Accident:
-                if get_entity_distance(x.trigger, x.argument) > 0 and \
-                        x.argument['text'].islower() and \
-                        x.argument['start'] < x.trigger['start']:
-                    # Rationale here: duration can only occur after a lower case trigger,
-                    # e.g. "verspätet sich um 15 min"
-                    # Only case, where a lower case trigger can occur after the duration "15 später", they are
-                    # adjacent
-                    return ABSTAIN
-                else:
+                    event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam:
+                if x.between_distance < 1 and x.argument['start'] < x.trigger['start']:
                     return delay
+                else:
+                    return ABSTAIN
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_delay_preceding_trigger(x):
+    if check_required_args(x.entity_type_freqs):
+        arg_entity_type = x.argument['entity_type']
+        if arg_entity_type in ['duration']:
+            argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
+            if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
+                    (x.separate_sentence and 'Zeitverlust' not in argument_left_tokens[-4:]):
+                return ABSTAIN
+            if event_trigger_lfs.lf_delay_cat(x) == event_trigger_lfs.Delay or \
+                    event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam:
+                if x.between_distance <= 4 and x.trigger['start'] < x.argument['start'] and no_entity_in_between(x):
+                    # chose 4 as maximum distance because of: "Verspätung von bis zu ca. 10 Min."
+                    return delay
+                else:
+                    return ABSTAIN
     return ABSTAIN
 
 
