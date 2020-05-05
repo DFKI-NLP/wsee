@@ -83,6 +83,19 @@ trafficjam_exact_keywords = [
 
 
 @labeling_function(pre=[])
+def lf_accident_chained(x):
+    if any(accident_lf(x) == Accident for accident_lf in
+           [
+               lf_accident_context,
+               lf_accident_context_street,
+               lf_accident_context_no_cause_check
+           ]):
+        return Accident
+    else:
+        return ABSTAIN
+
+
+@labeling_function(pre=[])
 def lf_accident_context(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
@@ -215,6 +228,19 @@ def check_route_keywords(tokens):
 
 
 @labeling_function(pre=[])
+def lf_delay_chained(x):
+    if any(delay_lf(x) == Delay for delay_lf in
+           [
+               lf_delay_cat,
+               lf_delay_duration,
+               lf_delay_priorities
+           ]):
+        return Delay
+    else:
+        return ABSTAIN
+
+
+@labeling_function(pre=[])
 def lf_delay_cat(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
@@ -280,6 +306,19 @@ def lf_delay_priorities(x):
 
 def is_negated(trigger_left_tokens):
     return trigger_left_tokens and trigger_left_tokens[-1] in ['kein', 'keine', 'keinen', 'ohne']
+
+
+@labeling_function(pre=[])
+def lf_obstruction_chained(x):
+    if any(obstruction_lf(x) == Obstruction for obstruction_lf in
+           [
+               lf_obstruction_cat,
+               lf_obstruction_street,
+               lf_obstruction_priorities
+           ]):
+        return Obstruction
+    else:
+        return ABSTAIN
 
 
 @labeling_function(pre=[])
@@ -365,6 +404,19 @@ def lf_railreplacementservice_cat(x):
     if (highest[1] >= 90 or highest_exact[1] > 90) and 'location_route' in x.entity_type_freqs:
         return RailReplacementService
     return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_trafficjam_chained(x):
+    if any(trafficjam_lf(x) == TrafficJam for trafficjam_lf in
+           [
+               lf_trafficjam_cat,
+               lf_trafficjam_street,
+               lf_trafficjam_order
+           ]):
+        return TrafficJam
+    else:
+        return ABSTAIN
 
 
 @labeling_function(pre=[])

@@ -9,8 +9,8 @@ from snorkel.labeling import LabelModel, PandasLFApplier, labeling_function, fil
 from tqdm import tqdm
 
 from wsee.preprocessors import preprocessors
-from wsee.labeling import event_trigger_lfs
-from wsee.labeling import event_argument_role_lfs
+from wsee.labeling import event_trigger_lfs as trigger_lfs
+from wsee.labeling import event_argument_role_lfs as role_lfs
 from wsee.utils import utils
 
 
@@ -18,23 +18,23 @@ logging.basicConfig(level=logging.INFO)
 
 
 event_type_lf_map: Dict[int, Any] = {
-    event_trigger_lfs.Accident: event_trigger_lfs.lf_accident_context,
-    event_trigger_lfs.CanceledRoute: event_trigger_lfs.lf_canceledroute_cat,
-    event_trigger_lfs.CanceledStop: event_trigger_lfs.lf_canceledstop_cat,
-    event_trigger_lfs.Delay: event_trigger_lfs.lf_delay_cat,
-    event_trigger_lfs.Obstruction: event_trigger_lfs.lf_obstruction_cat,
-    event_trigger_lfs.RailReplacementService: event_trigger_lfs.lf_railreplacementservice_cat,
-    event_trigger_lfs.TrafficJam: event_trigger_lfs.lf_trafficjam_cat
+    trigger_lfs.Accident: trigger_lfs.lf_accident_chained,
+    trigger_lfs.CanceledRoute: trigger_lfs.lf_canceledroute_cat,
+    trigger_lfs.CanceledStop: trigger_lfs.lf_canceledstop_cat,
+    trigger_lfs.Delay: trigger_lfs.lf_delay_chained,
+    trigger_lfs.Obstruction: trigger_lfs.lf_obstruction_chained,
+    trigger_lfs.RailReplacementService: trigger_lfs.lf_railreplacementservice_cat,
+    trigger_lfs.TrafficJam: trigger_lfs.lf_trafficjam_chained
 }
 
 event_type_location_type_map: Dict[int, List[str]] = {
-    event_trigger_lfs.Accident: ['location', 'location_street', 'location_city', 'location_route'],
-    event_trigger_lfs.CanceledRoute: ['location_route'],
-    event_trigger_lfs.CanceledStop: ['location_stop'],
-    event_trigger_lfs.Delay: ['location_route'],
-    event_trigger_lfs.Obstruction: ['location', 'location_street', 'location_city', 'location_route'],
-    event_trigger_lfs.RailReplacementService: ['location_route'],
-    event_trigger_lfs.TrafficJam: ['location', 'location_street', 'location_city', 'location_route']
+    trigger_lfs.Accident: ['location', 'location_street', 'location_city', 'location_route'],
+    trigger_lfs.CanceledRoute: ['location_route'],
+    trigger_lfs.CanceledStop: ['location_stop'],
+    trigger_lfs.Delay: ['location_route'],
+    trigger_lfs.Obstruction: ['location', 'location_street', 'location_city', 'location_route'],
+    trigger_lfs.RailReplacementService: ['location_route'],
+    trigger_lfs.TrafficJam: ['location', 'location_street', 'location_city', 'location_route']
 }
 
 
@@ -147,7 +147,7 @@ def build_event_role_examples(dataframe):
             role_row['separate_sentence'] = preprocessors.get_somajo_separate_sentence(role_row)
             role_row['mixed_ner'] = mixed_ner
             role_row['mixed_ner_spans'] = mixed_ner_spans
-            role_row['not_an_event'] = event_trigger_lfs.lf_negative(role_row) == event_trigger_lfs.O
+            role_row['not_an_event'] = trigger_lfs.lf_negative(role_row) == trigger_lfs.O
             role_row['arg_location_type_event_type_match'] = arg_location_type_event_type_match(role_row)
             role_row['between_distance'] = preprocessors.get_between_distance(role_row)
             role_row['is_multiple_same_event_type'] = preprocessors.is_multiple_same_event_type(role_row)
@@ -246,22 +246,28 @@ def get_trigger_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
     df_train, _ = build_event_trigger_examples(l_train)
     if lfs is None:
         lfs = [
-            event_trigger_lfs.lf_accident_context,
-            event_trigger_lfs.lf_accident_context_street,
-            event_trigger_lfs.lf_canceledroute_cat,
-            event_trigger_lfs.lf_canceledstop_cat,
-            event_trigger_lfs.lf_delay_cat,
-            event_trigger_lfs.lf_delay_priorities,
-            event_trigger_lfs.lf_delay_duration,
-            event_trigger_lfs.lf_obstruction_cat,
-            event_trigger_lfs.lf_obstruction_street,
-            event_trigger_lfs.lf_obstruction_priorities,
-            event_trigger_lfs.lf_railreplacementservice_cat,
-            event_trigger_lfs.lf_trafficjam_cat,
-            event_trigger_lfs.lf_trafficjam_street,
-            event_trigger_lfs.lf_trafficjam_order,
-            event_trigger_lfs.lf_negative,
-            event_trigger_lfs.lf_cause_negative
+            trigger_lfs.lf_accident_chained,  # strenghten supervision signal
+            trigger_lfs.lf_accident_context,
+            trigger_lfs.lf_accident_context_street,
+            trigger_lfs.lf_accident_context_no_cause_check,
+            trigger_lfs.lf_canceledroute_cat,
+            trigger_lfs.lf_canceledstop_cat,
+            trigger_lfs.lf_delay_chained,  # strenghten supervision signal
+            trigger_lfs.lf_delay_cat,
+            trigger_lfs.lf_delay_priorities,
+            trigger_lfs.lf_delay_duration,
+            trigger_lfs.lf_obstruction_chained,  # strenghten supervision signal
+            trigger_lfs.lf_obstruction_cat,
+            trigger_lfs.lf_obstruction_street,
+            trigger_lfs.lf_obstruction_priorities,
+            trigger_lfs.lf_railreplacementservice_cat,
+            trigger_lfs.lf_trafficjam_chained,  # strenghten supervision signal
+            trigger_lfs.lf_trafficjam_cat,
+            trigger_lfs.lf_trafficjam_street,
+            trigger_lfs.lf_trafficjam_order,
+            trigger_lfs.lf_negative,
+            trigger_lfs.lf_cause_negative,
+            trigger_lfs.lf_obstruction_negative
         ]
     logging.info("Running Event Trigger Labeling Function Applier")
     applier = PandasLFApplier(lfs)
@@ -306,43 +312,40 @@ def get_role_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
     df_train, _ = build_event_role_examples(l_train)
     if lfs is None:
         lfs = [
-            event_argument_role_lfs.lf_location_same_sentence_is_event,
-            event_argument_role_lfs.lf_location_same_sentence_nearest_is_event,
-            event_argument_role_lfs.lf_location_chained,
-            event_argument_role_lfs.lf_location_adjacent_markers,
-            event_argument_role_lfs.lf_location_beginning_street_stop_route,
-            event_argument_role_lfs.lf_location_first_sentence,
-            event_argument_role_lfs.lf_location_first_sentence_nearest,
-            event_argument_role_lfs.lf_location_first_sentence_street_stop_route,
-            event_argument_role_lfs.lf_delay_event_sentence,
-            event_argument_role_lfs.lf_delay_event_sentence_check,
-            event_argument_role_lfs.lf_direction_markers,
-            event_argument_role_lfs.lf_direction_markers_order,
-            event_argument_role_lfs.lf_direction_pattern,
-            event_argument_role_lfs.lf_start_location_type,
-            event_argument_role_lfs.lf_start_location_nearest,
-            event_argument_role_lfs.lf_end_location_type,
-            event_argument_role_lfs.lf_end_location_nearest,
-            event_argument_role_lfs.lf_start_date_type,
-            event_argument_role_lfs.lf_start_date_first,
-            event_argument_role_lfs.lf_start_date_adjacent,
-            event_argument_role_lfs.lf_end_date_type,
-            event_argument_role_lfs.lf_cause_type,
-            event_argument_role_lfs.lf_cause_order,
-            event_argument_role_lfs.lf_cause_gaz_file,
-            event_argument_role_lfs.lf_distance_type,
-            event_argument_role_lfs.lf_distance_nearest,
-            event_argument_role_lfs.lf_route_type,
-            event_argument_role_lfs.lf_route_type_order,
-            event_argument_role_lfs.lf_delay_earlier_negative,
-            event_argument_role_lfs.lf_date_negative,
-            event_argument_role_lfs.lf_not_an_event,
-            event_argument_role_lfs.lf_somajo_separate_sentence,
-            event_argument_role_lfs.lf_overlapping,
-            event_argument_role_lfs.lf_too_far_40,
-            event_argument_role_lfs.lf_multiple_same_event_type,
-            event_argument_role_lfs.lf_event_patterns,
-            event_argument_role_lfs.lf_event_patterns_general_location
+            role_lfs.lf_location_adjacent_markers,
+            role_lfs.lf_location_adjacent_trigger_verb,
+            role_lfs.lf_location_beginning_street_stop_route,
+            role_lfs.lf_location_first_sentence_street_stop_route,
+            role_lfs.lf_location_first_sentence_priorities,
+            role_lfs.lf_delay_event_sentence,
+            role_lfs.lf_delay_event_sentence_check,
+            role_lfs.lf_direction_markers,
+            role_lfs.lf_direction_markers_order,
+            role_lfs.lf_direction_pattern,
+            role_lfs.lf_start_location_type,
+            role_lfs.lf_start_location_nearest,
+            role_lfs.lf_end_location_type,
+            role_lfs.lf_end_location_nearest,
+            role_lfs.lf_start_date_type,
+            role_lfs.lf_start_date_first,
+            role_lfs.lf_start_date_adjacent,
+            role_lfs.lf_end_date_type,
+            role_lfs.lf_cause_type,
+            role_lfs.lf_cause_order,
+            role_lfs.lf_cause_gaz_file,
+            role_lfs.lf_distance_type,
+            role_lfs.lf_distance_nearest,
+            role_lfs.lf_route_type,
+            role_lfs.lf_route_type_order,
+            role_lfs.lf_delay_earlier_negative,
+            role_lfs.lf_date_negative,
+            role_lfs.lf_not_an_event,
+            role_lfs.lf_somajo_separate_sentence,
+            role_lfs.lf_overlapping,
+            role_lfs.lf_too_far_40,
+            role_lfs.lf_multiple_same_event_type,
+            role_lfs.lf_event_patterns,
+            role_lfs.lf_event_patterns_general_location
         ]
     logging.info("Running Event Role Labeling Function Applier")
     applier = PandasLFApplier(lfs)
