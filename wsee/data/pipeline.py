@@ -189,6 +189,8 @@ def merge_event_trigger_examples(event_trigger_rows, event_trigger_probs):
     logging.info("Merging event trigger examples that belong to the same document")
     # add event_trigger_probs to dataframe as additional column
     event_trigger_rows['event_type_probs'] = list(event_trigger_probs)
+    if 'event_triggers' in event_trigger_rows:
+        event_trigger_rows.drop('event_triggers', axis=1, inplace=True)
     event_trigger_rows = event_trigger_rows.apply(build_labeled_event_trigger, axis=1)
     aggregation_functions = {
         'text': 'first',
@@ -225,9 +227,10 @@ def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_prob
     """
     # add event_trigger_probs to dataframe as additional column
     logging.info("Merging event role examples that belong to the same document")
-    event_role_rows_copy = event_role_rows.copy()
-    event_role_rows_copy['event_argument_probs'] = list(event_argument_probs)
-    event_role_rows_copy = event_role_rows_copy.apply(build_labeled_event_role, axis=1)
+    if 'event_roles' in event_role_rows:
+        event_role_rows.drop('event_roles', axis=1, inplace=True)
+    event_role_rows['event_argument_probs'] = list(event_argument_probs)
+    event_role_rows = event_role_rows.apply(build_labeled_event_role, axis=1)
     aggregation_functions = {
         'text': 'first',
         'tokens': 'first',
@@ -236,7 +239,7 @@ def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_prob
         'entities': 'first',
         'event_roles': 'sum'  # expects list of one event role per row
     }
-    return event_role_rows_copy.groupby('id').agg(aggregation_functions)
+    return event_role_rows.groupby('id').agg(aggregation_functions)
 
 
 def get_trigger_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
@@ -254,22 +257,21 @@ def get_trigger_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
     df_train, _ = build_event_trigger_examples(l_train)
     if lfs is None:
         lfs = [
-            trigger_lfs.lf_accident_chained,  # strenghten supervision signal
             trigger_lfs.lf_accident_context,
             trigger_lfs.lf_accident_context_street,
             trigger_lfs.lf_accident_context_no_cause_check,
             trigger_lfs.lf_canceledroute_cat,
+            trigger_lfs.lf_canceledroute_amplifier1,
             trigger_lfs.lf_canceledstop_cat,
-            trigger_lfs.lf_delay_chained,  # strenghten supervision signal
+            trigger_lfs.lf_canceledstop_amplifier1,
             trigger_lfs.lf_delay_cat,
             trigger_lfs.lf_delay_priorities,
             trigger_lfs.lf_delay_duration,
-            trigger_lfs.lf_obstruction_chained,  # strenghten supervision signal
             trigger_lfs.lf_obstruction_cat,
             trigger_lfs.lf_obstruction_street,
             trigger_lfs.lf_obstruction_priorities,
             trigger_lfs.lf_railreplacementservice_cat,
-            trigger_lfs.lf_trafficjam_chained,  # strenghten supervision signal
+            trigger_lfs.lf_railreplacementservice_amplifier1,
             trigger_lfs.lf_trafficjam_cat,
             trigger_lfs.lf_trafficjam_street,
             trigger_lfs.lf_trafficjam_order,
@@ -285,14 +287,14 @@ def get_trigger_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
         label_model = LabelModel(cardinality=8, verbose=True)
         label_model.fit(L_train=L_train, n_epochs=500, log_freq=100, seed=123,
                         class_balance=[
-                            0.07221542227662178,
-                            0.07466340269277846,
-                            0.030599755201958383,
-                            0.0795593635250918,
-                            0.12362301101591187,
-                            0.02692778457772338,
-                            0.189718482252142,
-                            0.40269277845777235]
+                            0.05769230769230769,
+                            0.24038461538461536,
+                            0.028846153846153844,
+                            0.2019230769230769,
+                            0.19230769230769232,
+                            0.09615384615384616,
+                            0.028846153846153844,
+                            0.15384615384615385]
                         )
     event_trigger_probs = label_model.predict_proba(L_train)
 
@@ -326,25 +328,33 @@ def get_role_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
             role_lfs.lf_location_first_sentence_street_stop_route,
             role_lfs.lf_location_first_sentence_priorities,
             role_lfs.lf_delay_event_sentence,
-            role_lfs.lf_delay_event_sentence_check,
+            role_lfs.lf_delay_preceding_arg,
+            role_lfs.lf_delay_preceding_trigger,
             role_lfs.lf_direction_markers,
             role_lfs.lf_direction_markers_order,
             role_lfs.lf_direction_pattern,
+            role_lfs.lf_direction_markers_pattern_order,
             role_lfs.lf_start_location_type,
             role_lfs.lf_start_location_nearest,
+            role_lfs.lf_start_location_preceding_arg,
             role_lfs.lf_end_location_type,
             role_lfs.lf_end_location_nearest,
+            role_lfs.lf_end_location_preceding_arg,
             role_lfs.lf_start_date_type,
+            role_lfs.lf_start_date_amplifier,
             role_lfs.lf_start_date_first,
             role_lfs.lf_start_date_adjacent,
             role_lfs.lf_end_date_type,
+            role_lfs.lf_end_date_amplifier,
             role_lfs.lf_cause_type,
+            role_lfs.lf_cause_amplifier,
             role_lfs.lf_cause_order,
-            role_lfs.lf_cause_gaz_file,
             role_lfs.lf_distance_type,
             role_lfs.lf_distance_nearest,
+            role_lfs.lf_distance_order,
             role_lfs.lf_route_type,
             role_lfs.lf_route_type_order,
+            role_lfs.lf_route_type_order_between_check,
             role_lfs.lf_delay_earlier_negative,
             role_lfs.lf_date_negative,
             role_lfs.lf_not_an_event,
@@ -363,17 +373,17 @@ def get_role_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
         label_model = LabelModel(cardinality=11, verbose=True)
         label_model.fit(L_train=L_train, n_epochs=500, log_freq=100, seed=123,
                         class_balance=[
-                            0.07511483382869495,
-                            0.010537692515536342,
-                            0.037017022426371254,
-                            0.04998649013780059,
-                            0.0466090245879492,
-                            0.0045933531477978925,
-                            0.0054039448797622265,
-                            0.013915158065387734,
-                            0.018238313969197513,
-                            0.0031072683058632803,
-                            0.735476898135639
+                            0.043066322136089574,
+                            0.00717772035601493,
+                            0.00717772035601493,
+                            0.018662072925638817,
+                            0.011484352569623888,
+                            0.011484352569623888,
+                            0.002871088142405972,
+                            0.005742176284811944,
+                            0.0008613264427217915,
+                            0.001435544071202986,
+                            0.8900373241458512
                         ])
     event_role_probs = label_model.predict_proba(L_train)
 
@@ -406,6 +416,8 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) ->
                 save_path + '/daystream_triggers.jsonl', orient='records', lines=True, force_ascii=False)
         except Exception as e:
             print(e)
+
+    # TODO: use event trigger information from trigger examples for role labeling
 
     merged_event_role_examples = get_role_probs(lf_train)
 
