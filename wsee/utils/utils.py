@@ -52,5 +52,5 @@ def zero_out_abstains(y: np.ndarray, L: np.ndarray) -> np.ndarray:
             are set to zero.
     """
     mask = (L == -1).all(axis=1)
-    y[mask] += 0.0
+    y[mask] *= 0.0
     return y
