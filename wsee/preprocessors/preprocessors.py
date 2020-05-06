@@ -136,6 +136,13 @@ def get_windowed_left_ner(entity: Dict, ner: List[str], window_size: int = None)
     return get_windowed_left_tokens(entity, ner, window_size)
 
 
+def get_between_text(cand: DataPoint) -> str:
+    min_end: int = min(cand.trigger['char_end'], cand.argument['char_end'])
+    max_start: int = max(cand.trigger['char_start'], cand.argument['char_start'])
+    between_text: str = cand.text[min_end:max_start]
+    return between_text
+
+
 @preprocessor()
 def pre_trigger_right_tokens(cand: DataPoint) -> DataPoint:
     trigger: Dict[str, Any] = cand.trigger
@@ -587,10 +594,10 @@ def get_sentence_entities(cand: DataPoint) -> List[Dict[str, Any]]:
 
 
 def is_multiple_same_event_type(cand: DataPoint) -> bool:
-    between_tokens: List[str] = get_between_tokens(cand)
+    between_text: str = get_between_text(cand)
     trigger: Dict[str, Any] = cand.trigger
     trigger_text: str = trigger['text']
-    if trigger_text in between_tokens:
+    if trigger_text in between_text:
         return True
     else:
         return False
