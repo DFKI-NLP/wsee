@@ -391,14 +391,14 @@ def lf_delay_earlier_negative(x):
 
 
 # direction role
-def lf_direction(x, order=False, markers=True, pattern=True):
+def lf_direction(x, preceding_arg=False, markers=True, pattern=True):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['location', 'location_city', 'location_stop', 'location_street']:
             argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
             if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or x.separate_sentence or x.not_an_event:
                 return ABSTAIN
-            if order and x.argument['start'] > x.trigger['start']:
+            if preceding_arg and x.argument['start'] > x.trigger['start']:
                 return ABSTAIN
             article_preposition_offset = get_article_preposition_offset(argument_left_tokens)
 
@@ -431,21 +431,26 @@ def has_direction_pattern(argument_left_tokens, argument_left_ner):
 
 @labeling_function(pre=[])
 def lf_direction_markers(x):
-    return lf_direction(x, order=False, markers=True, pattern=False)
+    return lf_direction(x, preceding_arg=False, markers=True, pattern=False)
 
 
 @labeling_function(pre=[])
 def lf_direction_markers_order(x):
-    return lf_direction(x, order=True, markers=True, pattern=False)
+    return lf_direction(x, preceding_arg=True, markers=True, pattern=False)
 
 
 @labeling_function(pre=[])
 def lf_direction_pattern(x):
-    return lf_direction(x, order=False, markers=False, pattern=True)
+    return lf_direction(x, preceding_arg=False, markers=False, pattern=True)
+
+
+@labeling_function(pre=[])
+def lf_direction_markers_pattern_order(x):
+    return lf_direction(x, preceding_arg=True, markers=True, pattern=True)
 
 
 # start_loc
-def lf_start_location(x, nearest=False):
+def lf_start_location(x, preceding_arg=False, nearest=False):
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
         argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
@@ -456,6 +461,8 @@ def lf_start_location(x, nearest=False):
                 event_trigger_lfs.lf_canceledstop_cat(x) == event_trigger_lfs.CanceledStop:
             return ABSTAIN
         if x.separate_sentence or x.not_an_event:
+            return ABSTAIN
+        if preceding_arg and x.argument['start'] > x.trigger['start']:
             return ABSTAIN
         if nearest:
             between_distance = x.between_distance
@@ -491,16 +498,21 @@ def has_start_location_markers(argument_left_tokens, argument_right_tokens,
 
 @labeling_function(pre=[])
 def lf_start_location_type(x):
-    return lf_start_location(x, nearest=False)
+    return lf_start_location(x, preceding_arg=False, nearest=False)
+
+
+@labeling_function(pre=[])
+def lf_start_location_preceding_arg(x):
+    return lf_start_location(x, preceding_arg=True, nearest=False)
 
 
 @labeling_function(pre=[])
 def lf_start_location_nearest(x):
-    return lf_start_location(x, nearest=True)
+    return lf_start_location(x, preceding_arg=False, nearest=True)
 
 
 # end_loc
-def lf_end_location(x, nearest=False):
+def lf_end_location(x, preceding_arg=False, nearest=False):
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location', 'location_street', 'location_city', 'location_stop']:
         argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
@@ -513,7 +525,8 @@ def lf_end_location(x, nearest=False):
             all_trigger_distances = get_all_trigger_distances(x)
             if not is_nearest_trigger(between_distance, all_trigger_distances):
                 return ABSTAIN
-
+        if preceding_arg and x.argument['start'] > x.trigger['start']:
+            return ABSTAIN
         if len(argument_left_tokens) > 2 and argument_left_tokens[-3].lower() in ['nach', 'richtung', 'fahrtrichtung',
                                                                                   '->'] \
                 and argument_left_tokens[-1] == '-':
@@ -562,6 +575,11 @@ def lf_end_location_type(x):
 
 
 @labeling_function(pre=[])
+def lf_end_location_preceding_arg(x):
+    return lf_end_location(x, preceding_arg=True, nearest=False)
+
+
+@labeling_function(pre=[])
 def lf_end_location_nearest(x):
     return lf_end_location(x, nearest=True)
 
@@ -584,6 +602,11 @@ def lf_start_date_type(x):
             elif has_start_date_markers(argument_left_tokens, argument_right_tokens, argument_right_ner):
                 return start_date
     return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_start_date_amplifier(x):
+    return lf_start_date_type(x)
 
 
 def has_start_date_markers(argument_left_tokens, argument_right_tokens, argument_right_ner):
@@ -673,6 +696,11 @@ def lf_end_date_type(x):
     return ABSTAIN
 
 
+@labeling_function(pre=[])
+def lf_end_date_amplifier(x):
+    return lf_end_date_type(x)
+
+
 def has_end_date_markers(argument_left_tokens, argument_left_ner):
     if ((any(token.lower() in ['bis', 'endet', 'enden'] for token in argument_left_tokens[-3:]) and
          not any(token.lower() in ['von', 'ab', 'vom'] for token in argument_left_tokens[-2:])) or
@@ -703,13 +731,18 @@ def lf_cause_type(x):
 
 
 @labeling_function(pre=[])
+def lf_cause_amplifier(x):
+    return lf_cause_type(x)
+
+
+@labeling_function(pre=[])
 def lf_cause_order(x):
     if check_required_args(x.entity_type_freqs):
         arg_entity_type = x.argument['entity_type']
         if arg_entity_type in ['trigger', 'event_cause']:
             argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
             argument_right_tokens = get_windowed_right_tokens(x.argument, x.tokens)
-            between_distance = get_entity_distance(x.argument, x.trigger)
+            between_distance = x.between_distance
             if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
                     x.separate_sentence or x.not_an_event:
                 return ABSTAIN
@@ -770,10 +803,23 @@ def lf_distance_nearest(x):
     return ABSTAIN
 
 
+@labeling_function(pre=[])
+def lf_distance_order(x):
+    if check_required_args(x.entity_type_freqs):
+        arg_entity_type = x.argument['entity_type']
+        if arg_entity_type in ['distance']:
+            if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
+                    x.separate_sentence:
+                return ABSTAIN
+            elif event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam and \
+                    x.argument['start'] < x.trigger['start'] and x.between_distance < 2:
+                return jam_length
+    return ABSTAIN
+
+
 # route
 @labeling_function(pre=[])
 def lf_route_type(x):
-    # purely distance based for now: could use dependency parsing/ context words
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location_route']:
         if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
@@ -786,7 +832,6 @@ def lf_route_type(x):
 
 @labeling_function(pre=[])
 def lf_route_type_order(x):
-    # purely distance based for now: could use dependency parsing/ context words
     arg_entity_type = x.argument['entity_type']
     if arg_entity_type in ['location_route']:
         if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
@@ -795,6 +840,22 @@ def lf_route_type_order(x):
         if event_trigger_lfs.lf_canceledstop_cat(x) == event_trigger_lfs.CanceledStop and \
                 x.argument['start'] < x.trigger['start']:
             return route
+    return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_route_type_order_between_check(x):
+    arg_entity_type = x.argument['entity_type']
+    if arg_entity_type in ['location_route']:
+        if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
+                x.separate_sentence:
+            return ABSTAIN
+        elif event_trigger_lfs.lf_canceledstop_cat(x) == event_trigger_lfs.CanceledStop and \
+                x.argument['start'] < x.trigger['start']:
+            between_text: str = get_between_text(x)
+            if x.argument['text'] not in between_text:
+                # Only works if the character spans are correct
+                return route
     return ABSTAIN
 
 
