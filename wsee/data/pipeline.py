@@ -1,7 +1,7 @@
 import os
 import logging
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
 
 import pandas as pd
 import numpy as np
@@ -9,12 +9,31 @@ from snorkel.labeling import LabelModel, PandasLFApplier, labeling_function, fil
 from tqdm import tqdm
 
 from wsee.preprocessors import preprocessors
-from wsee.labeling import event_trigger_lfs
-from wsee.labeling import event_argument_role_lfs
+from wsee.labeling import event_trigger_lfs as trigger_lfs
+from wsee.labeling import event_argument_role_lfs as role_lfs
 from wsee.utils import utils
 
-
 logging.basicConfig(level=logging.INFO)
+
+event_type_lf_map: Dict[int, Any] = {
+    trigger_lfs.Accident: trigger_lfs.lf_accident_chained,
+    trigger_lfs.CanceledRoute: trigger_lfs.lf_canceledroute_cat,
+    trigger_lfs.CanceledStop: trigger_lfs.lf_canceledstop_cat,
+    trigger_lfs.Delay: trigger_lfs.lf_delay_chained,
+    trigger_lfs.Obstruction: trigger_lfs.lf_obstruction_chained,
+    trigger_lfs.RailReplacementService: trigger_lfs.lf_railreplacementservice_cat,
+    trigger_lfs.TrafficJam: trigger_lfs.lf_trafficjam_chained
+}
+
+event_type_location_type_map: Dict[int, List[str]] = {
+    trigger_lfs.Accident: ['location', 'location_street', 'location_city', 'location_route'],
+    trigger_lfs.CanceledRoute: ['location_route'],
+    trigger_lfs.CanceledStop: ['location_stop'],
+    trigger_lfs.Delay: ['location_route'],
+    trigger_lfs.Obstruction: ['location', 'location_street', 'location_city', 'location_route'],
+    trigger_lfs.RailReplacementService: ['location_route'],
+    trigger_lfs.TrafficJam: ['location', 'location_street', 'location_city', 'location_route']
+}
 
 
 def load_data(path, use_build_defaults=True):
@@ -85,11 +104,20 @@ def build_event_trigger_examples(dataframe):
     return event_trigger_rows, event_trigger_rows_y
 
 
+def arg_location_type_event_type_match(cand):
+    arg_entity_type = cand.argument['entity_type']
+    for event_class, location_types in event_type_location_type_map.items():
+        if arg_entity_type in location_types and event_type_lf_map[event_class](cand) == event_class:
+            return True
+    return False
+
+
 def build_event_role_examples(dataframe):
     """
     Takes a dataframe containing one document per row with all its annotations
     (event roles are of interest here) and creates one row for each trigger-entity
-    (event role) pair.
+    (event role) pair. Also adds attributes beforehand instead of using preprocessors in
+    order not to do it for each row or even each row*labeling functions.
     :param dataframe: Annotated documents.
     :return: DataFrame containing event role examples and NumPy array containing labels.
     """
@@ -101,6 +129,9 @@ def build_event_role_examples(dataframe):
 
     logging.info("Building event role examples")
     logging.info(f"DataFrame has {len(dataframe.index)} rows")
+    logging.info("Adding the following attributes to each row: "
+                 "entity_type_freqs, somajo_doc, mixed_ner, mixed_ner_spans, not_an_event, arg_type_event_type_match, "
+                 "between_distance, is_multiple_same_event_type")
     for index, row in tqdm(dataframe.iterrows()):
         entity_type_freqs = preprocessors.get_entity_type_freqs(row)
         somajo_doc = preprocessors.get_somajo_doc(row)
@@ -111,8 +142,13 @@ def build_event_role_examples(dataframe):
             role_row['argument'] = preprocessors.get_entity(event_role['argument'], row.entities)
             role_row['entity_type_freqs'] = entity_type_freqs
             role_row['somajo_doc'] = somajo_doc
+            role_row['separate_sentence'] = preprocessors.get_somajo_separate_sentence(role_row)
             role_row['mixed_ner'] = mixed_ner
             role_row['mixed_ner_spans'] = mixed_ner_spans
+            role_row['not_an_event'] = trigger_lfs.lf_negative(role_row) == trigger_lfs.O
+            role_row['arg_location_type_event_type_match'] = arg_location_type_event_type_match(role_row)
+            role_row['between_distance'] = preprocessors.get_between_distance(role_row)
+            role_row['is_multiple_same_event_type'] = preprocessors.is_multiple_same_event_type(role_row)
             event_role_rows_list.append(role_row)
             event_role_num = np.asarray(event_role['event_argument_probs']).argmax()
             event_role_rows_y.append(event_role_num)
@@ -153,8 +189,15 @@ def merge_event_trigger_examples(event_trigger_rows, event_trigger_probs):
     logging.info("Merging event trigger examples that belong to the same document")
     # add event_trigger_probs to dataframe as additional column
     event_trigger_rows['event_type_probs'] = list(event_trigger_probs)
+    if 'event_triggers' in event_trigger_rows:
+        event_trigger_rows.drop('event_triggers', axis=1, inplace=True)
     event_trigger_rows = event_trigger_rows.apply(build_labeled_event_trigger, axis=1)
     aggregation_functions = {
+        'text': 'first',
+        'tokens': 'first',
+        # 'pos_tags': 'first',
+        'ner_tags': 'first',
+        'entities': 'first',
         'event_triggers': 'sum',  # expects list of one trigger per row
     }
     return event_trigger_rows.groupby('id').agg(aggregation_functions)
@@ -184,13 +227,19 @@ def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_prob
     """
     # add event_trigger_probs to dataframe as additional column
     logging.info("Merging event role examples that belong to the same document")
-    event_role_rows_copy = event_role_rows.copy()
-    event_role_rows_copy['event_argument_probs'] = list(event_argument_probs)
-    event_role_rows_copy = event_role_rows_copy.apply(build_labeled_event_role, axis=1)
+    if 'event_roles' in event_role_rows:
+        event_role_rows.drop('event_roles', axis=1, inplace=True)
+    event_role_rows['event_argument_probs'] = list(event_argument_probs)
+    event_role_rows = event_role_rows.apply(build_labeled_event_role, axis=1)
     aggregation_functions = {
+        'text': 'first',
+        'tokens': 'first',
+        # 'pos_tags': 'first',
+        'ner_tags': 'first',
+        'entities': 'first',
         'event_roles': 'sum'  # expects list of one event role per row
     }
-    return event_role_rows_copy.groupby('id').agg(aggregation_functions)
+    return event_role_rows.groupby('id').agg(aggregation_functions)
 
 
 def get_trigger_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
@@ -208,22 +257,27 @@ def get_trigger_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
     df_train, _ = build_event_trigger_examples(l_train)
     if lfs is None:
         lfs = [
-            event_trigger_lfs.lf_accident_context,
-            event_trigger_lfs.lf_accident_context_street,
-            event_trigger_lfs.lf_canceledroute_cat,
-            event_trigger_lfs.lf_canceledstop_cat,
-            event_trigger_lfs.lf_delay_cat,
-            event_trigger_lfs.lf_delay_priorities,
-            event_trigger_lfs.lf_delay_duration,
-            event_trigger_lfs.lf_obstruction_cat,
-            event_trigger_lfs.lf_obstruction_street,
-            event_trigger_lfs.lf_obstruction_priorities,
-            event_trigger_lfs.lf_railreplacementservice_cat,
-            event_trigger_lfs.lf_trafficjam_cat,
-            event_trigger_lfs.lf_trafficjam_street,
-            event_trigger_lfs.lf_trafficjam_order,
-            event_trigger_lfs.lf_negative,
-            event_trigger_lfs.lf_cause_negative
+            trigger_lfs.lf_accident_context,
+            trigger_lfs.lf_accident_context_street,
+            trigger_lfs.lf_accident_context_no_cause_check,
+            trigger_lfs.lf_canceledroute_cat,
+            trigger_lfs.lf_canceledroute_amplifier1,
+            trigger_lfs.lf_canceledstop_cat,
+            trigger_lfs.lf_canceledstop_amplifier1,
+            trigger_lfs.lf_delay_cat,
+            trigger_lfs.lf_delay_priorities,
+            trigger_lfs.lf_delay_duration,
+            trigger_lfs.lf_obstruction_cat,
+            trigger_lfs.lf_obstruction_street,
+            trigger_lfs.lf_obstruction_priorities,
+            trigger_lfs.lf_railreplacementservice_cat,
+            trigger_lfs.lf_railreplacementservice_amplifier1,
+            trigger_lfs.lf_trafficjam_cat,
+            trigger_lfs.lf_trafficjam_street,
+            trigger_lfs.lf_trafficjam_order,
+            trigger_lfs.lf_negative,
+            trigger_lfs.lf_cause_negative,
+            trigger_lfs.lf_obstruction_negative
         ]
     logging.info("Running Event Trigger Labeling Function Applier")
     applier = PandasLFApplier(lfs)
@@ -233,14 +287,14 @@ def get_trigger_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
         label_model = LabelModel(cardinality=8, verbose=True)
         label_model.fit(L_train=L_train, n_epochs=500, log_freq=100, seed=123,
                         class_balance=[
-                            0.07099143206854346,
-                            0.13219094247246022,
-                            0.03182374541003672,
-                            0.0795593635250918,
-                            0.12607099143206854,
-                            0.028151774785801713,
-                            0.189718482252142,
-                            0.34149326805385555]
+                            0.05769230769230769,
+                            0.24038461538461536,
+                            0.028846153846153844,
+                            0.2019230769230769,
+                            0.19230769230769232,
+                            0.09615384615384616,
+                            0.028846153846153844,
+                            0.15384615384615385]
                         )
     event_trigger_probs = label_model.predict_proba(L_train)
 
@@ -251,7 +305,7 @@ def get_trigger_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
 
         return merge_event_trigger_examples(df_train_filtered, probs_train_filtered)
     else:
-        return merge_event_trigger_examples(df_train, event_trigger_probs)
+        return merge_event_trigger_examples(df_train, utils.zero_out_abstains(event_trigger_probs, L_train))
 
 
 def get_role_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
@@ -268,41 +322,48 @@ def get_role_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
     df_train, _ = build_event_role_examples(l_train)
     if lfs is None:
         lfs = [
-            event_argument_role_lfs.lf_location_same_sentence_is_event,
-            event_argument_role_lfs.lf_location_same_sentence_nearest_is_event,
-            event_argument_role_lfs.lf_location_chained,
-            event_argument_role_lfs.lf_location_adjacent_markers,
-            event_argument_role_lfs.lf_location_beginning_street_stop_route,
-            event_argument_role_lfs.lf_location_first_sentence,
-            event_argument_role_lfs.lf_location_first_sentence_nearest,
-            event_argument_role_lfs.lf_location_first_sentence_street_stop_route,
-            event_argument_role_lfs.lf_location_first_sentence_priorities,
-            event_argument_role_lfs.lf_delay_event_sentence,
-            event_argument_role_lfs.lf_delay_event_sentence_check,
-            event_argument_role_lfs.lf_direction_type,
-            event_argument_role_lfs.lf_direction_order,
-            event_argument_role_lfs.lf_start_location_type,
-            event_argument_role_lfs.lf_start_location_nearest,
-            event_argument_role_lfs.lf_end_location_type,
-            event_argument_role_lfs.lf_end_location_nearest,
-            event_argument_role_lfs.lf_start_date_type,
-            event_argument_role_lfs.lf_start_date_first,
-            event_argument_role_lfs.lf_start_date_adjacent,
-            event_argument_role_lfs.lf_end_date_type,
-            event_argument_role_lfs.lf_cause_type,
-            event_argument_role_lfs.lf_cause_order,
-            event_argument_role_lfs.lf_cause_gaz_file,
-            event_argument_role_lfs.lf_distance_type,
-            event_argument_role_lfs.lf_distance_nearest,
-            event_argument_role_lfs.lf_route_type,
-            event_argument_role_lfs.lf_route_type_order,
-            event_argument_role_lfs.lf_not_an_event,
-            event_argument_role_lfs.lf_somajo_separate_sentence,
-            event_argument_role_lfs.lf_overlapping,
-            event_argument_role_lfs.lf_too_far_40,
-            event_argument_role_lfs.lf_multiple_same_event_type,
-            event_argument_role_lfs.lf_event_patterns,
-            event_argument_role_lfs.lf_event_patterns_general_location
+            role_lfs.lf_location_adjacent_markers,
+            role_lfs.lf_location_adjacent_trigger_verb,
+            role_lfs.lf_location_beginning_street_stop_route,
+            role_lfs.lf_location_first_sentence_street_stop_route,
+            role_lfs.lf_location_first_sentence_priorities,
+            role_lfs.lf_delay_event_sentence,
+            role_lfs.lf_delay_preceding_arg,
+            role_lfs.lf_delay_preceding_trigger,
+            role_lfs.lf_direction_markers,
+            role_lfs.lf_direction_markers_order,
+            role_lfs.lf_direction_pattern,
+            role_lfs.lf_direction_markers_pattern_order,
+            role_lfs.lf_start_location_type,
+            role_lfs.lf_start_location_nearest,
+            role_lfs.lf_start_location_preceding_arg,
+            role_lfs.lf_end_location_type,
+            role_lfs.lf_end_location_nearest,
+            role_lfs.lf_end_location_preceding_arg,
+            role_lfs.lf_start_date_type,
+            role_lfs.lf_start_date_amplifier,
+            role_lfs.lf_start_date_first,
+            role_lfs.lf_start_date_adjacent,
+            role_lfs.lf_end_date_type,
+            role_lfs.lf_end_date_amplifier,
+            role_lfs.lf_cause_type,
+            role_lfs.lf_cause_amplifier,
+            role_lfs.lf_cause_order,
+            role_lfs.lf_distance_type,
+            role_lfs.lf_distance_nearest,
+            role_lfs.lf_distance_order,
+            role_lfs.lf_route_type,
+            role_lfs.lf_route_type_order,
+            role_lfs.lf_route_type_order_between_check,
+            role_lfs.lf_delay_earlier_negative,
+            role_lfs.lf_date_negative,
+            role_lfs.lf_not_an_event,
+            role_lfs.lf_somajo_separate_sentence,
+            role_lfs.lf_overlapping,
+            role_lfs.lf_too_far_40,
+            role_lfs.lf_multiple_same_event_type,
+            role_lfs.lf_event_patterns,
+            role_lfs.lf_event_patterns_general_location
         ]
     logging.info("Running Event Role Labeling Function Applier")
     applier = PandasLFApplier(lfs)
@@ -312,17 +373,17 @@ def get_role_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
         label_model = LabelModel(cardinality=11, verbose=True)
         label_model.fit(L_train=L_train, n_epochs=500, log_freq=100, seed=123,
                         class_balance=[
-                            0.08200486355039178,
-                            0.010537692515536342,
-                            0.03971899486625236,
-                            0.056606322615509325,
-                            0.05322885706565793,
-                            0.005133747635774115,
-                            0.005944339367738449,
-                            0.013915158065387734,
-                            0.018238313969197513,
-                            0.0032423669278573357,
-                            0.7114293434206971
+                            0.043066322136089574,
+                            0.00717772035601493,
+                            0.00717772035601493,
+                            0.018662072925638817,
+                            0.011484352569623888,
+                            0.011484352569623888,
+                            0.002871088142405972,
+                            0.005742176284811944,
+                            0.0008613264427217915,
+                            0.001435544071202986,
+                            0.8900373241458512
                         ])
     event_role_probs = label_model.predict_proba(L_train)
 
@@ -333,7 +394,7 @@ def get_role_probs(l_train: pd.DataFrame, filter_abstains: bool = True,
 
         return merge_event_role_examples(df_train_filtered, probs_train_filtered)
     else:
-        return merge_event_role_examples(df_train, event_role_probs)
+        return merge_event_role_examples(df_train, utils.zero_out_abstains(event_role_probs, L_train))
 
 
 def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) -> pd.DataFrame:
@@ -356,6 +417,8 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) ->
         except Exception as e:
             print(e)
 
+    # TODO: use event trigger information from trigger examples for role labeling
+
     merged_event_role_examples = get_role_probs(lf_train)
 
     if save_path:
@@ -374,19 +437,30 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False) ->
     if 'id' in merged_examples:
         merged_examples.set_index('id', inplace=True)
 
-    merged_examples.update(merged_event_trigger_examples)
-    merged_examples.update(merged_event_role_examples)
+    merged_examples.update(
+        merged_event_trigger_examples.drop(['text', 'tokens', 'ner_tags', 'entities'], axis=1, inplace=True))
+    merged_examples.update(
+        merged_event_role_examples.drop(['text', 'tokens', 'ner_tags', 'entities'], axis=1, inplace=True))
 
     merged_examples.reset_index(level=0, inplace=True)
 
     # Removes rows with no events
     merged_examples = merged_examples[merged_examples['event_triggers'].map(lambda d: len(d)) > 0]
 
+    # # Create additional version where the most probable class gets probability 1.0
+    # dominated_examples: pd.DataFrame = utils.get_deep_copy(merged_examples)
+    # dominated_examples.apply(utils.let_most_probable_class_dominate, axis=1)
+
     if save_path:
         try:
-            logging.info(f"Writing Snorkel Labeled data to {save_path+'/daystream_snorkeledv6_pipeline.jsonl'}")
+            logging.info(f"Writing Snorkel Labeled data to {save_path + '/daystream_snorkeledv6_pipeline.jsonl'}")
             merged_examples.to_json(
                 save_path + '/daystream_snorkeledv6_pipeline.jsonl', orient='records', lines=True, force_ascii=False)
+            # logging.info(f"Writing Snorkel Labeled data where probability of most probable class is set to 1.0 "
+            #              f"to {save_path + '/daystream_snorkeledv6_pipeline_dominated.jsonl'}")
+            # dominated_examples.to_json(
+            #     save_path + '/daystream_snorkeledv6_pipeline_dominated.jsonl', orient='records', lines=True,
+            #     force_ascii=False)
         except Exception as e:
             print(e)
     return merged_examples

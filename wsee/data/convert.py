@@ -2,12 +2,18 @@ import argparse
 from pathlib import Path
 
 import pandas as pd
+import logging
 from fastavro import reader
 from tqdm import tqdm
-from typing import Dict
+from typing import Dict, List, Any, Tuple
+from fuzzywuzzy import fuzz
 
 from wsee import NEGATIVE_ARGUMENT_LABEL, NEGATIVE_TRIGGER_LABEL, SD4M_RELATION_TYPES, ROLE_LABELS
 from wsee.utils import encode
+
+logging.basicConfig(level=logging.INFO)
+check_counter: int = 0
+fix_counter: int = 0
 
 
 def main(args):
@@ -17,34 +23,42 @@ def main(args):
     one_hot = args.one_hot
     build_defaults = args.build_default_events
     use_first_trigger = args.use_first_trigger
+    convert_event_cause = args.convert_event_cause
 
-    print(f"Reading input from: {input_path}")
-    print(f"With settings: one_hot ({one_hot}), build_defaults ({build_defaults}), "
-          f"use_first_trigger ({use_first_trigger})")
+    logging.info(f"Reading input from: {input_path}")
+    logging.info(f"With settings: one_hot ({one_hot}), build_defaults ({build_defaults}), "
+                 f"use_first_trigger ({use_first_trigger}), convert_event_cause ({convert_event_cause})")
 
     daystream = []
     for split in ['train', 'dev', 'test']:
+        logging.info(f'Working on {split}-split')
         input_file = input_path.joinpath(split, f'{split}.avro')
         if build_defaults:
             output_file = input_path.joinpath(split, f'{split}_with_events_and_defaults.jsonl')
         else:
             output_file = input_path.joinpath(split, f'{split}_with_events.jsonl')
-        smart_data, daystream_part = convert_file(input_file, one_hot, build_defaults, use_first_trigger)
+        smart_data, daystream_part = convert_file(input_file, one_hot, build_defaults,
+                                                  use_first_trigger, convert_event_cause)
         smart_data.to_json(output_file, orient='records', lines=True, force_ascii=False)
         daystream.append(daystream_part)
+        global check_counter
+        global fix_counter
+        logging.info(f"Found {check_counter} entity span issues (running sum)")
+        logging.info(f"Fixed {fix_counter} entity span issues (running sum)")
     daystream = pd.concat(daystream, sort=False).reset_index(drop=True)
     daystream_output_file = input_path.joinpath('daystream.jsonl')
     daystream.to_json(daystream_output_file, orient='records', lines=True, force_ascii=False)
 
 
-def convert_file(file_path, one_hot=False, build_defaults=False, use_first_trigger: bool = False):
+def convert_file(file_path, one_hot=False, build_defaults=False, use_first_trigger: bool = False,
+                 convert_event_cause: bool = False):
     sd_list = []
     daystream_list = []
     with open(file_path, 'rb') as input_file:
         avro_reader = reader(input_file)
         for doc in tqdm(avro_reader):
             converted_doc = convert_doc(doc=doc, one_hot=one_hot, build_defaults=build_defaults,
-                                        use_first_trigger=use_first_trigger)
+                                        use_first_trigger=use_first_trigger, convert_event_cause=convert_event_cause)
             if converted_doc:
                 if _is_smart_data_doc(doc):
                     sd_list.append(converted_doc)
@@ -55,23 +69,25 @@ def convert_file(file_path, one_hot=False, build_defaults=False, use_first_trigg
     return smart_data, daystream
 
 
-def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults=False, use_first_trigger: bool = False):
+def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults: bool = False,
+                use_first_trigger: bool = False, convert_event_cause: bool = False):
     if doc_text is None:
         try:
             doc_text = str(doc['text'])
         except KeyError:
-            print(doc['id'], "gave KeyError for doc['text'] and doc_text was None.")
+            logging.info(doc['id'], "gave KeyError for doc['text'] and doc_text was None.")
             return None
     s_id = doc['id']
     text = span_to_text(doc_text, doc['span']) if 'span' in doc else doc_text
     tokens = [span_to_text(doc_text, token['span']) for token in
               doc['tokens']]
-    ner_tags = _convert_ner_tags([token['ner'] for token in doc['tokens']])
+    ner_tags = _convert_ner_tags([token['ner'] for token in doc['tokens']], convert_event_cause)
     pos_tags = [token['posTag'] for token in doc['tokens']]
 
     entities = []
     for cm in doc['conceptMentions']:
-        converted_entity = convert_entity(text=doc_text, tokens=doc['tokens'], entity=cm)
+        converted_entity = convert_entity(text=doc_text, tokens=doc['tokens'], entity=cm,
+                                          convert_event_cause=convert_event_cause, doc_id=s_id)
         if converted_entity:
             entities.append(converted_entity)
 
@@ -115,7 +131,7 @@ def get_events(relations, one_hot, use_first_trigger: bool = False):
         # collect trigger(s) in relation mention
         triggers = [arg for arg in rm['args'] if arg['role'] == 'trigger']
         if not triggers:
-            print(f'Skipping invalid event: {rm}')
+            logging.info(f'Skipping invalid event: {rm}')
             continue
         if use_first_trigger:
             # if there is a "aus" in triggers choose the "fallen"/"fällt"
@@ -218,7 +234,7 @@ def update_events(event_triggers, event_roles, relations, one_hot: bool = True, 
         # collect trigger(s) in relation mention
         triggers = [arg for arg in rm['args'] if arg['role'] == 'trigger']
         if not triggers:
-            print(f'Skipping invalid event: {rm}')
+            logging.info(f'Skipping invalid event: {rm}')
             continue
         if use_first_trigger:
             # if there is a "aus" in triggers choose the "fallen"/"fällt"
@@ -234,8 +250,9 @@ def update_events(event_triggers, event_roles, relations, one_hot: bool = True, 
                     triggers = triggers[0:1]
         for trigger in triggers:
             if trigger['conceptMention']['type'] not in ['TRIGGER', 'trigger',
+                                                         'EVENT_CAUSE', 'event-cause', 'event_cause',
                                                          'disaster_type', 'disaster-type', 'DISASTER_TYPE']:
-                print(f'Skipping invalid event: {rm}')
+                logging.info(f'Skipping invalid event: {rm}')
                 continue
             trigger_id = trigger['conceptMention']['id']
             # update event type (probs) in event_triggers
@@ -249,7 +266,7 @@ def update_events(event_triggers, event_roles, relations, one_hot: bool = True, 
                 else:
                     event_triggers[trigger_idx]['event_type'] = rm['name']
             except Exception as e:
-                print(f'{e}\n Did not find {trigger_id} in: {event_triggers}.')
+                logging.info(f'{e}\n Did not find {trigger_id} in: {event_triggers}.')
                 continue
 
             role_args = [arg for arg in rm['args'] if arg['role'] != 'trigger']
@@ -269,22 +286,43 @@ def update_events(event_triggers, event_roles, relations, one_hot: bool = True, 
     return event_triggers, event_roles
 
 
-def _convert_ner_tags(ner_tags):
-    return [ner_tag[:2] + 'TRIGGER' if ner_tag != 'O' and ner_tag[2:] == 'DISASTER_TYPE' else ner_tag
-            for ner_tag in ner_tags]
+def _convert_ner_tags(ner_tags: List[str], convert_event_cause: bool = False):
+    """
+    Replaces legacy ner tag DISASTER_TYPE with TRIGGER.
+    :param ner_tags: List of ner tags for the document tokens in BIO format
+    :param convert_event_cause: Whether to replace EVENT_CAUSE with TRIGGER
+    :return: Updated list of ner tags
+    """
+    if convert_event_cause:
+        return [ner_tag[:2] + 'TRIGGER' if ner_tag != 'O' and ner_tag[2:] == 'DISASTER_TYPE' else ner_tag
+                for ner_tag in ner_tags]
+    else:
+        return [ner_tag[:2] + 'TRIGGER' if ner_tag != 'O' and ner_tag[2:] in ['DISASTER_TYPE', 'EVENT_CAUSE']
+                else ner_tag
+                for ner_tag in ner_tags]
 
 
-def convert_entity(text, tokens, entity):
+def convert_entity(text: str, tokens: List[str], entity: Dict[str, Any], convert_event_cause: bool = False,
+                   doc_id: str = None):
+    """
+    Takes avro entity and converts it into a more compact dictionary representation.
+    :param doc_id: ID of the document for debugging
+    :param text: Document text
+    :param tokens: Document tokens
+    :param entity: Avro entity as dictionary
+    :param convert_event_cause: Whether to replace the entity type event_cause with trigger
+    :return: Compact entity dictionary representation
+    """
     try:
         start_token_idx, end_token_idx = span_to_token_idxs(tokens, entity['span'])
         # The disaster type relations are not annotated with a trigger but with a disaster type.
         # However they can be used interchangeably, thus convert disaster types to triggers.
         entity_type = entity['type'].lower()
-        if entity_type == 'disaster-type':
+        if entity_type in ['disaster-type', 'disaster_type']:
             entity_type = 'trigger'
-        elif entity_type == 'disaster_type':
+        elif convert_event_cause and entity_type in ['event-cause', 'event_cause']:
             entity_type = 'trigger'
-        return {
+        converted_entity = {
             'id': entity['id'],
             'text': span_to_text(text, entity['span']),
             'entity_type': entity_type,
@@ -293,14 +331,90 @@ def convert_entity(text, tokens, entity):
             'char_start': entity['span']['start'],
             'char_end': entity['span']['end']
         }
+        if 'normalizedValue' in entity and len(converted_entity['text']) > 5:
+            fuzz_ratio = fuzz.ratio(converted_entity['text'].replace(' ', ''),
+                                    entity['normalizedValue'].replace(' ', ''))
+            if fuzz_ratio < 90 and entity['normalizedValue'] not in converted_entity['text']:
+                entity_span: Dict[str, Any] = entity['span']
+                global check_counter
+                check_counter += 1
+                if doc_id:
+                    logging.debug(f"Check document {doc_id} for entity span issue:")
+                else:
+                    logging.debug("Entity span issue:")
+                logging.debug(f"{converted_entity['text']} (text[{entity_span['start']}:{entity_span['end']}]) vs. "
+                              f"{entity['normalizedValue']} (entity['normalizedValue'])")
+                if len(entity['normalizedValue'])+1 >= len(converted_entity['text']):
+                    # +1 because hashtags are sometimes removed in normalizedValue
+                    successful_fix, fixed_entity_span = fix_entity_spans(text, entity_span, entity['normalizedValue'])
+                    if successful_fix:
+                        converted_entity['text'] = span_to_text(text, fixed_entity_span)
+                        converted_entity['char_start'] = fixed_entity_span['start']
+                        converted_entity['char_end'] = fixed_entity_span['end']
+                        logging.debug(f"Fixed entity spans from: "
+                                      f"{span_to_text(text, entity['span'])} "
+                                      f"(text[{entity_span['start']}:{entity_span['end']}]) to"
+                                      f"{converted_entity['text']} "
+                                      f"(text[{fixed_entity_span['start']}:{fixed_entity_span['end']}])")
+                        global fix_counter
+                        fix_counter += 1
+                else:
+                    logging.debug(f"Normalized value is substring of entity text")
+                    logging.debug(f"Difference in length:"
+                                  f"{len(entity['normalizedValue'].replace(' ', ''))} (normalizedValue) vs."
+                                  f"{len(converted_entity['text'].replace(' ', ''))} (entity_text)")
+                    logging.debug(f"Check anyways")
+        return converted_entity
     except StopIteration:
-        print('Token offset issue')
-        print(tokens, '\n', entity)
+        logging.warning('Token offset issue')
+        logging.warning(tokens, '\n', entity)
         return None
 
 
-def span_to_text(text, span):
+def span_to_text(text: str, span: Dict[str, Any]):
     return text[span['start']:span['end']]
+
+
+def fix_entity_spans(text: str, entity_span: Dict[str, Any], normalizedValue: str) -> Tuple[bool, Dict[str, Any]]:
+    """
+    Compares normalizedValue with text substring acquired via entity spans and tries to fix the spans.
+    This is done by shifting the entity spans to the left and looking at the fuzz.ratio.
+    It stops if the fuzz.ratio gets worse. A fuzz.ratio of below 97 is treated as an unsuccessful attempt.
+    :param text: Document text.
+    :param entity_span: Character span of the entity.
+    :param normalizedValue: Joined tokens of the entity.
+    :return: Tuple of boolean, that indicates whether the attempt was successful, and the (fixed) entity span.
+    """
+    original_entity_text = span_to_text(text, entity_span)
+    shifted_entity_span = {}
+    tmp_fuzz_ratio = 0
+    tmp_entity_span = {
+        'start': entity_span['start'],
+        'end': entity_span['end']
+    }
+    tmp_text = original_entity_text
+    for shift in range(1, len(normalizedValue)):
+        shifted_entity_span['start'] = entity_span['start'] - shift
+        shifted_entity_span['end'] = entity_span['end'] - shift
+        if shifted_entity_span['start'] < 0:
+            break
+        entity_text = span_to_text(text, shifted_entity_span)
+        fuzz_ratio = fuzz.ratio(entity_text.replace(' ', ''),
+                                normalizedValue.replace(' ', ''))
+        if fuzz_ratio == 100:
+            return True, shifted_entity_span
+        elif fuzz_ratio < tmp_fuzz_ratio:
+            if tmp_fuzz_ratio > 97:
+                return True, tmp_entity_span
+            else:
+                break
+        tmp_fuzz_ratio = fuzz_ratio
+        tmp_text = entity_text
+        tmp_entity_span['start'] = shifted_entity_span['start']
+        tmp_entity_span['end'] = shifted_entity_span['end']
+    logging.info(f"Unable to fix entity_span for {original_entity_text}. Last try with shifted entity spans: "
+                 f"{tmp_text} vs. {normalizedValue} (normalized value)")
+    return False, entity_span
 
 
 def span_to_token_idxs(tokens, span):
@@ -335,6 +449,8 @@ if __name__ == '__main__':
                         help='Build default events and update them')
     parser.add_argument("--use_first_trigger", action="store_true",
                         help='Only use first/ most expressive trigger argument in relation')
+    parser.add_argument("--convert_event_cause", action="store_true",
+                        help='Convert EVENT_CAUSE NER tag and event_cause entity type to TRIGGER/ trigger')
     parser.add_argument('-f', dest='force_output', action='store_true',
                         help='Force creation of new output folder')
     parser.set_defaults(feature=True)
