@@ -8,12 +8,30 @@ from tqdm import tqdm
 from typing import Dict, List, Any, Tuple
 from fuzzywuzzy import fuzz
 
-from wsee import NEGATIVE_ARGUMENT_LABEL, NEGATIVE_TRIGGER_LABEL, SD4M_RELATION_TYPES, ROLE_LABELS
+from wsee import NEGATIVE_ARGUMENT_LABEL, NEGATIVE_TRIGGER_LABEL, SD4M_RELATION_TYPES, ROLE_LABELS, SDW_RELATION_TYPES
 from wsee.utils import encode
 
 logging.basicConfig(level=logging.INFO)
 check_counter: int = 0
 fix_counter: int = 0
+twitter_docs: Dict[str, int] = {
+    'docs': 0,
+    'relations': 0,
+    'docs_with_relations': 0,
+    'sdw_relations': 0,
+    'sd4m_relations': 0,
+    'docs_with_sdw_relations': 0,
+    'docs_with_sd4m_relations': 0
+}
+rss_docs: Dict[str, int] = {
+    'docs': 0,
+    'relations': 0,
+    'docs_with_relations': 0,
+    'sdw_relations': 0,
+    'sd4m_relations': 0,
+    'docs_with_sdw_relations': 0,
+    'docs_with_sd4m_relations': 0
+}
 
 
 def main(args):
@@ -48,6 +66,10 @@ def main(args):
     daystream = pd.concat(daystream, sort=False).reset_index(drop=True)
     daystream_output_file = input_path.joinpath('daystream.jsonl')
     daystream.to_json(daystream_output_file, orient='records', lines=True, force_ascii=False)
+    global twitter_docs
+    global rss_docs
+    print(f"Twitter: {twitter_docs}")
+    print(f"RSS: {rss_docs}")
 
 
 def convert_file(file_path, one_hot=False, build_defaults=False, use_first_trigger: bool = False,
@@ -91,24 +113,56 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults: 
         if converted_entity:
             entities.append(converted_entity)
 
+    event_triggers = []
+    event_roles = []
     if _is_smart_data_doc(doc):
-        if build_defaults:
-            # 1. Does it make sense to build default events and update them, i.e. create negative examples?
-            event_triggers, event_roles = build_default_events(entities, one_hot)
-            if doc['relationMentions']:
+        global twitter_docs
+        global rss_docs
+        if doc['docType'] == 'TWITTER_JSON':
+            twitter_docs['docs'] += 1
+        elif doc['docType'] == 'RSS_XML':
+            rss_docs['docs'] += 1
+        if doc['relationMentions']:
+            sdw_relations = [
+                rm for rm in doc['relationMentions'] if rm['name'] in SDW_RELATION_TYPES
+            ]
+            sd4m_relations = [
+                rm for rm in doc['relationMentions'] if rm['name'] in SD4M_RELATION_TYPES
+            ]
+            if doc['docType'] == 'TWITTER_JSON':
+                twitter_docs['relations'] += len(doc['relationMentions'])
+                if len(sdw_relations) > 0 or len(sd4m_relations) > 0:
+                    twitter_docs['docs_with_relations'] += 1
+                twitter_docs['sdw_relations'] += len(sdw_relations)
+                twitter_docs['sd4m_relations'] += len(sd4m_relations)
+                if len(sdw_relations) > 0:
+                    twitter_docs['docs_with_sdw_relations'] += 1
+                if len(sd4m_relations) > 0:
+                    twitter_docs['docs_with_sd4m_relations'] += 1
+            elif doc['docType'] == 'RSS_XML':
+                rss_docs['relations'] += len(doc['relationMentions'])
+                if len(sdw_relations) > 0 or len(sd4m_relations) > 0:
+                    rss_docs['docs_with_relations'] += 1
+                rss_docs['sdw_relations'] += len(sdw_relations)
+                rss_docs['sd4m_relations'] += len(sd4m_relations)
+                if len(sdw_relations) > 0:
+                    rss_docs['docs_with_sdw_relations'] += 1
+                if len(sd4m_relations) > 0:
+                    rss_docs['docs_with_sd4m_relations'] += 1
+            if build_defaults:
+                # 1. Does it make sense to build default events and update them, i.e. create negative examples?
+                event_triggers, event_roles = build_default_events(entities, one_hot)
                 event_triggers, event_roles = update_events(event_triggers, event_roles, doc['relationMentions'],
                                                             one_hot, use_first_trigger)
-        else:
-            # 2. Or does it make more sense to only create events for corresponding relation mentions in doc?
-            event_triggers, event_roles = get_events(doc['relationMentions'], one_hot, use_first_trigger)
-
+            else:
+                # 2. Or does it make more sense to only create events for corresponding relation mentions in doc?
+                event_triggers, event_roles = get_events(doc['relationMentions'], one_hot, use_first_trigger)
     else:
         # Daystream documents do not have relation mention annotation
         event_triggers, event_roles = build_default_events(entities, one_hot)
 
-    return {'id': s_id, 'text': text, 'tokens': tokens,
-            'pos_tags': pos_tags,
-            'ner_tags': ner_tags, 'entities': entities,
+    return {'id': s_id, 'text': text, 'tokens': tokens, 'docType': doc['docType'],
+            'pos_tags': pos_tags, 'ner_tags': ner_tags, 'entities': entities,
             'event_triggers': event_triggers, 'event_roles': event_roles}
 
 
@@ -124,10 +178,10 @@ def get_events(relations, one_hot, use_first_trigger: bool = False):
     event_triggers = []
     event_roles = []
 
-    filtered_relations = [
+    sd4m_relations = [
         rm for rm in relations if rm['name'] in SD4M_RELATION_TYPES
     ]
-    for rm in filtered_relations:
+    for rm in sd4m_relations:
         # collect trigger(s) in relation mention
         triggers = [arg for arg in rm['args'] if arg['role'] == 'trigger']
         if not triggers:
@@ -227,10 +281,11 @@ def update_events(event_triggers, event_roles, relations, one_hot: bool = True, 
     :param one_hot: whether to one hot encode labels
     :return: updated event_triggers and event_roles
     """
-    filtered_relations = [
+    sd4m_relations = [
         rm for rm in relations if rm['name'] in SD4M_RELATION_TYPES
     ]
-    for rm in filtered_relations:
+
+    for rm in sd4m_relations:
         # collect trigger(s) in relation mention
         triggers = [arg for arg in rm['args'] if arg['role'] == 'trigger']
         if not triggers:
@@ -294,10 +349,11 @@ def _convert_ner_tags(ner_tags: List[str], convert_event_cause: bool = False):
     :return: Updated list of ner tags
     """
     if convert_event_cause:
-        return [ner_tag[:2] + 'TRIGGER' if ner_tag != 'O' and ner_tag[2:] == 'DISASTER_TYPE' else ner_tag
+        return [ner_tag[:2] + 'TRIGGER' if ner_tag != 'O' and ner_tag[2:] in ['DISASTER_TYPE', 'EVENT_CAUSE']
+                else ner_tag
                 for ner_tag in ner_tags]
     else:
-        return [ner_tag[:2] + 'TRIGGER' if ner_tag != 'O' and ner_tag[2:] in ['DISASTER_TYPE', 'EVENT_CAUSE']
+        return [ner_tag[:2] + 'TRIGGER' if ner_tag != 'O' and ner_tag[2:] == 'DISASTER_TYPE'
                 else ner_tag
                 for ner_tag in ner_tags]
 
