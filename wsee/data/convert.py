@@ -330,13 +330,14 @@ def update_events(event_triggers, event_roles, relations, one_hot: bool = True, 
                     arg_role = next((arg['role'] for arg in role_args
                                      if arg['conceptMention']['id'] == event_role['argument']),
                                     NEGATIVE_ARGUMENT_LABEL)
-                    if one_hot:
-                        event_role['event_argument_probs'] = encode.one_hot_encode(
-                            arg_role,
-                            ROLE_LABELS
-                        )
-                    else:
-                        event_role['event_argument'] = arg_role
+                    if arg_role != NEGATIVE_ARGUMENT_LABEL:
+                        if one_hot:
+                            event_role['event_argument_probs'] = encode.one_hot_encode(
+                                arg_role,
+                                ROLE_LABELS
+                            )
+                        else:
+                            event_role['event_argument'] = arg_role
 
     return event_triggers, event_roles
 
