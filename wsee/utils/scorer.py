@@ -1,5 +1,6 @@
 import copy
 import pandas as pd
+import numpy as np
 from typing import Tuple, Dict
 
 
@@ -101,7 +102,15 @@ def event_subsumes(subsumed_event, subsuming_event, ignore_span=False, ignore_ar
     return True
 
 
-def event_scorer(pred_events, gold_events, allow_subsumption=False) -> Tuple[int, int, int]:
+def event_scorer(pred_events, gold_events, allow_subsumption=False, keep_event_matches=False) -> Tuple[int, int, int]:
+    """
+    Counts true positives, false positives and false negatives.
+    :param pred_events: Predicted events
+    :param gold_events: Gold events
+    :param allow_subsumption: Allows for a gold event to subsume a predicted event and vice versa to count as a match
+    :param keep_event_matches: Keeps predicted events that were matched with gold events and deletes them after the loop
+    :return: TP, FP, FN
+    """
     pred_events_copy = copy.deepcopy(pred_events) if pred_events else []
     gold_events_copy = copy.deepcopy(gold_events) if gold_events else []
     # sort event lists by event span start
@@ -109,6 +118,8 @@ def event_scorer(pred_events, gold_events, allow_subsumption=False) -> Tuple[int
     gold_events_copy.sort(key=lambda event: get_event_span(event)[0])
     tp = 0
     fn = 0
+
+    pred_events_no_match = np.ones(len(pred_events_copy))
 
     for gold_event in gold_events_copy:
         found_idx = -1
@@ -122,19 +133,25 @@ def event_scorer(pred_events, gold_events, allow_subsumption=False) -> Tuple[int
         if found_idx < 0:
             fn += 1
         else:
-            del pred_events_copy[found_idx]
-    fp = len(pred_events_copy)
+            # pred_event might match multiple gold_events: Snorkel format merges events sharing the same trigger
+            if keep_event_matches:
+                pred_events_no_match[found_idx] *= 0
+            else:
+                del pred_events_copy[found_idx]
+    fp = int(pred_events_no_match.sum()) if keep_event_matches else len(pred_events_copy)
     return tp, fp, fn
 
 
-def event_by_class_scorer(pred_events, gold_events, allow_subsumption=False) -> Dict[str, Result]:
+def event_by_class_scorer(pred_events, gold_events,
+                          allow_subsumption=False, keep_event_matches=False) -> Dict[str, Result]:
     results: Dict[str, Result] = {}
     event_types = list(set([event['event_type'] for event in pred_events]))
     event_types += list(set([event['event_type'] for event in gold_events]))
     for event_type in event_types:
         class_pred_events = [event for event in pred_events if event['event_type'] == event_type]
         class_gold_events = [event for event in gold_events if event['event_type'] == event_type]
-        result: Tuple[int, int, int] = event_scorer(class_pred_events, class_gold_events, allow_subsumption)
+        result: Tuple[int, int, int] = event_scorer(class_pred_events, class_gold_events,
+                                                    allow_subsumption, keep_event_matches)
         results[event_type] = Result(*result)
     return results
 
@@ -144,15 +161,14 @@ def score_document(pred_doc, gold_doc, allow_subsumption=False):
     return results
 
 
-def score_files(pred_file_path, gold_file_path, allow_subsumption=False):
+def score_files(pred_file_path, gold_file_path, allow_subsumption=False, keep_event_matches=False):
     pred_file = pd.read_json(pred_file_path, lines=True, encoding='utf8')
     gold_file = pd.read_json(gold_file_path, lines=True, encoding='utf8')
 
-    # TODO: Tuple does not support item assignment, write result class
     results: Dict[str, Result] = {}
     # TODO probably not a good idea to do it all in memory
     for pred_doc_events, gold_doc_events in zip(list(pred_file['events']), list(gold_file['events'])):
-        doc_results = event_by_class_scorer(pred_doc_events, gold_doc_events, allow_subsumption)
+        doc_results = event_by_class_scorer(pred_doc_events, gold_doc_events, allow_subsumption, keep_event_matches)
         for event_type, result in doc_results.items():
             if event_type in results:
                 results[event_type].tp += result.tp
