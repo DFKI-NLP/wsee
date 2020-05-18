@@ -13,13 +13,13 @@ class Result:
         if self.tp + self.fp > 0:
             return self.tp/(self.tp + self.fp)
         else:
-            return -1
+            return 0.0
 
     def recall(self):
         if self.tp + self.fn > 0:
             return self.tp/(self.tp + self.fn)
         else:
-            return -1
+            return 0.0
 
     def f1(self):
         p = self.precision()
@@ -27,7 +27,7 @@ class Result:
         if p + r > 0:
             return 2 * (p*r)/(p+r)
         else:
-            return -1
+            return 0.0
 
 
 def argument_equals(pred_arg, gold_arg):
@@ -43,8 +43,8 @@ def argument_equals(pred_arg, gold_arg):
 
 
 def get_event_span(event):
-    start = [event['trigger']['start']]
-    end = [event['trigger']['end']]
+    start = event['trigger']['start']
+    end = event['trigger']['end']
     for arg in event['arguments']:
         arg_start = arg['start']
         arg_end = arg['end']
@@ -129,8 +129,8 @@ def event_scorer(pred_events, gold_events, allow_subsumption=False) -> Tuple[int
 
 def event_by_class_scorer(pred_events, gold_events, allow_subsumption=False) -> Dict[str, Result]:
     results: Dict[str, Result] = {}
-    event_types = set([event['event_type'] for event in pred_events])
-    event_types += set([event['event_type'] for event in gold_events])
+    event_types = list(set([event['event_type'] for event in pred_events]))
+    event_types += list(set([event['event_type'] for event in gold_events]))
     for event_type in event_types:
         class_pred_events = [event for event in pred_events if event['event_type'] == event_type]
         class_gold_events = [event for event in gold_events if event['event_type'] == event_type]
@@ -153,13 +153,13 @@ def score_files(pred_file_path, gold_file_path, allow_subsumption=False):
     # TODO probably not a good idea to do it all in memory
     for pred_doc_events, gold_doc_events in zip(list(pred_file['events']), list(gold_file['events'])):
         doc_results = event_by_class_scorer(pred_doc_events, gold_doc_events, allow_subsumption)
-        for event_type, result in doc_results:
+        for event_type, result in doc_results.items():
             if event_type in results:
                 results[event_type].tp += result.tp
                 results[event_type].fp += result.fp
                 results[event_type].fn += result.fn
             else:
                 results[event_type] = result
-    for event_type, result in results:
+    for event_type, result in results.items():
         formatted_results = '\tP={:.3f}\tR={:.3f}\tF1={:.3f}\n'.format(result.precision(), result.recall(), result.f1())
         print(f'{event_type}: {formatted_results}')
