@@ -5,6 +5,8 @@ import re
 import pandas as pd
 import numpy as np
 
+from wsee import SD4M_RELATION_TYPES
+
 
 def get_deep_copy(obj):
     return pickle.loads(pickle.dumps(obj))
@@ -54,3 +56,25 @@ def zero_out_abstains(y: np.ndarray, L: np.ndarray) -> np.ndarray:
     mask = (L == -1).all(axis=1)
     y[mask] *= 0.0
     return y
+
+
+def has_events(doc, include_negatives=False):
+    """
+    :param doc: Document
+    :param include_negatives: Count document as having events when at least one trigger is not an abstain
+
+    :return: Whether the document contains any (positive) events
+    """
+    if 'events' in doc and doc['events']:
+        return True
+    elif 'event_triggers' in doc and doc['event_triggers']:
+        trigger_probs = np.asarray(
+            [trigger['event_type_probs'] for trigger in doc['event_triggers']]
+        )
+        if include_negatives:
+            return trigger_probs.sum() > 0.0
+        labeled_triggers = trigger_probs.sum(axis=1) > 0.0
+        trigger_labels = trigger_probs[labeled_triggers].argmax(axis=1)
+        if any(label < len(SD4M_RELATION_TYPES)-1 for label in trigger_labels):
+            return True
+    return False
