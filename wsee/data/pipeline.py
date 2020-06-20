@@ -491,7 +491,7 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None,
 
     if save_path:
         try:
-            final_save_path = Path(save_path).joinpath("daystream_snorkeledv6_pipeline.jsonl")
+            final_save_path = Path(save_path).joinpath("daystream_snorkeled.jsonl")
             logging.info(f"Writing Snorkel Labeled data to {final_save_path}")
             merged_examples.to_json(final_save_path, orient='records', lines=True, force_ascii=False)
         except Exception as e:
@@ -510,6 +510,11 @@ def main(args):
     # We label the daystream data with Snorkel and use the train data from SD4M
     labeled_examples = build_training_data(lf_train=loaded_data['daystream'], save_path=save_path,
                                            lf_dev=loaded_data['train'])
+
+    sd_train = loaded_data['train']
+    merged = pd.concat([labeled_examples, sd_train])
+    merged.to_json(save_path.joinpath('snorkeled_gold_conv_merge_with_abstains.jsonl'),
+                   orient='records', lines=True, force_ascii=False)
 
     logging.info(f"Finished labeling {len(labeled_examples)} documents.")
 
