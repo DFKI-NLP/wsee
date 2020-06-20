@@ -39,6 +39,43 @@ event_type_location_type_map: Dict[int, List[str]] = {
 }
 
 
+def parallelize_dataframe(df, func, n_cores=4):
+    df_split = np.array_split(df, n_cores)
+    pool = Pool(n_cores)
+    df = pd.concat(pool.map(func, df_split))
+    pool.close()
+    pool.join()
+    return df
+
+
+def preprocess_docs_for_roles(doc):
+    entity_type_freqs = preprocessors.get_entity_type_freqs(doc)
+    somajo_doc = preprocessors.get_somajo_doc(doc)
+    mixed_ner, mixed_ner_spans = preprocessors.get_mixed_ner(doc)
+    doc['entity_type_freqs'] = entity_type_freqs
+    doc['somajo_doc'] = somajo_doc
+    doc['mixed_ner'] = mixed_ner
+    doc['mixed_ner_spans'] = mixed_ner_spans
+    return doc
+
+
+def preprocess_docs_for_roles_applier(df):
+    return df.apply(lambda doc: preprocess_docs_for_roles(doc), axis=1)
+
+
+def preprocess_role_examples(role_row):
+    role_row['separate_sentence'] = preprocessors.get_somajo_separate_sentence(role_row)
+    role_row['not_an_event'] = trigger_lfs.lf_negative(role_row) == trigger_lfs.O
+    role_row['arg_location_type_event_type_match'] = arg_location_type_event_type_match(role_row)
+    role_row['between_distance'] = preprocessors.get_between_distance(role_row)
+    role_row['is_multiple_same_event_type'] = preprocessors.is_multiple_same_event_type(role_row)
+    return role_row
+
+
+def preprocess_role_examples_applier(df):
+    return df.apply(lambda doc: preprocess_role_examples(doc), axis=1)
+
+
 def load_data(path, use_build_defaults=True):
     """
     Loads corpus data from specified path.
@@ -114,12 +151,13 @@ def arg_location_type_event_type_match(cand):
     return False
 
 
-def build_event_role_examples(dataframe):
+def build_event_role_examples(dataframe, n_cores=4):
     """
     Takes a dataframe containing one document per row with all its annotations
     (event roles are of interest here) and creates one row for each trigger-entity
     (event role) pair. Also adds attributes beforehand instead of using preprocessors in
     order not to do it for each row or even each row*labeling functions.
+    :param n_cores: Number of cores to process dataframe in parallel.
     :param dataframe: Annotated documents.
     :return: DataFrame containing event role examples and NumPy array containing labels.
     """
@@ -128,33 +166,28 @@ def build_event_role_examples(dataframe):
 
     logging.info("Building event role examples")
     logging.info(f"DataFrame has {len(dataframe.index)} rows")
-    logging.info("Adding the following attributes to each row: "
-                 "entity_type_freqs, somajo_doc, mixed_ner, mixed_ner_spans, not_an_event, arg_type_event_type_match, "
-                 "between_distance, is_multiple_same_event_type")
+    logging.info("Adding the following attributes to each document: "
+                 "entity_type_freqs, somajo_doc, mixed_ner, mixed_ner_spans")
 
+    # 1. Preprocess docs (entity frequencies, sentence splitting, mixed ner pattern)
+    dataframe = parallelize_dataframe(dataframe, preprocess_docs_for_roles_applier, n_cores=n_cores)
+
+    # 2. Build role examples
     for index, row in tqdm(dataframe.iterrows()):
-        entity_type_freqs = preprocessors.get_entity_type_freqs(row)
-        somajo_doc = preprocessors.get_somajo_doc(row)
-        mixed_ner, mixed_ner_spans = preprocessors.get_mixed_ner(row)
         for event_role in row.event_roles:
             role_row = row.copy()
             role_row['trigger'] = preprocessors.get_entity(event_role['trigger'], row.entities)
             role_row['argument'] = preprocessors.get_entity(event_role['argument'], row.entities)
-            role_row['entity_type_freqs'] = entity_type_freqs
-            role_row['somajo_doc'] = somajo_doc
-            role_row['separate_sentence'] = preprocessors.get_somajo_separate_sentence(role_row)
-            role_row['mixed_ner'] = mixed_ner
-            role_row['mixed_ner_spans'] = mixed_ner_spans
-            role_row['not_an_event'] = trigger_lfs.lf_negative(role_row) == trigger_lfs.O
-            role_row['arg_location_type_event_type_match'] = arg_location_type_event_type_match(role_row)
-            role_row['between_distance'] = preprocessors.get_between_distance(role_row)
-            role_row['is_multiple_same_event_type'] = preprocessors.is_multiple_same_event_type(role_row)
             event_role_rows_list.append(role_row)
             event_role_num = np.asarray(event_role['event_argument_probs']).argmax()
             event_role_rows_y.append(event_role_num)
-
     event_role_rows = pd.DataFrame(event_role_rows_list).reset_index(drop=True)
     event_role_rows_y = np.asarray(event_role_rows_y)
+
+    # 3. Process role examples (not_an_event, arg_type_event_type_match, between_distance, is_multiple_same_event_type)
+    logging.info("Adding the following attributes to each role example: "
+                 "not_an_event, arg_type_event_type_match, between_distance, is_multiple_same_event_type")
+    event_role_rows = parallelize_dataframe(event_role_rows, preprocess_role_examples_applier, n_cores=n_cores)
 
     label, count = np.unique(event_role_rows_y, return_counts=True)
     label_count_map = dict(zip(label, count))
@@ -256,7 +289,7 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     """
     df_train, _ = build_event_trigger_examples(lf_train)
     df_dev, Y_dev = None, None
-    if lf_dev:
+    if lf_dev is not None:
         df_dev, Y_dev = build_event_trigger_examples(lf_dev)
     if lfs is None:
         lfs = [
@@ -290,7 +323,8 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=12345, Y_dev=Y_dev)
 
     # Evaluate label model on development data
-    if df_dev and Y_dev:
+    if df_dev is not None and Y_dev is not None:
+        logging.info("Running Event Role Labeling Function Applier on dev set and evaluate label model")
         L_dev = applier.apply(df_dev)
         label_model_accuracy = label_model.score(L=L_dev, Y=Y_dev, tie_break_policy="random")[
             "accuracy"
@@ -323,7 +357,7 @@ def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     """
     df_train, _ = build_event_role_examples(lf_train)
     df_dev, Y_dev = None, None
-    if lf_dev:
+    if lf_dev is not None:
         df_dev, Y_dev = build_event_role_examples(lf_dev)
     if lfs is None:
         lfs = [
@@ -378,7 +412,8 @@ def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=12345, Y_dev=Y_dev)
 
     # Evaluate label model on development data
-    if df_dev and Y_dev:
+    if df_dev is not None and Y_dev is not None:
+        logging.info("Running Event Role Labeling Function Applier on dev set and evaluate label model")
         L_dev = applier.apply(df_dev)
         label_model_accuracy = label_model.score(L=L_dev, Y=Y_dev, tie_break_policy="random")[
             "accuracy"
@@ -413,7 +448,7 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None,
 
     if save_path:
         try:
-            trigger_save_path = Path(save_path).joinpath('/daystream_triggers.jsonl')
+            trigger_save_path = Path(save_path).joinpath('daystream_triggers.jsonl')
             logging.info(f"Writing Snorkel Trigger data to {trigger_save_path}")
             merged_event_trigger_examples.reset_index(level=0).to_json(
                 trigger_save_path, orient='records', lines=True, force_ascii=False)
@@ -425,7 +460,7 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None,
 
     if save_path:
         try:
-            role_save_path = Path(save_path).joinpath('/daystream_roles.jsonl')
+            role_save_path = Path(save_path).joinpath('daystream_roles.jsonl')
             logging.info(f"Writing Snorkel Role data to {role_save_path}")
             merged_event_role_examples.reset_index(level=0).to_json(
                 role_save_path, orient='records', lines=True, force_ascii=False)
@@ -456,7 +491,7 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None,
 
     if save_path:
         try:
-            final_save_path = Path(save_path).joinpath("/daystream_snorkeledv6_pipeline.jsonl")
+            final_save_path = Path(save_path).joinpath("daystream_snorkeledv6_pipeline.jsonl")
             logging.info(f"Writing Snorkel Labeled data to {final_save_path}")
             merged_examples.to_json(final_save_path, orient='records', lines=True, force_ascii=False)
         except Exception as e:
@@ -465,13 +500,14 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None,
 
 
 def main(args):
-    input_path = Path(args.input)
-    assert input_path.exists(), 'Input not found: %s'.format(args.input)
+    input_path = Path(args.input_path)
+    assert input_path.exists(), 'Input not found: %s'.format(args.input_path)
 
     save_path = Path(args.save_path)
     assert save_path.exists(), 'Save path not found: %s'.format(args.save_path)
 
     loaded_data = load_data(input_path)
+    # We label the daystream data with Snorkel and use the train data from SD4M
     labeled_examples = build_training_data(lf_train=loaded_data['daystream'], save_path=save_path,
                                            lf_dev=loaded_data['train'])
 
