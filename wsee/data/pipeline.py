@@ -484,8 +484,8 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None,
     merged_examples.reset_index(level=0, inplace=True)
 
     # Removes rows with no events/ no positively labeled events
-    examples_with_events = merged_examples.apply(
-        lambda document: utils.has_events(document, include_negatives=True), axis=1)
+    examples_with_events = list(merged_examples.apply(
+        lambda document: utils.has_events(document, include_negatives=True), axis=1))
     logging.info(f"Keeping {sum(examples_with_events)} from {len(merged_examples)} documents with events")
     merged_examples = merged_examples[examples_with_events]
 
