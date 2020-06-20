@@ -1,3 +1,4 @@
+import argparse
 import os
 import logging
 from pathlib import Path
@@ -7,11 +8,13 @@ import pandas as pd
 import numpy as np
 from snorkel.labeling import LabelModel, PandasLFApplier, labeling_function, filter_unlabeled_dataframe
 from tqdm import tqdm
+from multiprocessing import Pool
 
 from wsee.preprocessors import preprocessors
 from wsee.labeling import event_trigger_lfs as trigger_lfs
 from wsee.labeling import event_argument_role_lfs as role_lfs
 from wsee.utils import utils
+from wsee import SD4M_RELATION_TYPES, ROLE_LABELS, NEGATIVE_TRIGGER_LABEL, NEGATIVE_ARGUMENT_LABEL
 
 logging.basicConfig(level=logging.INFO)
 
@@ -68,41 +71,38 @@ def load_data(path, use_build_defaults=True):
     return output_dict
 
 
-def build_event_trigger_examples(dataframe, preprocess=True):
+def build_event_trigger_examples(dataframe):
     """
     Takes a dataframe containing one document per row with all its annotations
     (event triggers are of interest here) and creates one row for each event trigger.
-    :param preprocess: Whether to do any preprocessing during the build.
     :param dataframe: Annotated documents.
     :return: DataFrame containing event trigger examples and NumPy array containing labels.
     """
     event_trigger_rows = []
     event_trigger_rows_y = []
 
-    event_count = 0
-    example_count = 0
-
     logging.info("Building event trigger examples")
     logging.info(f"DataFrame has {len(dataframe.index)} rows")
+
     for index, row in tqdm(dataframe.iterrows()):
-        entity_type_freqs = preprocessors.get_entity_type_freqs(row) if preprocess else None
+        entity_type_freqs = preprocessors.get_entity_type_freqs(row)
         for event_trigger in row.event_triggers:
             trigger_row = row.copy()
             trigger_row['trigger'] = preprocessors.get_entity(event_trigger['id'], row.entities)
-            if preprocess:
-                trigger_row['entity_type_freqs'] = entity_type_freqs
+            trigger_row['entity_type_freqs'] = entity_type_freqs
             event_trigger_rows.append(trigger_row)
             event_type_num = np.asarray(event_trigger['event_type_probs']).argmax()
             event_trigger_rows_y.append(event_type_num)
-            example_count += 1
-            if event_type_num != 7:
-                event_count += 1
 
-    if event_count > 0:
-        logging.info(f"Number of events: {event_count}")
-    logging.info(f"Number of event trigger examples: {example_count}")
     event_trigger_rows = pd.DataFrame(event_trigger_rows)
     event_trigger_rows_y = np.asarray(event_trigger_rows_y)
+
+    label, count = np.unique(event_trigger_rows_y, return_counts=True)
+    label_count_map = dict(zip(label, count))
+    negative_trigger_idx = SD4M_RELATION_TYPES.index(NEGATIVE_TRIGGER_LABEL)
+    if negative_trigger_idx in label_count_map:
+        logging.info(f"Number of events: {len(event_trigger_rows)-label_count_map[negative_trigger_idx]}")
+    logging.info(f"Number of event trigger examples: {len(event_trigger_rows)}")
     return event_trigger_rows, event_trigger_rows_y
 
 
@@ -114,60 +114,54 @@ def arg_location_type_event_type_match(cand):
     return False
 
 
-def build_event_role_examples(dataframe, preprocess=True):
+def build_event_role_examples(dataframe):
     """
     Takes a dataframe containing one document per row with all its annotations
     (event roles are of interest here) and creates one row for each trigger-entity
     (event role) pair. Also adds attributes beforehand instead of using preprocessors in
     order not to do it for each row or even each row*labeling functions.
-    :param preprocess: Whether to do any preprocessing during the build.
     :param dataframe: Annotated documents.
     :return: DataFrame containing event role examples and NumPy array containing labels.
     """
     event_role_rows_list = []
     event_role_rows_y = []
 
-    event_count = 0
-    example_count = 0
-
     logging.info("Building event role examples")
     logging.info(f"DataFrame has {len(dataframe.index)} rows")
     logging.info("Adding the following attributes to each row: "
                  "entity_type_freqs, somajo_doc, mixed_ner, mixed_ner_spans, not_an_event, arg_type_event_type_match, "
                  "between_distance, is_multiple_same_event_type")
+
     for index, row in tqdm(dataframe.iterrows()):
-        entity_type_freqs, somajo_doc, mixed_ner, mixed_ner_spans = None, None, None, None
-        if preprocess:
-            entity_type_freqs = preprocessors.get_entity_type_freqs(row)
-            somajo_doc = preprocessors.get_somajo_doc(row)
-            mixed_ner, mixed_ner_spans = preprocessors.get_mixed_ner(row)
+        entity_type_freqs = preprocessors.get_entity_type_freqs(row)
+        somajo_doc = preprocessors.get_somajo_doc(row)
+        mixed_ner, mixed_ner_spans = preprocessors.get_mixed_ner(row)
         for event_role in row.event_roles:
             role_row = row.copy()
             role_row['trigger'] = preprocessors.get_entity(event_role['trigger'], row.entities)
             role_row['argument'] = preprocessors.get_entity(event_role['argument'], row.entities)
-            if preprocess:
-                role_row['entity_type_freqs'] = entity_type_freqs
-                role_row['somajo_doc'] = somajo_doc
-                role_row['separate_sentence'] = preprocessors.get_somajo_separate_sentence(role_row)
-                role_row['mixed_ner'] = mixed_ner
-                role_row['mixed_ner_spans'] = mixed_ner_spans
-                role_row['not_an_event'] = trigger_lfs.lf_negative(role_row) == trigger_lfs.O
-                role_row['arg_location_type_event_type_match'] = arg_location_type_event_type_match(role_row)
-                role_row['between_distance'] = preprocessors.get_between_distance(role_row)
-                role_row['is_multiple_same_event_type'] = preprocessors.is_multiple_same_event_type(role_row)
+            role_row['entity_type_freqs'] = entity_type_freqs
+            role_row['somajo_doc'] = somajo_doc
+            role_row['separate_sentence'] = preprocessors.get_somajo_separate_sentence(role_row)
+            role_row['mixed_ner'] = mixed_ner
+            role_row['mixed_ner_spans'] = mixed_ner_spans
+            role_row['not_an_event'] = trigger_lfs.lf_negative(role_row) == trigger_lfs.O
+            role_row['arg_location_type_event_type_match'] = arg_location_type_event_type_match(role_row)
+            role_row['between_distance'] = preprocessors.get_between_distance(role_row)
+            role_row['is_multiple_same_event_type'] = preprocessors.is_multiple_same_event_type(role_row)
             event_role_rows_list.append(role_row)
             event_role_num = np.asarray(event_role['event_argument_probs']).argmax()
             event_role_rows_y.append(event_role_num)
-            example_count += 1
-            if event_role_num != 10:
-                event_count += 1
 
-    if event_count > 0:
-        logging.info(f"Number of event roles: {event_count}")
-    logging.info(f"Number of event role examples: {example_count}")
     event_role_rows = pd.DataFrame(event_role_rows_list).reset_index(drop=True)
     event_role_rows_y = np.asarray(event_role_rows_y)
 
+    label, count = np.unique(event_role_rows_y, return_counts=True)
+    label_count_map = dict(zip(label, count))
+    negative_trigger_idx = ROLE_LABELS.index(NEGATIVE_ARGUMENT_LABEL)
+    if negative_trigger_idx in label_count_map:
+        logging.info(f"Number of event roles: {len(event_role_rows) - label_count_map[negative_trigger_idx]}")
+    logging.info(f"Number of event role examples: {len(event_role_rows)}")
     return event_role_rows, event_role_rows_y
 
 
@@ -261,9 +255,9 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     :return:
     """
     df_train, _ = build_event_trigger_examples(lf_train)
-    Y_dev = None
+    df_dev, Y_dev = None, None
     if lf_dev:
-        _, Y_dev = build_event_trigger_examples(lf_dev, preprocess=False)
+        df_dev, Y_dev = build_event_trigger_examples(lf_dev)
     if lfs is None:
         lfs = [
             trigger_lfs.lf_accident_context,
@@ -293,7 +287,16 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     L_train = applier.apply(df_train)
     logging.info("Fitting LabelModel on the data and predicting trigger class probabilities")
     label_model = LabelModel(cardinality=8, verbose=True)
-    label_model.fit(L_train=L_train, n_epochs=500, log_freq=100, seed=123, Y_dev=Y_dev)
+    label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=12345, Y_dev=Y_dev)
+
+    # Evaluate label model on development data
+    if df_dev and Y_dev:
+        L_dev = applier.apply(df_dev)
+        label_model_accuracy = label_model.score(L=L_dev, Y=Y_dev, tie_break_policy="random")[
+            "accuracy"
+        ]
+        logging.info(f"{'Trigger Label Model Accuracy:':<25} {label_model_accuracy * 100:.1f}%")
+
     event_trigger_probs = label_model.predict_proba(L_train)
 
     if filter_abstains:
@@ -319,9 +322,9 @@ def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     :return:
     """
     df_train, _ = build_event_role_examples(lf_train)
-    Y_dev = None
+    df_dev, Y_dev = None, None
     if lf_dev:
-        _, Y_dev = build_event_role_examples(lf_dev, preprocess=False)
+        df_dev, Y_dev = build_event_role_examples(lf_dev)
     if lfs is None:
         lfs = [
             role_lfs.lf_location_adjacent_markers,
@@ -372,7 +375,16 @@ def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     L_train = applier.apply(df_train)
     logging.info("Fitting LabelModel on the data and predicting role class probabilities")
     label_model = LabelModel(cardinality=11, verbose=True)
-    label_model.fit(L_train=L_train, n_epochs=500, log_freq=100, seed=123, Y_dev=Y_dev)
+    label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=12345, Y_dev=Y_dev)
+
+    # Evaluate label model on development data
+    if df_dev and Y_dev:
+        L_dev = applier.apply(df_dev)
+        label_model_accuracy = label_model.score(L=L_dev, Y=Y_dev, tie_break_policy="random")[
+            "accuracy"
+        ]
+        logging.info(f"{'Role Label Model Accuracy:':<25} {label_model_accuracy * 100:.1f}%")
+
     event_role_probs = label_model.predict_proba(L_train)
 
     if filter_abstains:
@@ -386,27 +398,25 @@ def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
         return merge_event_role_examples(df_train, utils.zero_out_abstains(event_role_probs, L_train))
 
 
-def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False,
+def build_training_data(lf_train: pd.DataFrame, save_path=None,
                         lf_dev: pd.DataFrame = None) -> pd.DataFrame:
     """
     Merges event_trigger_examples and event_role examples to build training data.
-    :param sample: When set to true, only use a sample of the data.
     :param save_path: Where to save the dataframe as a jsonl
     :param lf_train: DataFrame with original data.
     :param lf_dev: DataFrame with gold labels, which can be used to estimate the class balance for triggers & roles
     :return: Original DataFrame updated with event triggers and event roles.
     """
-    if sample and len(lf_train) > 100:
-        lf_train = lf_train.sample(100)
 
     # Trigger labeling
     merged_event_trigger_examples = get_trigger_probs(lf_train=lf_train, lf_dev=lf_dev)
 
     if save_path:
         try:
-            logging.info(f"Writing Snorkel Trigger data to {save_path + '/daystream_triggers.jsonl'}")
+            trigger_save_path = Path(save_path).joinpath('/daystream_triggers.jsonl')
+            logging.info(f"Writing Snorkel Trigger data to {trigger_save_path}")
             merged_event_trigger_examples.reset_index(level=0).to_json(
-                save_path + '/daystream_triggers.jsonl', orient='records', lines=True, force_ascii=False)
+                trigger_save_path, orient='records', lines=True, force_ascii=False)
         except Exception as e:
             print(e)
 
@@ -415,9 +425,10 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False,
 
     if save_path:
         try:
-            logging.info(f"Writing Snorkel Role data to {save_path + '/daystream_roles.jsonl'}")
+            role_save_path = Path(save_path).joinpath('/daystream_roles.jsonl')
+            logging.info(f"Writing Snorkel Role data to {role_save_path}")
             merged_event_role_examples.reset_index(level=0).to_json(
-                save_path + '/daystream_roles.jsonl', orient='records', lines=True, force_ascii=False)
+                role_save_path, orient='records', lines=True, force_ascii=False)
         except Exception as e:
             print(e)
 
@@ -440,13 +451,37 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, sample=False,
     # Removes rows with no events/ no positively labeled events
     examples_with_events = merged_examples.apply(
         lambda document: utils.has_events(document, include_negatives=True), axis=1)
+    logging.info(f"Keeping {sum(examples_with_events)} from {len(merged_examples)} documents with events")
     merged_examples = merged_examples[examples_with_events]
 
     if save_path:
         try:
-            logging.info(f"Writing Snorkel Labeled data to {save_path + '/daystream_snorkeledv6_pipeline.jsonl'}")
-            merged_examples.to_json(
-                save_path + '/daystream_snorkeledv6_pipeline.jsonl', orient='records', lines=True, force_ascii=False)
+            final_save_path = Path(save_path).joinpath("/daystream_snorkeledv6_pipeline.jsonl")
+            logging.info(f"Writing Snorkel Labeled data to {final_save_path}")
+            merged_examples.to_json(final_save_path, orient='records', lines=True, force_ascii=False)
         except Exception as e:
             print(e)
     return merged_examples
+
+
+def main(args):
+    input_path = Path(args.input)
+    assert input_path.exists(), 'Input not found: %s'.format(args.input)
+
+    save_path = Path(args.save_path)
+    assert save_path.exists(), 'Save path not found: %s'.format(args.save_path)
+
+    loaded_data = load_data(input_path)
+    labeled_examples = build_training_data(lf_train=loaded_data['daystream'], save_path=save_path,
+                                           lf_dev=loaded_data['train'])
+
+    logging.info(f"Finished labeling {len(labeled_examples)} documents.")
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description='Snorkel event extraction labeler')
+    parser.add_argument('--input_path', type=str, help='Path to corpus')
+    parser.add_argument('--save_path', type=str, help='Save path for labeled train data')
+    arguments = parser.parse_args()
+    main(arguments)
