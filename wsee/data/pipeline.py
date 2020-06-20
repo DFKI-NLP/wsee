@@ -138,7 +138,7 @@ def build_event_trigger_examples(dataframe):
     label_count_map = dict(zip(label, count))
     negative_trigger_idx = SD4M_RELATION_TYPES.index(NEGATIVE_TRIGGER_LABEL)
     if negative_trigger_idx in label_count_map:
-        logging.info(f"Number of events: {len(event_trigger_rows)-label_count_map[negative_trigger_idx]}")
+        logging.info(f"Number of events: {len(event_trigger_rows) - label_count_map[negative_trigger_idx]}")
     logging.info(f"Number of event trigger examples: {len(event_trigger_rows)}")
     return event_trigger_rows, event_trigger_rows_y
 
@@ -508,15 +508,33 @@ def main(args):
 
     loaded_data = load_data(input_path)
     # We label the daystream data with Snorkel and use the train data from SD4M
-    labeled_examples = build_training_data(lf_train=loaded_data['daystream'], save_path=save_path,
-                                           lf_dev=loaded_data['train'])
+    daystream_snorkeled = build_training_data(lf_train=loaded_data['daystream'], save_path=save_path,
+                                              lf_dev=loaded_data['train'])
 
+    logging.info(f"Finished labeling {len(daystream_snorkeled)} documents.")
+
+    # Export merge of daystream+sd4m train
+    logging.info(f"Exporting merge of snorkel labeled data and gold data.")
     sd_train = loaded_data['train']
-    merged = pd.concat([labeled_examples, sd_train])
-    merged.to_json(save_path.joinpath('snorkeled_gold_conv_merge_with_abstains.jsonl'),
+    merged = pd.concat([daystream_snorkeled, sd_train])
+    merged.to_json(save_path.joinpath('snorkeled_gold_merge.jsonl'),
                    orient='records', lines=True, force_ascii=False)
 
-    logging.info(f"Finished labeling {len(labeled_examples)} documents.")
+    if args.create_filtered_versions:
+        logging.info(f"Create versions that filter out documents that only contain negative examples/abstains")
+        sd_train_with_events = list(sd_train.apply(lambda doc: utils.has_events(doc, include_negatives=False), axis=1))
+        sd_train[sd_train_with_events].to_json(save_path.joinpath('train_with_annotated_events_and_defaults.jsonl'),
+                                               orient='records', lines=True, force_ascii=False)
+        daystream_with_events = list(
+            daystream_snorkeled.apply(lambda doc: utils.has_events(doc, include_negatives=False), axis=1)
+        )
+        daystream_snorkeled[daystream_with_events].to_json(
+            save_path.joinpath('daystream_snorkeled_with_annotated_events.jsonl'),
+            orient='records', lines=True, force_ascii=False
+        )
+        merged_with_events = list(merged.apply(lambda doc: utils.has_events(doc, include_negatives=False), axis=1))
+        merged[merged_with_events].to_json(save_path.joinpath('snorkeled_gold_merge_with_annotated_events.jsonl'),
+                                           orient='records', lines=True, force_ascii=False)
 
 
 if __name__ == '__main__':
@@ -524,5 +542,8 @@ if __name__ == '__main__':
         description='Snorkel event extraction labeler')
     parser.add_argument('--input_path', type=str, help='Path to corpus')
     parser.add_argument('--save_path', type=str, help='Save path for labeled train data')
+    parser.add_argument('--create_filtered_versions', action='store_true', default=False,
+                        help='Whether to create versions where documents are filtered out, when they do not contain'
+                             'any positive event.')
     arguments = parser.parse_args()
     main(arguments)
