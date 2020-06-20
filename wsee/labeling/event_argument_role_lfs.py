@@ -124,7 +124,7 @@ def lf_location_same_sentence_nearest_is_event(x):
 
 @labeling_function(pre=[])
 def lf_location_same_sentence_is_event(x):
-    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and lf_direction_type(x) == ABSTAIN:
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and lf_direction(x) == ABSTAIN:
         return lf_location(x, nearest=False)
     else:
         return ABSTAIN
@@ -132,7 +132,7 @@ def lf_location_same_sentence_is_event(x):
 
 @labeling_function(pre=[])
 def lf_location_same_sentence_nearest_is_event(x):
-    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and lf_direction_type(x) == ABSTAIN:
+    if lf_start_location_type(x) == ABSTAIN and lf_end_location_type(x) == ABSTAIN and lf_direction(x) == ABSTAIN:
         return lf_location(x, nearest=True)
     else:
         return ABSTAIN
@@ -621,7 +621,12 @@ def lf_start_date_type(x):
 
 
 @labeling_function(pre=[])
-def lf_start_date_amplifier(x):
+def lf_start_date_replicated(x):
+    """
+    Replicated start date function. Temporary solution to assign start date labeling function more importance.
+    :param x:
+    :return:
+    """
     return lf_start_date_type(x)
 
 
@@ -713,7 +718,12 @@ def lf_end_date_type(x):
 
 
 @labeling_function(pre=[])
-def lf_end_date_amplifier(x):
+def lf_end_date_replicated(x):
+    """
+    Replicated end date function. Temporary solution to assign end date labeling function more importance.
+    :param x:
+    :return:
+    """
     return lf_end_date_type(x)
 
 
@@ -747,7 +757,12 @@ def lf_cause_type(x):
 
 
 @labeling_function(pre=[])
-def lf_cause_amplifier(x):
+def lf_cause_replicated(x):
+    """
+    Replicated cause function. Temporary solution to assign cause labeling function more importance.
+    :param x:
+    :return:
+    """
     return lf_cause_type(x)
 
 

@@ -197,8 +197,7 @@ def check_in_parentheses(trigger_text, left_tokens=None, right_tokens=None):
 @labeling_function(pre=[])
 def lf_canceledroute_cat(x):
     """
-    Checks for canceled route keywords. Does not handle special case of split trigger "fällt ... aus".
-    The annotators only annotated one of the two words as an event.
+    Checks for canceled route keywords.
     :param x:
     :return:
     """
@@ -213,21 +212,9 @@ def lf_canceledroute_cat(x):
 
 
 @labeling_function(pre=[])
-def lf_canceledroute_amplifier1(x):
+def lf_canceledroute_replicated(x):
     """
-    Checks for canceled route keywords. Does not handle special case of split trigger "fällt ... aus".
-    The annotators only annotated one of the two words as an event.
-    :param x:
-    :return:
-    """
-    return lf_canceledroute_cat(x)
-
-
-@labeling_function(pre=[])
-def lf_canceledroute_amplifier2(x):
-    """
-    Checks for canceled route keywords. Does not handle special case of split trigger "fällt ... aus".
-    The annotators only annotated one of the two words as an event.
+    Replicated canceled route function. Temporary solution to assign canceled route labeling function more importance.
     :param x:
     :return:
     """
@@ -246,12 +233,12 @@ def lf_canceledstop_cat(x):
 
 
 @labeling_function(pre=[])
-def lf_canceledstop_amplifier1(x):
-    return lf_canceledstop_cat(x)
-
-
-@labeling_function(pre=[])
-def lf_canceledstop_amplifier2(x):
+def lf_canceledstop_replicated(x):
+    """
+    Replicated canceled stop function. Temporary solution to assign canceled stop labeling function more importance.
+    :param x:
+    :return:
+    """
     return lf_canceledstop_cat(x)
 
 
@@ -447,12 +434,12 @@ def lf_railreplacementservice_cat(x):
 
 
 @labeling_function(pre=[])
-def lf_railreplacementservice_amplifier1(x):
-    return lf_railreplacementservice_cat(x)
-
-
-@labeling_function(pre=[])
-def lf_railreplacementservice_amplifier2(x):
+def lf_railreplacementservice_replicated(x):
+    """
+    Replicated rail replacement service function. Temporary solution to assign rrs labeling function more importance.
+    :param x:
+    :return:
+    """
     return lf_railreplacementservice_cat(x)
 
 
@@ -532,22 +519,20 @@ def lf_trafficjam_order(x):
 
 @labeling_function(pre=[])
 def lf_negative(x):
+    """
+    Simple negative labeling function that returns the negative trigger label when all other labeling functions abstain.
+    This may hinder the generalization power of the model.
+    :param x:
+    :return:
+    """
     lfs = [
-        lf_accident_context,
-        lf_accident_context_street,
-        lf_accident_context_no_cause_check,
+        lf_accident_chained,
         lf_canceledroute_cat,
         lf_canceledstop_cat,
-        lf_delay_cat,
-        lf_delay_priorities,
-        lf_delay_duration,
-        lf_obstruction_cat,
-        lf_obstruction_street,
-        lf_obstruction_priorities,
+        lf_delay_chained,
+        lf_obstruction_chained,
         lf_railreplacementservice_cat,
-        lf_trafficjam_cat,
-        lf_trafficjam_street,
-        lf_trafficjam_order
+        lf_trafficjam_chained
     ]
     for lf in lfs:
         if lf(x) != ABSTAIN:
