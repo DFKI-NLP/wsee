@@ -58,6 +58,16 @@ def zero_out_abstains(y: np.ndarray, L: np.ndarray) -> np.ndarray:
     return y
 
 
+def has_triggers(doc):
+    """
+    :param doc: Document
+
+    :return: Whether the document contains any triggers
+    """
+    entities = doc['entities']
+    return any(entity['entity_type'] == 'trigger' for entity in entities)
+
+
 def has_events(doc, include_negatives=False):
     """
     :param doc: Document
