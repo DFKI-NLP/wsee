@@ -1,8 +1,9 @@
 import argparse
 import os
 import logging
+import pickle
 from pathlib import Path
-from typing import Optional, List, Any, Dict
+from typing import Optional, List, Any, Dict, Tuple
 
 import pandas as pd
 import numpy as np
@@ -277,7 +278,7 @@ def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_prob
 
 def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
                       lfs: Optional[List[labeling_function]] = None,
-                      lf_dev: pd.DataFrame = None):
+                      lf_dev: pd.DataFrame = None) -> Tuple[pd.DataFrame, PandasLFApplier, LabelModel]:
     """
     Takes "raw" data frame, builds trigger examples, (trains LabelModel), calculates event_trigger_probs
     and returns merged trigger examples with event_trigger_probs.
@@ -285,7 +286,7 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     :param lf_train: Training dataset which will be labeled using Snorkel
     :param lfs: List of labeling functions
     :param lf_dev: Optional development dataset that can be used to set a prior for the class balance
-    :return:
+    :return: Labeled lf_train, labeling function applier, label model
     """
     df_train, _ = build_event_trigger_examples(lf_train)
     df_dev, Y_dev = None, None
@@ -338,22 +339,24 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
             X=df_train, y=event_trigger_probs, L=L_train
         )
 
-        return merge_event_trigger_examples(df_train_filtered, probs_train_filtered)
+        merged_event_trigger_examples = merge_event_trigger_examples(df_train_filtered, probs_train_filtered)
     else:
         # Multiplies probabilities of abstains with zero so that the example is treated as padding in the end model
-        return merge_event_trigger_examples(df_train, utils.zero_out_abstains(event_trigger_probs, L_train))
+        merged_event_trigger_examples = merge_event_trigger_examples(
+            df_train, utils.zero_out_abstains(event_trigger_probs, L_train))
+    return merged_event_trigger_examples, applier, label_model
 
 
 def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
                    lfs: Optional[List[labeling_function]] = None,
-                   lf_dev: pd.DataFrame = None):
+                   lf_dev: pd.DataFrame = None) -> Tuple[pd.DataFrame, PandasLFApplier, LabelModel]:
     """
 
     :param filter_abstains: Filters rows where all labeling functions abstained
     :param lf_train: Training dataset which will be labeled using Snorkel
     :param lfs: List of labeling functions
     :param lf_dev: Optional development dataset that can be used to set a prior for the class balance
-    :return:
+    :return: Labeled lf_train, labeling function applier, label model
     """
     df_train, _ = build_event_role_examples(lf_train)
     df_dev, Y_dev = None, None
@@ -427,10 +430,12 @@ def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
             X=df_train, y=event_role_probs, L=L_train
         )
 
-        return merge_event_role_examples(df_train_filtered, probs_train_filtered)
+        merged_event_role_examples = merge_event_role_examples(df_train_filtered, probs_train_filtered)
     else:
         # Multiplies probabilities of abstains with zero so that the example is treated as padding in the end model
-        return merge_event_role_examples(df_train, utils.zero_out_abstains(event_role_probs, L_train))
+        merged_event_role_examples = merge_event_role_examples(
+            df_train, utils.zero_out_abstains(event_role_probs, L_train))
+    return merged_event_role_examples, applier, label_model
 
 
 def build_training_data(lf_train: pd.DataFrame, save_path=None,
@@ -444,7 +449,8 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None,
     """
 
     # Trigger labeling
-    merged_event_trigger_examples = get_trigger_probs(lf_train=lf_train, lf_dev=lf_dev)
+    merged_event_trigger_examples, trigger_lf_applier, trigger_label_model = get_trigger_probs(lf_train=lf_train,
+                                                                                               lf_dev=lf_dev)
 
     if save_path:
         try:
@@ -456,7 +462,7 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None,
             print(e)
 
     # Role labeling
-    merged_event_role_examples = get_role_probs(lf_train=lf_train, lf_dev=lf_dev)
+    merged_event_role_examples, role_lf_applier, role_label_model = get_role_probs(lf_train=lf_train, lf_dev=lf_dev)
 
     if save_path:
         try:
@@ -494,6 +500,16 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None,
             final_save_path = Path(save_path).joinpath("daystream_snorkeled.jsonl")
             logging.info(f"Writing Snorkel Labeled data to {final_save_path}")
             merged_examples.to_json(final_save_path, orient='records', lines=True, force_ascii=False)
+
+            snorkel_ee_components = {
+                "trigger_lf_applier": trigger_lf_applier,
+                "trigger_label_model": trigger_label_model,
+                "role_lf_applier": role_lf_applier,
+                "role_label_model": role_label_model
+            }
+            save_file = Path(save_path).joinpath("snorkel_ee_components.pkl")
+            with open(save_file, 'wb') as pickled_file:
+                pickle.dump(snorkel_ee_components, pickled_file)
         except Exception as e:
             print(e)
     return merged_examples
