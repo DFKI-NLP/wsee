@@ -380,7 +380,7 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
 
     # Evaluate label model on development data
     if df_dev is not None and Y_dev is not None:
-        logging.info("Running Event Role Labeling Function Applier on dev set and evaluate label model")
+        logging.info("Running Event Trigger Labeling Function Applier on dev set and evaluate label model")
         L_dev = applier.apply(df_dev)
         label_model_accuracy = label_model.score(L=L_dev, Y=Y_dev, tie_break_policy="random")[
             "accuracy"
