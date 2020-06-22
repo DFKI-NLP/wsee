@@ -296,7 +296,6 @@ def merge_event_trigger_examples(event_trigger_rows, event_trigger_probs):
     :return: DataFrame containing one document per row.
     """
     logging.info("Merging event trigger examples that belong to the same document")
-    # add event_trigger_probs to dataframe as additional column
     event_trigger_rows['event_type_probs'] = list(event_trigger_probs)
     if 'event_triggers' in event_trigger_rows:
         # remove event trigger defaults
@@ -337,10 +336,11 @@ def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_prob
     :return: DataFrame containing one document per row.
     """
     logging.info("Merging event role examples that belong to the same document")
+    event_role_rows['event_argument_probs'] = list(event_argument_probs)
     if 'event_roles' in event_role_rows:
         # remove default event roles
         event_role_rows.drop('event_roles', axis=1, inplace=True)
-    event_role_rows['event_argument_probs'] = list(event_argument_probs)
+    # rebuild event roles with snorkel labels
     event_role_rows = event_role_rows.apply(build_labeled_event_role, axis=1)
     aggregation_functions = {
         'text': 'first',
