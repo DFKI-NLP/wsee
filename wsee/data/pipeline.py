@@ -300,7 +300,9 @@ def merge_event_trigger_examples(event_trigger_rows, event_trigger_probs):
     for idx, row in event_trigger_rows.iterrows():
         row['event_trigger_probs'] = event_trigger_probs[idx]
     if 'event_triggers' in event_trigger_rows:
+        # remove event trigger defaults
         event_trigger_rows.drop('event_triggers', axis=1, inplace=True)
+    # rebuild event triggers with snorkel labels
     event_trigger_rows = event_trigger_rows.apply(build_labeled_event_trigger, axis=1)
     aggregation_functions = {
         'text': 'first',
@@ -337,6 +339,7 @@ def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_prob
     """
     logging.info("Merging event role examples that belong to the same document")
     if 'event_roles' in event_role_rows:
+        # remove default event roles
         event_role_rows.drop('event_roles', axis=1, inplace=True)
     assert len(event_role_rows) == len(event_argument_probs), "Mismatch in length of role rows and probs"
     for idx, row in event_role_rows.iterrows():
