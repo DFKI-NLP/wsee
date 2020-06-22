@@ -166,7 +166,7 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults: 
             'event_triggers': event_triggers, 'event_roles': event_roles}
 
 
-def get_events(relations, one_hot, use_first_trigger: bool = False):
+def get_events(relations, one_hot, use_first_trigger: bool = True):
     """
     Only creates event_triggers and event_roles for relation mentions in document
 
@@ -191,7 +191,8 @@ def get_events(relations, one_hot, use_first_trigger: bool = False):
             # if there is a "aus" in triggers choose the "fallen"/"fällt"
             if len(triggers) > 1:
                 aus_trigger = next(
-                    (trigger for trigger in triggers if trigger['conceptMention']['normalizedValue'] == 'aus'), None)
+                    (trigger for trigger in triggers if
+                     trigger['conceptMention']['normalizedValue'] in ['aus', 'aus.']), None)
                 fallen_trigger = next(
                     (trigger for trigger in triggers
                      if trigger['conceptMention']['normalizedValue'] in ['fällt', 'faellt', 'fallen']), None)
@@ -269,7 +270,7 @@ def build_default_events(entities, one_hot):
     return event_triggers, event_roles
 
 
-def update_events(event_triggers, event_roles, relations, one_hot: bool = True, use_first_trigger: bool = False):
+def update_events(event_triggers, event_roles, relations, one_hot: bool = True, use_first_trigger: bool = True):
     """
     Assumes preceding build_defaults_events step and uses relationMentions of the document
     to update the event_type/ event_role attributes.
@@ -295,7 +296,8 @@ def update_events(event_triggers, event_roles, relations, one_hot: bool = True, 
             # if there is a "aus" in triggers choose the "fallen"/"fällt"
             if len(triggers) > 1:
                 aus_trigger = next(
-                    (trigger for trigger in triggers if trigger['conceptMention']['normalizedValue'] == 'aus'), None)
+                    (trigger for trigger in triggers
+                     if trigger['conceptMention']['normalizedValue'] in ['aus', 'aus.']), None)
                 fallen_trigger = next(
                     (trigger for trigger in triggers
                      if trigger['conceptMention']['normalizedValue'] in ['fällt', 'faellt', 'fallen']), None)
