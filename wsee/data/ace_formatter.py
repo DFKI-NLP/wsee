@@ -25,17 +25,20 @@ def snorkel_to_ace_format(df: pd.DataFrame) -> pd.DataFrame:
 def create_events(row: pd.Series) -> pd.Series:
     formatted_events = []
     if 'entities' in row and 'event_triggers' in row and 'event_roles' in row:
-        # TODO: save string labels instead of redoing it later on
-        filtered_triggers = [trigger for trigger in row['event_triggers']
-                             if SD4M_RELATION_TYPES[np.asarray(trigger['event_type_probs']).argmax()]
-                             != NEGATIVE_TRIGGER_LABEL]
-        filtered_roles = [role for role in row['event_roles']
-                          if ROLE_LABELS[np.asarray(role['event_argument_probs']).argmax()]
-                          != NEGATIVE_ARGUMENT_LABEL]
+        filtered_triggers_with_labels = [
+            (trigger, SD4M_RELATION_TYPES[np.asarray(trigger['event_type_probs']).argmax()])
+            for trigger in row['event_triggers']
+            if np.asarray(trigger['event_type_probs']).sum() > 0.0 and
+            SD4M_RELATION_TYPES[np.asarray(trigger['event_type_probs']).argmax()] != NEGATIVE_TRIGGER_LABEL]
+        filtered_roles_with_labels = [
+            (role, ROLE_LABELS[np.asarray(role['event_argument_probs']).argmax()])
+            for role in row['event_roles']
+            if np.asarray(role['event_argument_probs']).sum() > 0.0 and
+            ROLE_LABELS[np.asarray(role['event_argument_probs']).argmax()] != NEGATIVE_ARGUMENT_LABEL]
 
-        for event_trigger in filtered_triggers:
+        for event_trigger, trigger_label in filtered_triggers_with_labels:
             trigger_entity = preprocessors.get_entity(event_trigger['id'], row['entities'])
-            event_type = SD4M_RELATION_TYPES[np.asarray(event_trigger['event_type_probs']).argmax()]
+            event_type = trigger_label
             formatted_trigger = {
                 'id': trigger_entity['id'],
                 'text': trigger_entity['text'],
@@ -43,11 +46,12 @@ def create_events(row: pd.Series) -> pd.Series:
                 'start': trigger_entity['start'],
                 'end': trigger_entity['end']
             }
-            relevant_args = [arg for arg in filtered_roles if arg['trigger'] == event_trigger['id']]
+            relevant_args_with_labels = [(arg, label) for arg, label in filtered_roles_with_labels if
+                                         arg['trigger'] == event_trigger['id']]
             formatted_args = []
-            for event_arg in relevant_args:
+            for event_arg, role_label in relevant_args_with_labels:
                 event_arg_entity = preprocessors.get_entity(event_arg['argument'], row['entities'])
-                arg_role = ROLE_LABELS[np.asarray(event_arg['event_argument_probs']).argmax()]
+                arg_role = role_label
                 formatted_arg = {
                     'id': event_arg_entity['id'],
                     'text': event_arg_entity['text'],
