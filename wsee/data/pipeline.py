@@ -6,7 +6,8 @@ from typing import Optional, List, Any, Dict, Tuple
 
 import pandas as pd
 import numpy as np
-from snorkel.labeling import LabelModel, PandasLFApplier, labeling_function, filter_unlabeled_dataframe
+from snorkel.labeling import LabelModel, MajorityLabelVoter, PandasLFApplier, labeling_function, \
+    filter_unlabeled_dataframe
 from tqdm import tqdm
 from multiprocessing import Pool
 
@@ -355,10 +356,12 @@ def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_prob
 
 def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
                       lfs: Optional[List[labeling_function]] = None,
-                      lf_dev: pd.DataFrame = None) -> Tuple[pd.DataFrame, PandasLFApplier, LabelModel]:
+                      lf_dev: pd.DataFrame = None, use_majority_label_voter=False) \
+        -> Tuple[pd.DataFrame, PandasLFApplier, LabelModel]:
     """
     Takes "raw" data frame, builds trigger examples, (trains LabelModel), calculates event_trigger_probs
     and returns merged trigger examples with event_trigger_probs.
+    :param use_majority_label_voter: Whether to use a majority label voter instead of the snorkel label model
     :param filter_abstains: Filters rows where all labeling functions abstained
     :param lf_train: Training dataset which will be labeled using Snorkel
     :param lfs: List of labeling functions
@@ -374,9 +377,14 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     logging.info("Running Event Trigger Labeling Function Applier")
     applier = PandasLFApplier(lfs)
     L_train = applier.apply(df_train)
-    logging.info("Fitting LabelModel on the data and predicting trigger class probabilities")
-    label_model = LabelModel(cardinality=8, verbose=True)
-    label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=12345, Y_dev=Y_dev)
+
+    if use_majority_label_voter:
+        logging.info("Using MajorityLabelVoter to calculate trigger class probabilities")
+        label_model = MajorityLabelVoter(cardinality=8)
+    else:
+        label_model = LabelModel(cardinality=8, verbose=True)
+        logging.info("Fitting LabelModel on the data and predicting trigger class probabilities")
+        label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=12345, Y_dev=Y_dev)
 
     # Evaluate label model on development data
     if df_dev is not None and Y_dev is not None:
@@ -385,7 +393,10 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
         label_model_accuracy = label_model.score(L=L_dev, Y=Y_dev, tie_break_policy="random")[
             "accuracy"
         ]
-        logging.info(f"{'Trigger Label Model Accuracy:':<25} {label_model_accuracy * 100:.1f}%")
+        if use_majority_label_voter:
+            logging.info(f"{'Trigger Majority Label Voter Accuracy:':<25} {label_model_accuracy * 100:.1f}%")
+        else:
+            logging.info(f"{'Trigger Label Model Accuracy:':<25} {label_model_accuracy * 100:.1f}%")
 
     event_trigger_probs = label_model.predict_proba(L_train)
 
@@ -404,9 +415,12 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
 
 def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
                    lfs: Optional[List[labeling_function]] = None,
-                   lf_dev: pd.DataFrame = None) -> Tuple[pd.DataFrame, PandasLFApplier, LabelModel]:
+                   lf_dev: pd.DataFrame = None, use_majority_label_voter=False) \
+        -> Tuple[pd.DataFrame, PandasLFApplier, LabelModel]:
     """
-
+    Takes "raw" data frame, builds argument role examples, (trains LabelModel), calculates event_argument_probs
+    and returns merged argument role examples with event_argument_probs.
+    :param use_majority_label_voter: Whether to use a majority label voter instead of the snorkel label model
     :param filter_abstains: Filters rows where all labeling functions abstained
     :param lf_train: Training dataset which will be labeled using Snorkel
     :param lfs: List of labeling functions
@@ -422,9 +436,14 @@ def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     logging.info("Running Event Role Labeling Function Applier")
     applier = PandasLFApplier(lfs)
     L_train = applier.apply(df_train)
-    logging.info("Fitting LabelModel on the data and predicting role class probabilities")
-    label_model = LabelModel(cardinality=11, verbose=True)
-    label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=12345, Y_dev=Y_dev)
+
+    if use_majority_label_voter:
+        logging.info("Using MajorityLabelVoter to calculate role class probabilities")
+        label_model = MajorityLabelVoter(cardinality=11)
+    else:
+        label_model = LabelModel(cardinality=11, verbose=True)
+        logging.info("Fitting LabelModel on the data and predicting role class probabilities")
+        label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=12345, Y_dev=Y_dev)
 
     # Evaluate label model on development data
     if df_dev is not None and Y_dev is not None:
@@ -433,7 +452,10 @@ def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
         label_model_accuracy = label_model.score(L=L_dev, Y=Y_dev, tie_break_policy="random")[
             "accuracy"
         ]
-        logging.info(f"{'Role Label Model Accuracy:':<25} {label_model_accuracy * 100:.1f}%")
+        if use_majority_label_voter:
+            logging.info(f"{'Role Majority Label Voter Accuracy:':<25} {label_model_accuracy * 100:.1f}%")
+        else:
+            logging.info(f"{'Role Label Model Accuracy:':<25} {label_model_accuracy * 100:.1f}%")
 
     event_role_probs = label_model.predict_proba(L_train)
 
@@ -458,9 +480,10 @@ def add_default_events(document):
 
 
 def build_training_data(lf_train: pd.DataFrame, save_path=None,
-                        lf_dev: pd.DataFrame = None) -> pd.DataFrame:
+                        lf_dev: pd.DataFrame = None, use_majority_label_voter=False) -> pd.DataFrame:
     """
     Merges event_trigger_examples and event_role examples to build training data.
+    :param use_majority_label_voter: Whether to use a majority label voter instead of the snorkel label model
     :param save_path: Where to save the dataframe as a jsonl
     :param lf_train: DataFrame with original data.
     :param lf_dev: DataFrame with gold labels, which can be used to estimate the class balance for triggers & roles
@@ -470,8 +493,9 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None,
         lf_train = lf_train.apply(add_default_events, axis=1)
 
     # Trigger labeling
-    merged_event_trigger_examples, trigger_lf_applier, trigger_label_model = get_trigger_probs(lf_train=lf_train,
-                                                                                               lf_dev=lf_dev)
+    trigger_probs_output = get_trigger_probs(lf_train=lf_train, lf_dev=lf_dev,
+                                             use_majority_label_voter=use_majority_label_voter)
+    merged_event_trigger_examples, trigger_lf_applier, trigger_label_model = trigger_probs_output
 
     if save_path:
         try:
@@ -483,7 +507,9 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None,
             print(e)
 
     # Role labeling
-    merged_event_role_examples, role_lf_applier, role_label_model = get_role_probs(lf_train=lf_train, lf_dev=lf_dev)
+    role_probs_output = get_role_probs(lf_train=lf_train, lf_dev=lf_dev,
+                                       use_majority_label_voter=use_majority_label_voter)
+    merged_event_role_examples, role_lf_applier, role_label_model = role_probs_output
 
     if save_path:
         try:
@@ -521,9 +547,9 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None,
             final_save_path = Path(save_path).joinpath("daystream_snorkeled.jsonl")
             logging.info(f"Writing Snorkel Labeled data to {final_save_path}")
             merged_examples.to_json(final_save_path, orient='records', lines=True, force_ascii=False)
-
-            trigger_label_model.save(Path(save_path).joinpath("trigger_lm.pt"))
-            role_label_model.save(Path(save_path).joinpath("role_lm.pt"))
+            if not use_majority_label_voter:
+                trigger_label_model.save(Path(save_path).joinpath("trigger_lm.pt"))
+                role_label_model.save(Path(save_path).joinpath("role_lm.pt"))
         except Exception as e:
             print(e)
     return merged_examples
@@ -537,9 +563,18 @@ def main(args):
     assert save_path.exists(), 'Save path not found: %s'.format(args.save_path)
 
     loaded_data = load_data(input_path)
+
+    use_majority_label_voter = args.use_majority_label_voter
+
+    if use_majority_label_voter:
+        logging.info("Using MajorityVoterLabeler to generate probabilistic labels")
+    else:
+        logging.info("Using LabelModel to generate probabilistic labels")
+
     # We label the daystream data with Snorkel and use the train data from SD4M
     daystream_snorkeled = build_training_data(lf_train=loaded_data['daystream'], save_path=save_path,
-                                              lf_dev=loaded_data['train'])
+                                              lf_dev=loaded_data['train'],
+                                              use_majority_label_voter=use_majority_label_voter)
 
     logging.info(f"Finished labeling {len(daystream_snorkeled)} documents.")
 
@@ -575,5 +610,7 @@ if __name__ == '__main__':
     parser.add_argument('--create_filtered_versions', action='store_true', default=False,
                         help='Whether to create versions where documents are filtered out, when they do not contain'
                              'any positive event.')
+    parser.add_argument('--use_majority_label_voter', action='store_true', default=False,
+                        help='Whether to use a majority label voter instead of the snorkel label model.')
     arguments = parser.parse_args()
     main(arguments)
