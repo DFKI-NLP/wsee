@@ -103,6 +103,17 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults: 
     text = span_to_text(doc_text, doc['span']) if 'span' in doc else doc_text
     tokens = [span_to_text(doc_text, token['span']) for token in
               doc['tokens']]
+    sentence_spans = []
+    for sentence in doc['sentences']:
+        start, end = span_to_token_idxs(doc['tokens'], sentence['span'])
+        char_start = sentence['span']['start']
+        char_end = sentence['span']['end']
+        sentence_spans.append({
+            'start': start,
+            'end': end,
+            'char_start': char_start,
+            'char_end': char_end
+        })
     ner_tags = _convert_ner_tags([token['ner'] for token in doc['tokens']], convert_event_cause)
     pos_tags = [token['posTag'] for token in doc['tokens']]
 
@@ -162,7 +173,7 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults: 
         event_triggers, event_roles = build_default_events(entities, one_hot)
 
     return {'id': s_id, 'text': text, 'tokens': tokens, 'docType': doc['docType'],
-            'pos_tags': pos_tags, 'ner_tags': ner_tags, 'entities': entities,
+            'pos_tags': pos_tags, 'ner_tags': ner_tags, 'entities': entities, 'sentence_spans': sentence_spans,
             'event_triggers': event_triggers, 'event_roles': event_roles}
 
 

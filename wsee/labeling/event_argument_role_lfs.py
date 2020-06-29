@@ -908,6 +908,15 @@ def lf_somajo_separate_sentence(x):
 
 
 @labeling_function(pre=[])
+def lf_stanford_separate_sentence(x):
+    for se_span in x.sentence_spans:
+        if se_span['start'] <= min(x.trigger['start'], x.argument['start']) and \
+                se_span['end'] >= max(x.trigger['end'], x.argument['end']):
+            return ABSTAIN
+    return no_arg
+
+
+@labeling_function(pre=[])
 def lf_not_nearest_event(x):
     between_distance = x.between_distance
     all_trigger_distances = get_all_trigger_distances(x)
