@@ -486,9 +486,25 @@ def get_somajo_doc_tokens(doc: List[List[Token]]) -> List[str]:
     return [token.text for sentence in doc for token in sentence]
 
 
-def get_somajo_doc_sentences(doc: List[List[Token]]):
-    # potentially introduces whitespaces that were not in the original document
-    return [" ".join([token.text for token in sentence]) for sentence in doc]
+def get_somajo_doc_sentences(doc: List[List[Token]], text: str):
+    sentence_texts = []
+    sentence_spans = []
+    index = 0
+    for sentence in doc:
+        sentence_text = ""
+        add_space_after = False
+        for token in sentence:
+            sentence_text += token.text
+            if token.space_after:
+                if not token.last_in_sentence:
+                    sentence_text += " "
+                else:
+                    add_space_after = True
+        sentence_spans.append((index, index + len(sentence_text)))
+        sentence_texts.append(sentence_text)
+        index += len(sentence_text)
+        if add_space_after:
+            index += 1
 
 
 @preprocessor()
@@ -503,13 +519,15 @@ def get_somajo_doc(cand: DataPoint) -> Dict[str, Any]:
     entities: Dict[str, str] = {}
     original_entities: List[Dict[str, Any]] = cand.entities
     for entity in original_entities:
+        # SoMaJo re-tokenizes text, re_tokenize entities to facilitate matching entities to sentences in
+        # get_somajo_separate_sentece
         tokenized_entity: List[str] = get_somajo_doc_tokens(nlp_somajo.tokenize_text([entity['text']]))
         entities[entity['id']] = (' '.join(tokenized_entity))
 
     doc = {
         'doc': somajo_doc,
         'tokens': get_somajo_doc_tokens(somajo_doc),
-        'sentences': get_somajo_doc_sentences(somajo_doc),
+        'sentences': get_somajo_doc_sentences(somajo_doc, cand.text),
         'entities': entities,
     }
     return doc
