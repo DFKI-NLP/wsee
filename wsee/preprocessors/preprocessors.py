@@ -326,10 +326,8 @@ def get_sentence_trigger_distances(cand: DataPoint) -> Dict[str, int]:
     :return: Distances from argument to triggers of the same sentence.
     """
     somajo_dictionary: Dict[str, Any] = cand.somajo_doc
-    somajo_doc: List[List[Token]] = somajo_dictionary['doc']
-    sentences: List[str] = somajo_dictionary['sentences']
+    sentences: List[Dict[str, Any]] = somajo_dictionary['sentences']
     argument: Dict[str, Any] = cand.argument
-    somajo_argument: str = somajo_dictionary['entities'][argument['id']]
 
     sentence_trigger_distances: Dict[str, int] = {}
     event_triggers: List[Dict] = cand.event_triggers
@@ -338,23 +336,14 @@ def get_sentence_trigger_distances(cand: DataPoint) -> Dict[str, int]:
         if trigger_id != argument['id']:
             trigger: Dict[str, Any] = get_entity(trigger_id, cand.entities)
 
-            text: str = ""
             tolerance: int = 0
-            for sentence, sent_tokens in zip(sentences, somajo_doc):
-                sentence_start = len(text)
-                text += sentence
-                sentence_end = len(text)
-                # allow for some tolerance for wrong whitespaces: number of punctuation marks, new lines  for now
-                # factor 2 because for each punctuation marks we are adding at most 2 wrong whitespaces
-                tolerance += 2 * len(
-                    [token for token in sent_tokens if token.text in punctuation_marks]) + sentence.count('\n')
+            for sentence in sentences:
+                sentence_start = sentence['char_start']
+                sentence_end = sentence['char_end']
                 m_start: int = min(trigger['char_start'], argument['char_start'])
                 m_end: int = max(trigger['char_end'], argument['char_end'])
 
-                somajo_trigger: str = cand.somajo_doc['entities'][trigger_id]
-
-                if sentence_start <= m_start + tolerance and m_end <= sentence_end + tolerance and \
-                        somajo_trigger in sentence and somajo_argument in sentence:
+                if sentence_start <= m_start + tolerance and m_end <= sentence_end + tolerance:
                     distance: int = get_entity_distance(trigger, argument)
                     sentence_trigger_distances[trigger_id]: int = distance
                     break
@@ -493,24 +482,39 @@ def get_somajo_doc_tokens(doc: List[List[Token]]) -> List[str]:
     return doc_tokens
 
 
-def remove_double_whitespace(s):
-    return re.sub(r"\s\s+", " ", s)
+def normalize_whitespaces(s):
+    """
+    Replaces multiple consecutive whitespaces, whitespace characters (\n\t' ') with single whitespace
+    :param s: String
+    :return: Normalized string
+    """
+    remove_multiple_ws = re.sub(r"\s\s+", " ", s)
+    normalized_ws = re.sub(r"\s", " ", remove_multiple_ws)
+    return normalized_ws
 
 
 def remap_sentence_boundaries(sentence_text: str, sentence_char_start: int, sentence_char_end: int, text: str) \
         -> Tuple[int, int]:
+    """
+    Uses information from SoMaJo sentence splitting and original text to retrieve correct character offsets for sentence
+    :param sentence_text: Reconstructed sentence text from sentence tokens
+    :param sentence_char_start: Approximate start char
+    :param sentence_char_end: Approximate end char
+    :param text: Original document text
+    :return: Updated character offsets for sentence
+    """
     char_start = sentence_char_start
     char_end = sentence_char_end
-    cleaned_text = remove_double_whitespace(text)
+    cleaned_text = normalize_whitespaces(text)
     removed_whitespaces = len(text) - len(cleaned_text)
 
     for i in range(0, removed_whitespaces+1):
-        cleaned_sentence = remove_double_whitespace(text[char_start:char_end+i])
+        cleaned_sentence = normalize_whitespaces(text[char_start:char_end + i])
         cleaned_text_lstrip = cleaned_sentence.lstrip()
         stripped_leading_ws = len(cleaned_sentence) - len(cleaned_text_lstrip)
         if stripped_leading_ws > 0:
             char_start += stripped_leading_ws
-            cleaned_sentence = remove_double_whitespace(text[char_start:char_end + i])
+            cleaned_sentence = normalize_whitespaces(text[char_start:char_end + i])
         if sentence_text == cleaned_sentence:
             return char_start, char_end+i
     logging.warning(f"Sentence boundary [A] and text substring [B] do not match, but could not be remapped: "
@@ -518,8 +522,14 @@ def remap_sentence_boundaries(sentence_text: str, sentence_char_start: int, sent
     return char_start, char_end
 
 
-def get_somajo_doc_sentences(doc: List[List[Token]], text: str):
-    sentences = []
+def get_somajo_doc_sentences(doc: List[List[Token]], text: str) -> List[Dict[str, Any]]:
+    """
+    Builds sentence dictionaries from SoMaJo sentence splitting and document text
+    :param doc: List of sentences, where each sentence is a list of SoMaJo tokens
+    :param text: Original document text
+    :return: List of sentences with sentence text and spans (character and token level)
+    """
+    sentences: List[Dict[str, Any]] = []
     char_offset = 0
     token_idx = 0
     if len(doc) > 1:
@@ -572,26 +582,29 @@ def pre_somajo_doc(cand: DataPoint) -> DataPoint:
 
 
 def get_somajo_doc(cand: DataPoint) -> Dict[str, Any]:
+    """
+    Performs tokenization and sentence splitting using SoMaJo on the text of the DataPoint
+    :param cand: DataPoint with at least a text field
+    :return: Dictionary containing SoMaJo output, token list and sentences
+    """
     load_somajo_model()
     somajo_doc: List[List[Token]] = list(nlp_somajo.tokenize_text([cand.text]))
-    entities: Dict[str, str] = {}
-    original_entities: List[Dict[str, Any]] = cand.entities
-    for entity in original_entities:
-        # SoMaJo re-tokenizes text, re-tokenize entities to facilitate matching entities to sentences in
-        # get_somajo_separate_sentece
-        tokenized_entity: List[str] = get_somajo_doc_tokens(nlp_somajo.tokenize_text([entity['text']]))
-        entities[entity['id']] = (' '.join(tokenized_entity))
 
     doc = {
         'doc': somajo_doc,
         'tokens': get_somajo_doc_tokens(somajo_doc),
-        'sentences': get_somajo_doc_sentences(somajo_doc, cand.text),
-        'entities': entities,
+        'sentences': get_somajo_doc_sentences(somajo_doc, cand.text)
     }
     return doc
 
 
 def get_somajo_separate_sentence(cand: DataPoint) -> bool:
+    """
+    Checks based on the SoMaJo sentence splitting, whether the trigger and the argument of the DataPoint are in the
+    same sentence.
+    :param cand: DataPoint
+    :return: Whether trigger and argument are in the same sentence according to SoMaJo
+    """
     assert 'somajo_doc' in cand, 'You need to run get_somajo_doc first and add somajo_doc to the dataframe.'
     if len(cand.somajo_doc['sentences']) == 1:
         return False
@@ -600,31 +613,15 @@ def get_somajo_separate_sentence(cand: DataPoint) -> bool:
     trigger: Dict[str, Any] = cand.trigger
     argument: Dict[str, Any] = cand.argument
     somajo_doc: Dict[str, Any] = cand.somajo_doc
-    for sentence, sent_tokens in zip(somajo_doc['sentences'], somajo_doc['doc']):
+    for sentence in somajo_doc['sentences']:
         sentence_start = sentence['char_start']
         sentence_end = sentence['char_end']
-        # allow for some tolerance for wrong whitespaces: number of punctuation marks, new lines  for now
-        tolerance += len([token for token in sent_tokens if token.text in punctuation_marks])
-        tolerance += sentence['text'].count('\n')
         m_start: int = min(trigger['char_start'], argument['char_start'])
         m_end: int = max(trigger['char_end'], argument['char_end'])
 
-        somajo_trigger: str = somajo_doc['entities'][trigger['id']]
-        somajo_argument: str = somajo_doc['entities'][argument['id']]
-
-        if sentence_start <= m_start + tolerance and m_end <= sentence_end + tolerance and \
-                somajo_trigger in sentence and somajo_argument in sentence:
-            trigger_matches = [m.start() for m in re.finditer(escape_regex_chars(somajo_trigger), sentence['text'])]
-            trigger_in_sentence: bool = any(
-                abs(trigger_match + sentence_start - trigger['char_start']) < tolerance
-                for trigger_match in trigger_matches)
-            argument_matches = [m.start() for m in re.finditer(escape_regex_chars(somajo_argument), sentence['text'])]
-            argument_in_sentence: bool = any(
-                abs(argument_match + sentence_start - argument['char_start']) < tolerance
-                for argument_match in argument_matches)
-            if trigger_in_sentence and argument_in_sentence:
-                same_sentence = True
-                break
+        if sentence_start <= m_start + tolerance and m_end <= sentence_end + tolerance:
+            same_sentence = True
+            break
     if same_sentence:
         return False
     else:
@@ -636,34 +633,24 @@ def get_sentence_entities(cand: DataPoint) -> List[Dict[str, Any]]:
     Returns all the entities that are in the same sentence as the trigger and the argument.
     If the trigger and argument are not in the same sentence, an empty list is returned.
     :param cand: DataPoint
-    :return: Same sentence entities.
+    :return: Entities that are in the same sentence as the trigger-argument pair.
     """
     assert 'somajo_doc' in cand, "Need somajo_doc to retrieve sentence entities"
-    text: str = ""
     tolerance: int = 0
     trigger: Dict[str, Any] = cand.trigger
     argument: Dict[str, Any] = cand.argument
     somajo_doc: Dict[str, Any] = cand.somajo_doc
     entities: List[Dict[str, Any]] = cand.entities
-    for sentence, sent_tokens in zip(somajo_doc['sentences'], somajo_doc['doc']):
-        sentence_start: int = len(text)
-        text += sentence
-        sentence_end: int = len(text)
-        # allow for some tolerance for wrong whitespaces: number of punctuation marks, new lines  for now
-        # factor 2 because for each punctuation marks we are adding at most 2 wrong whitespaces
-        tolerance += 2 * len([token for token in sent_tokens if token.text in punctuation_marks]) + sentence.count('\n')
+    for sentence in somajo_doc['sentences']:
+        sentence_start = sentence['char_start']
+        sentence_end = sentence['char_end']
         m_start: int = min(trigger['char_start'], argument['char_start'])
         m_end: int = max(trigger['char_end'], argument['char_end'])
 
-        somajo_trigger: str = somajo_doc['entities'][trigger['id']]
-        somajo_argument: str = somajo_doc['entities'][argument['id']]
-
-        if sentence_start <= m_start + tolerance and m_end <= sentence_end + tolerance and \
-                somajo_trigger in sentence and somajo_argument in sentence:
+        if sentence_start <= m_start + tolerance and m_end <= sentence_end + tolerance:
             return [entity for entity in entities
                     if sentence_start <= entity['char_start'] + tolerance and
-                    entity['char_end'] <= sentence_end + tolerance and
-                    somajo_trigger in sentence]
+                    entity['char_end'] <= sentence_end + tolerance]
     return []
 
 
