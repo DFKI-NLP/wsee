@@ -483,28 +483,86 @@ def get_mixed_ner(cand: DataPoint) -> (str, List[Tuple[int, int]]):
 
 
 def get_somajo_doc_tokens(doc: List[List[Token]]) -> List[str]:
-    return [token.text for sentence in doc for token in sentence]
+    doc_tokens = []
+    for sentence in doc:
+        for token in sentence:
+            if token.original_spelling:
+                doc_tokens.append(token.original_spelling)
+            else:
+                doc_tokens.append(token.text)
+    return doc_tokens
+
+
+def remove_double_whitespace(s):
+    return re.sub(r"\s\s+", " ", s)
+
+
+def remap_sentence_boundaries(sentence_text: str, sentence_char_start: int, sentence_char_end: int, text: str) \
+        -> Tuple[int, int]:
+    char_start = sentence_char_start
+    char_end = sentence_char_end
+    cleaned_text = remove_double_whitespace(text)
+    removed_whitespaces = len(text) - len(cleaned_text)
+
+    for i in range(0, removed_whitespaces+1):
+        cleaned_sentence = remove_double_whitespace(text[char_start:char_end+i])
+        cleaned_text_lstrip = cleaned_sentence.lstrip()
+        stripped_leading_ws = len(cleaned_sentence) - len(cleaned_text_lstrip)
+        if stripped_leading_ws > 0:
+            char_start += stripped_leading_ws
+            cleaned_sentence = remove_double_whitespace(text[char_start:char_end + i])
+        if sentence_text == cleaned_sentence:
+            return char_start, char_end+i
+    logging.warning(f"Sentence boundary [A] and text substring [B] do not match, but could not be remapped: "
+                    f"\n[A]{sentence_text}\n[B]{text[char_start:char_end]}")
+    return char_start, char_end
 
 
 def get_somajo_doc_sentences(doc: List[List[Token]], text: str):
-    sentence_texts = []
-    sentence_spans = []
-    index = 0
-    for sentence in doc:
-        sentence_text = ""
-        add_space_after = False
-        for token in sentence:
-            sentence_text += token.text
-            if token.space_after:
-                if not token.last_in_sentence:
-                    sentence_text += " "
-                else:
-                    add_space_after = True
-        sentence_spans.append((index, index + len(sentence_text)))
-        sentence_texts.append(sentence_text)
-        index += len(sentence_text)
-        if add_space_after:
-            index += 1
+    sentences = []
+    char_offset = 0
+    token_idx = 0
+    if len(doc) > 1:
+        for sentence in doc:
+            sentence_text = ""
+            add_space_after = False  # whether to increase char_offset after sentence end
+            sentence_start = token_idx
+            sentence_end = sentence_start
+            for token in sentence:
+                sentence_end += 1
+                token_text = token.original_spelling if token.original_spelling else token.text
+                sentence_text += token_text
+                if token.space_after:
+                    if not token.last_in_sentence:
+                        sentence_text += " "
+                    else:
+                        add_space_after = True
+            sentence_char_start = char_offset
+            sentence_char_end = sentence_char_start + len(sentence_text)
+            sentence_char_start, sentence_char_end = remap_sentence_boundaries(sentence_text,
+                                                                               sentence_char_start,
+                                                                               sentence_char_end, text)
+            tmp_sentence = {
+                'text': text[sentence_char_start:sentence_char_end],
+                'start': sentence_start,
+                'end': sentence_end,
+                'char_start': sentence_char_start,
+                'char_end': sentence_char_end
+            }
+            sentences.append(tmp_sentence)
+            token_idx = sentence_end
+            char_offset = sentence_char_end
+            if add_space_after:
+                char_offset += 1
+    else:
+        sentences.append({
+            'text': text,
+            'start': 0,
+            'end': len(doc[0]),
+            'char_start': 0,
+            'char_end': len(text)
+        })
+    return sentences
 
 
 @preprocessor()
@@ -519,7 +577,7 @@ def get_somajo_doc(cand: DataPoint) -> Dict[str, Any]:
     entities: Dict[str, str] = {}
     original_entities: List[Dict[str, Any]] = cand.entities
     for entity in original_entities:
-        # SoMaJo re-tokenizes text, re_tokenize entities to facilitate matching entities to sentences in
+        # SoMaJo re-tokenizes text, re-tokenize entities to facilitate matching entities to sentences in
         # get_somajo_separate_sentece
         tokenized_entity: List[str] = get_somajo_doc_tokens(nlp_somajo.tokenize_text([entity['text']]))
         entities[entity['id']] = (' '.join(tokenized_entity))
@@ -538,18 +596,16 @@ def get_somajo_separate_sentence(cand: DataPoint) -> bool:
     if len(cand.somajo_doc['sentences']) == 1:
         return False
     same_sentence: bool = False
-    text: str = ""
     tolerance: int = 0
     trigger: Dict[str, Any] = cand.trigger
     argument: Dict[str, Any] = cand.argument
     somajo_doc: Dict[str, Any] = cand.somajo_doc
     for sentence, sent_tokens in zip(somajo_doc['sentences'], somajo_doc['doc']):
-        sentence_start: int = len(text)
-        text += sentence
-        sentence_end: int = len(text)
+        sentence_start = sentence['char_start']
+        sentence_end = sentence['char_end']
         # allow for some tolerance for wrong whitespaces: number of punctuation marks, new lines  for now
-        # factor 2 because for each punctuation marks we are adding at most 2 wrong whitespaces
-        tolerance += 2 * len([token for token in sent_tokens if token.text in punctuation_marks]) + sentence.count('\n')
+        tolerance += len([token for token in sent_tokens if token.text in punctuation_marks])
+        tolerance += sentence['text'].count('\n')
         m_start: int = min(trigger['char_start'], argument['char_start'])
         m_end: int = max(trigger['char_end'], argument['char_end'])
 
@@ -558,11 +614,11 @@ def get_somajo_separate_sentence(cand: DataPoint) -> bool:
 
         if sentence_start <= m_start + tolerance and m_end <= sentence_end + tolerance and \
                 somajo_trigger in sentence and somajo_argument in sentence:
-            trigger_matches = [m.start() for m in re.finditer(escape_regex_chars(somajo_trigger), sentence)]
+            trigger_matches = [m.start() for m in re.finditer(escape_regex_chars(somajo_trigger), sentence['text'])]
             trigger_in_sentence: bool = any(
                 abs(trigger_match + sentence_start - trigger['char_start']) < tolerance
                 for trigger_match in trigger_matches)
-            argument_matches = [m.start() for m in re.finditer(escape_regex_chars(somajo_argument), sentence)]
+            argument_matches = [m.start() for m in re.finditer(escape_regex_chars(somajo_argument), sentence['text'])]
             argument_in_sentence: bool = any(
                 abs(argument_match + sentence_start - argument['char_start']) < tolerance
                 for argument_match in argument_matches)
