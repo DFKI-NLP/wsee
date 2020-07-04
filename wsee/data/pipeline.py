@@ -6,8 +6,7 @@ from typing import Optional, List, Any, Dict, Tuple
 
 import pandas as pd
 import numpy as np
-from snorkel.labeling import LabelModel, MajorityLabelVoter, PandasLFApplier, labeling_function, \
-    filter_unlabeled_dataframe
+from snorkel.labeling import LabelModel, PandasLFApplier, labeling_function, filter_unlabeled_dataframe
 from tqdm import tqdm
 from multiprocessing import Pool
 
@@ -356,12 +355,12 @@ def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_prob
 
 def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
                       lfs: Optional[List[labeling_function]] = None,
-                      lf_dev: pd.DataFrame = None, use_majority_label_voter=False) \
+                      lf_dev: pd.DataFrame = None, seed: Optional[int] = None) \
         -> Tuple[pd.DataFrame, PandasLFApplier, LabelModel]:
     """
     Takes "raw" data frame, builds trigger examples, (trains LabelModel), calculates event_trigger_probs
     and returns merged trigger examples with event_trigger_probs.
-    :param use_majority_label_voter: Whether to use a majority label voter instead of the snorkel label model
+    :param seed: Seed for use in label model (mu initialization)
     :param filter_abstains: Filters rows where all labeling functions abstained
     :param lf_train: Training dataset which will be labeled using Snorkel
     :param lfs: List of labeling functions
@@ -378,13 +377,9 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     applier = PandasLFApplier(lfs)
     L_train = applier.apply(df_train)
 
-    if use_majority_label_voter:
-        logging.info("Using MajorityLabelVoter to calculate trigger class probabilities")
-        label_model = MajorityLabelVoter(cardinality=8)
-    else:
-        label_model = LabelModel(cardinality=8, verbose=True)
-        logging.info("Fitting LabelModel on the data and predicting trigger class probabilities")
-        label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=12345, Y_dev=Y_dev)
+    label_model = LabelModel(cardinality=8, verbose=True)
+    logging.info("Fitting LabelModel on the data and predicting trigger class probabilities")
+    label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=seed, Y_dev=Y_dev)
 
     # Evaluate label model on development data
     if df_dev is not None and Y_dev is not None:
@@ -393,10 +388,7 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
         label_model_accuracy = label_model.score(L=L_dev, Y=Y_dev, tie_break_policy="random")[
             "accuracy"
         ]
-        if use_majority_label_voter:
-            logging.info(f"{'Trigger Majority Label Voter Accuracy:':<25} {label_model_accuracy * 100:.1f}%")
-        else:
-            logging.info(f"{'Trigger Label Model Accuracy:':<25} {label_model_accuracy * 100:.1f}%")
+        logging.info(f"{'Trigger Label Model Accuracy:':<25} {label_model_accuracy * 100:.1f}%")
 
     event_trigger_probs = label_model.predict_proba(L_train)
 
@@ -415,12 +407,12 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
 
 def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
                    lfs: Optional[List[labeling_function]] = None,
-                   lf_dev: pd.DataFrame = None, use_majority_label_voter=False) \
+                   lf_dev: pd.DataFrame = None, seed: Optional[int] = None) \
         -> Tuple[pd.DataFrame, PandasLFApplier, LabelModel]:
     """
     Takes "raw" data frame, builds argument role examples, (trains LabelModel), calculates event_argument_probs
     and returns merged argument role examples with event_argument_probs.
-    :param use_majority_label_voter: Whether to use a majority label voter instead of the snorkel label model
+    :param seed: Seed for use in label model (mu initialization)
     :param filter_abstains: Filters rows where all labeling functions abstained
     :param lf_train: Training dataset which will be labeled using Snorkel
     :param lfs: List of labeling functions
@@ -437,13 +429,9 @@ def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     applier = PandasLFApplier(lfs)
     L_train = applier.apply(df_train)
 
-    if use_majority_label_voter:
-        logging.info("Using MajorityLabelVoter to calculate role class probabilities")
-        label_model = MajorityLabelVoter(cardinality=11)
-    else:
-        label_model = LabelModel(cardinality=11, verbose=True)
-        logging.info("Fitting LabelModel on the data and predicting role class probabilities")
-        label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=12345, Y_dev=Y_dev)
+    label_model = LabelModel(cardinality=11, verbose=True)
+    logging.info("Fitting LabelModel on the data and predicting role class probabilities")
+    label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=seed, Y_dev=Y_dev)
 
     # Evaluate label model on development data
     if df_dev is not None and Y_dev is not None:
@@ -452,10 +440,7 @@ def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
         label_model_accuracy = label_model.score(L=L_dev, Y=Y_dev, tie_break_policy="random")[
             "accuracy"
         ]
-        if use_majority_label_voter:
-            logging.info(f"{'Role Majority Label Voter Accuracy:':<25} {label_model_accuracy * 100:.1f}%")
-        else:
-            logging.info(f"{'Role Label Model Accuracy:':<25} {label_model_accuracy * 100:.1f}%")
+        logging.info(f"{'Role Label Model Accuracy:':<25} {label_model_accuracy * 100:.1f}%")
 
     event_role_probs = label_model.predict_proba(L_train)
 
@@ -479,11 +464,11 @@ def add_default_events(document):
     return document
 
 
-def build_training_data(lf_train: pd.DataFrame, save_path=None,
-                        lf_dev: pd.DataFrame = None, use_majority_label_voter=False) -> pd.DataFrame:
+def build_training_data(lf_train: pd.DataFrame, save_path=None, seed: Optional[int] = None,
+                        lf_dev: pd.DataFrame = None) -> pd.DataFrame:
     """
     Merges event_trigger_examples and event_role examples to build training data.
-    :param use_majority_label_voter: Whether to use a majority label voter instead of the snorkel label model
+    :param seed: Seed for use in label models (mu initialization)
     :param save_path: Where to save the dataframe as a jsonl
     :param lf_train: DataFrame with original data.
     :param lf_dev: DataFrame with gold labels, which can be used to estimate the class balance for triggers & roles
@@ -493,32 +478,12 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None,
         lf_train = lf_train.apply(add_default_events, axis=1)
 
     # Trigger labeling
-    trigger_probs_output = get_trigger_probs(lf_train=lf_train, lf_dev=lf_dev,
-                                             use_majority_label_voter=use_majority_label_voter)
+    trigger_probs_output = get_trigger_probs(lf_train=lf_train, lf_dev=lf_dev, seed=seed)
     merged_event_trigger_examples, trigger_lf_applier, trigger_label_model = trigger_probs_output
 
-    if save_path:
-        try:
-            trigger_save_path = Path(save_path).joinpath('daystream_triggers.jsonl')
-            logging.info(f"Writing Snorkel Trigger data to {trigger_save_path}")
-            merged_event_trigger_examples.reset_index(level=0).to_json(
-                trigger_save_path, orient='records', lines=True, force_ascii=False)
-        except Exception as e:
-            print(e)
-
     # Role labeling
-    role_probs_output = get_role_probs(lf_train=lf_train, lf_dev=lf_dev,
-                                       use_majority_label_voter=use_majority_label_voter)
+    role_probs_output = get_role_probs(lf_train=lf_train, lf_dev=lf_dev, seed=seed)
     merged_event_role_examples, role_lf_applier, role_label_model = role_probs_output
-
-    if save_path:
-        try:
-            role_save_path = Path(save_path).joinpath('daystream_roles.jsonl')
-            logging.info(f"Writing Snorkel Role data to {role_save_path}")
-            merged_event_role_examples.reset_index(level=0).to_json(
-                role_save_path, orient='records', lines=True, force_ascii=False)
-        except Exception as e:
-            print(e)
 
     # Merge
     merged_examples: pd.DataFrame = utils.get_deep_copy(lf_train)
@@ -545,11 +510,11 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None,
     if save_path:
         try:
             final_save_path = Path(save_path).joinpath("daystream_snorkeled.jsonl")
+            os.makedirs(os.path.dirname(final_save_path), exist_ok=True)
             logging.info(f"Writing Snorkel Labeled data to {final_save_path}")
             merged_examples.to_json(final_save_path, orient='records', lines=True, force_ascii=False)
-            if not use_majority_label_voter:
-                trigger_label_model.save(Path(save_path).joinpath("trigger_lm.pt"))
-                role_label_model.save(Path(save_path).joinpath("role_lm.pt"))
+            trigger_label_model.save(Path(save_path).joinpath("trigger_lm.pt"))
+            role_label_model.save(Path(save_path).joinpath("role_lm.pt"))
         except Exception as e:
             print(e)
     return merged_examples
@@ -562,55 +527,59 @@ def main(args):
     save_path = Path(args.save_path)
     assert save_path.exists(), 'Save path not found: %s'.format(args.save_path)
 
+    seed: Optional[int] = args.seed
+    random_repeats: Optional[int] = args.random_repeats
+
     loaded_data = load_data(input_path)
 
-    use_majority_label_voter = args.use_majority_label_voter
+    if random_repeats is not None:
+        if random_repeats > 0:
+            logging.error(f"{random_repeats} is not a valid choice. Choose value that is >= 1")
+        if seed is None:
+            logging.error(f"A fixed seed {seed} defeats the purpose of random repeats.")
+        logging.info(f"Running {random_repeats} runs")
+        for i in range(1, random_repeats+1):
+            run_save_path = save_path.joinpath(f"run_{i}")
+            logging.info(f"{i}. Run will save to: {run_save_path}")
+            # We label the daystream data with Snorkel and use the train data from SD4M
+            daystream_snorkeled = build_training_data(lf_train=loaded_data['daystream'], save_path=run_save_path,
+                                                      lf_dev=loaded_data['train'], seed=seed)
 
-    if use_majority_label_voter:
-        logging.info("Using MajorityVoterLabeler to generate probabilistic labels")
+            logging.info(f"Finished labeling {len(daystream_snorkeled)} documents.")
+
+            # Export merge of daystream+sd4m train
+            logging.info(f"Exporting merge of snorkel labeled data and gold data.")
+            sd_train = loaded_data['train']
+            merged = pd.concat([daystream_snorkeled, sd_train])
+            merged_path = run_save_path.joinpath('snorkeled_gold_merge.jsonl')
+            os.makedirs(os.path.dirname(merged_path), exist_ok=True)
+            merged.to_json(merged_path, orient='records', lines=True, force_ascii=False)
     else:
-        logging.info("Using LabelModel to generate probabilistic labels")
+        if seed:
+            logging.info(f"Using fixed seed {seed}")
+        # We label the daystream data with Snorkel and use the train data from SD4M
+        daystream_snorkeled = build_training_data(lf_train=loaded_data['daystream'], save_path=save_path,
+                                                  lf_dev=loaded_data['train'], seed=seed)
 
-    # We label the daystream data with Snorkel and use the train data from SD4M
-    daystream_snorkeled = build_training_data(lf_train=loaded_data['daystream'], save_path=save_path,
-                                              lf_dev=loaded_data['train'],
-                                              use_majority_label_voter=use_majority_label_voter)
+        logging.info(f"Finished labeling {len(daystream_snorkeled)} documents.")
 
-    logging.info(f"Finished labeling {len(daystream_snorkeled)} documents.")
-
-    # Export merge of daystream+sd4m train
-    logging.info(f"Exporting merge of snorkel labeled data and gold data.")
-    sd_train = loaded_data['train']
-    merged = pd.concat([daystream_snorkeled, sd_train])
-    merged.to_json(save_path.joinpath('snorkeled_gold_merge.jsonl'),
-                   orient='records', lines=True, force_ascii=False)
-
-    if args.create_filtered_versions:
-        logging.info(f"Create versions that filter out documents that only contain negative examples/abstains")
-        sd_train_with_events = list(sd_train.apply(lambda doc: utils.has_events(doc, include_negatives=False), axis=1))
-        sd_train[sd_train_with_events].to_json(save_path.joinpath('train_with_annotated_events_and_defaults.jsonl'),
-                                               orient='records', lines=True, force_ascii=False)
-        daystream_with_events = list(
-            daystream_snorkeled.apply(lambda doc: utils.has_events(doc, include_negatives=False), axis=1)
-        )
-        daystream_snorkeled[daystream_with_events].to_json(
-            save_path.joinpath('daystream_snorkeled_with_annotated_events.jsonl'),
-            orient='records', lines=True, force_ascii=False
-        )
-        merged_with_events = list(merged.apply(lambda doc: utils.has_events(doc, include_negatives=False), axis=1))
-        merged[merged_with_events].to_json(save_path.joinpath('snorkeled_gold_merge_with_annotated_events.jsonl'),
-                                           orient='records', lines=True, force_ascii=False)
+        # Export merge of daystream+sd4m train
+        logging.info(f"Exporting merge of snorkel labeled data and gold data.")
+        sd_train = loaded_data['train']
+        merged = pd.concat([daystream_snorkeled, sd_train])
+        merged.to_json(save_path.joinpath('snorkeled_gold_merge.jsonl'),
+                       orient='records', lines=True, force_ascii=False)
 
 
 if __name__ == '__main__':
+    """
+    Usage: python wsee/data/pipeline.py --input_path data/daystream_corpus --save_path data/daystream_corpus
+    """
     parser = argparse.ArgumentParser(
         description='Snorkel event extraction labeler')
     parser.add_argument('--input_path', type=str, help='Path to corpus')
     parser.add_argument('--save_path', type=str, help='Save path for labeled train data')
-    parser.add_argument('--create_filtered_versions', action='store_true', default=False,
-                        help='Whether to create versions where documents are filtered out, when they do not contain'
-                             'any positive event.')
-    parser.add_argument('--use_majority_label_voter', action='store_true', default=False,
-                        help='Whether to use a majority label voter instead of the snorkel label model.')
+    parser.add_argument('--seed', type=int, default=None, help='Set seed for label models', nargs='?')
+    parser.add_argument('--random_repeats', type=int, default=None, help='Random repeats for label models', nargs='?')
     arguments = parser.parse_args()
     main(arguments)
