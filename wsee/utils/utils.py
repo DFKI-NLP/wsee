@@ -1,6 +1,7 @@
 import pickle
 import json
 import re
+import uuid
 
 import pandas as pd
 import numpy as np
@@ -14,6 +15,10 @@ def get_deep_copy(obj):
 
 def pretty_print_json(obj):
     print(json.dumps(json.loads(obj.to_json()), indent=2, ensure_ascii=False))
+
+
+def get_random_id():
+    return uuid.uuid1().hex
 
 
 def parse_gaz_file(path):

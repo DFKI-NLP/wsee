@@ -1,6 +1,7 @@
 import argparse
 import os
 import logging
+import pickle
 from pathlib import Path
 from typing import Optional, List, Any, Dict, Tuple
 
@@ -355,7 +356,7 @@ def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_prob
 
 def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
                       lfs: Optional[List[labeling_function]] = None,
-                      lf_dev: pd.DataFrame = None, seed: Optional[int] = None) \
+                      lf_dev: pd.DataFrame = None, seed: Optional[int] = None, tmp_id: str = None) \
         -> Tuple[pd.DataFrame, PandasLFApplier, LabelModel]:
     """
     Takes "raw" data frame, builds trigger examples, (trains LabelModel), calculates event_trigger_probs
@@ -365,26 +366,52 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     :param lf_train: Training dataset which will be labeled using Snorkel
     :param lfs: List of labeling functions
     :param lf_dev: Optional development dataset that can be used to set a prior for the class balance
+    :param tmp_id: Id to temporarily store variables that are shared during random repeats
     :return: Labeled lf_train, labeling function applier, label model
     """
-    df_train, _ = build_event_trigger_examples(lf_train)
-    df_dev, Y_dev = None, None
-    if lf_dev is not None:
-        df_dev, Y_dev = build_event_trigger_examples(lf_dev)
+    df_train, L_train = None, None
+    df_dev, Y_dev, L_dev = None, None, None
+
+    # For random repeats try to load pickled variables from first run as they are shared
+    if tmp_id:
+        tmp_train_path = Path("/tmp/"+tmp_id+"trigger_train.pkl")
+        if tmp_train_path.exists():
+            with open(tmp_train_path, 'rb') as pickled_train:
+                df_train, L_train = pickle.load(pickled_train)
+        if lf_dev is not None:
+            tmp_dev_path = Path("/tmp/" + tmp_id + "trigger_dev.pkl")
+            if tmp_dev_path.exists():
+                with open(tmp_dev_path, 'rb') as pickled_dev:
+                    df_dev, Y_dev, L_dev = pickle.load(pickled_dev)
+
     if lfs is None:
         lfs = get_trigger_list_lfs()
-    logging.info("Running Event Trigger Labeling Function Applier")
     applier = PandasLFApplier(lfs)
-    L_train = applier.apply(df_train)
+
+    if L_train is None or df_train is None:
+        df_train, _ = build_event_trigger_examples(lf_train)
+        logging.info("Running Event Trigger Labeling Function Applier")
+        L_train = applier.apply(df_train)
+        if tmp_id:
+            tmp_train_path = Path("/tmp/" + tmp_id + "trigger_train.pkl")
+            with open(tmp_train_path, 'wb') as pickled_train:
+                pickle.dump((df_train, L_train), pickled_train)
+    if lf_dev is not None and any(element is None for element in [df_dev, Y_dev, L_dev]):
+        df_dev, Y_dev = build_event_trigger_examples(lf_dev)
+        logging.info("Running Event Trigger Labeling Function Applier on dev set")
+        L_dev = applier.apply(df_dev)
+        if lf_dev is not None:
+            tmp_dev_path = Path("/tmp/" + tmp_id + "trigger_dev.pkl")
+            with open(tmp_dev_path, 'wb') as pickled_dev:
+                pickle.dump((df_dev, Y_dev, L_dev), pickled_dev)
 
     label_model = LabelModel(cardinality=8, verbose=True)
-    logging.info("Fitting LabelModel on the data and predicting trigger class probabilities")
+    logging.info("Fitting Label Model on the data and predicting trigger class probabilities")
     label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=seed, Y_dev=Y_dev)
 
     # Evaluate label model on development data
     if df_dev is not None and Y_dev is not None:
-        logging.info("Running Event Trigger Labeling Function Applier on dev set and evaluate label model")
-        L_dev = applier.apply(df_dev)
+        logging.info("Evaluate Label Model on dev set")
         label_model_accuracy = label_model.score(L=L_dev, Y=Y_dev, tie_break_policy="random")[
             "accuracy"
         ]
@@ -407,7 +434,7 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
 
 def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
                    lfs: Optional[List[labeling_function]] = None,
-                   lf_dev: pd.DataFrame = None, seed: Optional[int] = None) \
+                   lf_dev: pd.DataFrame = None, seed: Optional[int] = None, tmp_id: str = None) \
         -> Tuple[pd.DataFrame, PandasLFApplier, LabelModel]:
     """
     Takes "raw" data frame, builds argument role examples, (trains LabelModel), calculates event_argument_probs
@@ -417,26 +444,52 @@ def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     :param lf_train: Training dataset which will be labeled using Snorkel
     :param lfs: List of labeling functions
     :param lf_dev: Optional development dataset that can be used to set a prior for the class balance
+    :param tmp_id: Id to temporarily store variables that are shared during random repeats
     :return: Labeled lf_train, labeling function applier, label model
     """
-    df_train, _ = build_event_role_examples(lf_train)
-    df_dev, Y_dev = None, None
-    if lf_dev is not None:
-        df_dev, Y_dev = build_event_role_examples(lf_dev)
+    df_train, L_train = None, None
+    df_dev, Y_dev, L_dev = None, None, None
+
+    # For random repeats try to load pickled variables from first run as they are shared
+    if tmp_id:
+        tmp_train_path = Path("/tmp/"+tmp_id+"role_train.pkl")
+        if tmp_train_path.exists():
+            with open(tmp_train_path, 'rb') as pickled_train:
+                df_train, L_train = pickle.load(pickled_train)
+        if lf_dev is not None:
+            tmp_dev_path = Path("/tmp/" + tmp_id + "role_dev.pkl")
+            if tmp_dev_path.exists():
+                with open(tmp_dev_path, 'rb') as pickled_dev:
+                    df_dev, Y_dev, L_dev = pickle.load(pickled_dev)
+
     if lfs is None:
         lfs = get_role_list_lfs()
-    logging.info("Running Event Role Labeling Function Applier")
     applier = PandasLFApplier(lfs)
-    L_train = applier.apply(df_train)
+
+    if L_train is None or df_train is None:
+        df_train, _ = build_event_role_examples(lf_train)
+        logging.info("Running Event Role Labeling Function Applier")
+        L_train = applier.apply(df_train)
+        if tmp_id:
+            tmp_train_path = Path("/tmp/" + tmp_id + "role_train.pkl")
+            with open(tmp_train_path, 'wb') as pickled_train:
+                pickle.dump((df_train, L_train), pickled_train)
+    if lf_dev is not None and any(element is None for element in [df_dev, Y_dev, L_dev]):
+        df_dev, Y_dev = build_event_role_examples(lf_dev)
+        logging.info("Running Event Role Labeling Function Applier on dev set")
+        L_dev = applier.apply(df_dev)
+        if lf_dev is not None:
+            tmp_dev_path = Path("/tmp/" + tmp_id + "role_dev.pkl")
+            with open(tmp_dev_path, 'wb') as pickled_dev:
+                pickle.dump((df_dev, Y_dev, L_dev), pickled_dev)
 
     label_model = LabelModel(cardinality=11, verbose=True)
-    logging.info("Fitting LabelModel on the data and predicting role class probabilities")
+    logging.info("Fitting Label Model on the data and predicting role class probabilities")
     label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=seed, Y_dev=Y_dev)
 
     # Evaluate label model on development data
     if df_dev is not None and Y_dev is not None:
-        logging.info("Running Event Role Labeling Function Applier on dev set and evaluate label model")
-        L_dev = applier.apply(df_dev)
+        logging.info("Evaluate Label Model on the dev set")
         label_model_accuracy = label_model.score(L=L_dev, Y=Y_dev, tie_break_policy="random")[
             "accuracy"
         ]
@@ -465,24 +518,25 @@ def add_default_events(document):
 
 
 def build_training_data(lf_train: pd.DataFrame, save_path=None, seed: Optional[int] = None,
-                        lf_dev: pd.DataFrame = None) -> pd.DataFrame:
+                        lf_dev: pd.DataFrame = None, tmp_id=None) -> pd.DataFrame:
     """
     Merges event_trigger_examples and event_role examples to build training data.
     :param seed: Seed for use in label models (mu initialization)
     :param save_path: Where to save the dataframe as a jsonl
     :param lf_train: DataFrame with original data.
     :param lf_dev: DataFrame with gold labels, which can be used to estimate the class balance for triggers & roles
+    :param tmp_id: Id to temporarily store variables that are shared during random repeats
     :return: Original DataFrame updated with event triggers and event roles.
     """
     if 'event_triggers' not in lf_train and 'event_roles' not in lf_train:
         lf_train = lf_train.apply(add_default_events, axis=1)
 
     # Trigger labeling
-    trigger_probs_output = get_trigger_probs(lf_train=lf_train, lf_dev=lf_dev, seed=seed)
+    trigger_probs_output = get_trigger_probs(lf_train=lf_train, lf_dev=lf_dev, seed=seed, tmp_id=tmp_id)
     merged_event_trigger_examples, trigger_lf_applier, trigger_label_model = trigger_probs_output
 
     # Role labeling
-    role_probs_output = get_role_probs(lf_train=lf_train, lf_dev=lf_dev, seed=seed)
+    role_probs_output = get_role_probs(lf_train=lf_train, lf_dev=lf_dev, seed=seed, tmp_id=tmp_id)
     merged_event_role_examples, role_lf_applier, role_label_model = role_probs_output
 
     # Merge
@@ -538,12 +592,13 @@ def main(args):
         if seed is None:
             logging.error(f"A fixed seed {seed} defeats the purpose of random repeats.")
         logging.info(f"Running {random_repeats} runs")
+        tmp_id = utils.get_random_id()
         for i in range(1, random_repeats+1):
             run_save_path = save_path.joinpath(f"run_{i}")
             logging.info(f"{i}. Run will save to: {run_save_path}")
             # We label the daystream data with Snorkel and use the train data from SD4M
             daystream_snorkeled = build_training_data(lf_train=loaded_data['daystream'], save_path=run_save_path,
-                                                      lf_dev=loaded_data['train'], seed=seed)
+                                                      lf_dev=loaded_data['train'], seed=seed, tmp_id=tmp_id)
 
             logging.info(f"Finished labeling {len(daystream_snorkeled)} documents.")
 
