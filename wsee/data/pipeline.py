@@ -377,11 +377,13 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     # For random repeats try to load pickled variables from first run as they are shared
     if tmp_path:
         tmp_train_path = Path(tmp_path).joinpath("trigger_train.pkl")
+        os.makedirs(os.path.dirname(tmp_train_path), exist_ok=True)
         if tmp_train_path.exists():
             with open(tmp_train_path, 'rb') as pickled_train:
                 df_train, L_train = pickle.load(pickled_train)
         if lf_dev is not None:
             tmp_dev_path = Path(tmp_path).joinpath("trigger_dev.pkl")
+            os.makedirs(os.path.dirname(tmp_dev_path), exist_ok=True)
             if tmp_dev_path.exists():
                 with open(tmp_dev_path, 'rb') as pickled_dev:
                     df_dev, Y_dev, L_dev = pickle.load(pickled_dev)
@@ -457,11 +459,13 @@ def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     # For random repeats try to load pickled variables from first run as they are shared
     if tmp_path:
         tmp_train_path = Path(tmp_path).joinpath("role_train.pkl")
+        os.makedirs(os.path.dirname(tmp_train_path), exist_ok=True)
         if tmp_train_path.exists():
             with open(tmp_train_path, 'rb') as pickled_train:
                 df_train, L_train = pickle.load(pickled_train)
         if lf_dev is not None:
             tmp_dev_path = Path(tmp_path).joinpath("role_dev.pkl")
+            os.makedirs(os.path.dirname(tmp_dev_path), exist_ok=True)
             if tmp_dev_path.exists():
                 with open(tmp_dev_path, 'rb') as pickled_dev:
                     df_dev, Y_dev, L_dev = pickle.load(pickled_dev)
@@ -588,10 +592,12 @@ def main(args):
     loaded_data = load_data(input_path)
 
     if random_repeats is not None:
-        if random_repeats > 0:
+        if random_repeats <= 0:
             logging.error(f"{random_repeats} is not a valid choice. Choose value that is >= 1")
-        if seed is None:
+            exit(-1)
+        if seed is not None:
             logging.error(f"A fixed seed {seed} defeats the purpose of random repeats.")
+            exit(-1)
         logging.info(f"Running {random_repeats} runs")
         tmp_path = save_path.joinpath("tmp_storage")
         for i in range(1, random_repeats+1):
