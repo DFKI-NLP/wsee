@@ -1,9 +1,10 @@
 import argparse
 import os
+import shutil
 import logging
 import pickle
 from pathlib import Path
-from typing import Optional, List, Any, Dict, Tuple
+from typing import Optional, List, Any, Dict, Union
 
 import pandas as pd
 import numpy as np
@@ -356,8 +357,8 @@ def merge_event_role_examples(event_role_rows: pd.DataFrame, event_argument_prob
 
 def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
                       lfs: Optional[List[labeling_function]] = None,
-                      lf_dev: pd.DataFrame = None, seed: Optional[int] = None, tmp_id: str = None) \
-        -> Tuple[pd.DataFrame, PandasLFApplier, LabelModel]:
+                      lf_dev: pd.DataFrame = None, seed: Optional[int] = None, tmp_path: Union[Path, str] = None) \
+        -> pd.DataFrame:
     """
     Takes "raw" data frame, builds trigger examples, (trains LabelModel), calculates event_trigger_probs
     and returns merged trigger examples with event_trigger_probs.
@@ -366,20 +367,21 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     :param lf_train: Training dataset which will be labeled using Snorkel
     :param lfs: List of labeling functions
     :param lf_dev: Optional development dataset that can be used to set a prior for the class balance
-    :param tmp_id: Id to temporarily store variables that are shared during random repeats
+    :param tmp_path: Path to temporarily store variables that are shared during random repeats
     :return: Labeled lf_train, labeling function applier, label model
     """
     df_train, L_train = None, None
     df_dev, Y_dev, L_dev = None, None, None
+    tmp_train_path, tmp_dev_path = None, None
 
     # For random repeats try to load pickled variables from first run as they are shared
-    if tmp_id:
-        tmp_train_path = Path("/tmp/"+tmp_id+"trigger_train.pkl")
+    if tmp_path:
+        tmp_train_path = Path(tmp_path).joinpath("trigger_train.pkl")
         if tmp_train_path.exists():
             with open(tmp_train_path, 'rb') as pickled_train:
                 df_train, L_train = pickle.load(pickled_train)
         if lf_dev is not None:
-            tmp_dev_path = Path("/tmp/" + tmp_id + "trigger_dev.pkl")
+            tmp_dev_path = Path(tmp_path).joinpath("trigger_dev.pkl")
             if tmp_dev_path.exists():
                 with open(tmp_dev_path, 'rb') as pickled_dev:
                     df_dev, Y_dev, L_dev = pickle.load(pickled_dev)
@@ -392,22 +394,23 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
         df_train, _ = build_event_trigger_examples(lf_train)
         logging.info("Running Event Trigger Labeling Function Applier")
         L_train = applier.apply(df_train)
-        if tmp_id:
-            tmp_train_path = Path("/tmp/" + tmp_id + "trigger_train.pkl")
+        if tmp_path:
             with open(tmp_train_path, 'wb') as pickled_train:
                 pickle.dump((df_train, L_train), pickled_train)
     if lf_dev is not None and any(element is None for element in [df_dev, Y_dev, L_dev]):
         df_dev, Y_dev = build_event_trigger_examples(lf_dev)
         logging.info("Running Event Trigger Labeling Function Applier on dev set")
         L_dev = applier.apply(df_dev)
-        if lf_dev is not None:
-            tmp_dev_path = Path("/tmp/" + tmp_id + "trigger_dev.pkl")
+        if tmp_path:
             with open(tmp_dev_path, 'wb') as pickled_dev:
                 pickle.dump((df_dev, Y_dev, L_dev), pickled_dev)
 
     label_model = LabelModel(cardinality=8, verbose=True)
     logging.info("Fitting Label Model on the data and predicting trigger class probabilities")
-    label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=seed, Y_dev=Y_dev)
+    if seed:
+        label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=seed, Y_dev=Y_dev)
+    else:
+        label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, Y_dev=Y_dev)
 
     # Evaluate label model on development data
     if df_dev is not None and Y_dev is not None:
@@ -429,13 +432,13 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
         # Multiplies probabilities of abstains with zero so that the example is treated as padding in the end model
         merged_event_trigger_examples = merge_event_trigger_examples(
             df_train, utils.zero_out_abstains(event_trigger_probs, L_train))
-    return merged_event_trigger_examples, applier, label_model
+    return merged_event_trigger_examples
 
 
 def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
                    lfs: Optional[List[labeling_function]] = None,
-                   lf_dev: pd.DataFrame = None, seed: Optional[int] = None, tmp_id: str = None) \
-        -> Tuple[pd.DataFrame, PandasLFApplier, LabelModel]:
+                   lf_dev: pd.DataFrame = None, seed: Optional[int] = None, tmp_path: Union[str, Path] = None) \
+        -> pd.DataFrame:
     """
     Takes "raw" data frame, builds argument role examples, (trains LabelModel), calculates event_argument_probs
     and returns merged argument role examples with event_argument_probs.
@@ -444,20 +447,21 @@ def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
     :param lf_train: Training dataset which will be labeled using Snorkel
     :param lfs: List of labeling functions
     :param lf_dev: Optional development dataset that can be used to set a prior for the class balance
-    :param tmp_id: Id to temporarily store variables that are shared during random repeats
+    :param tmp_path: Path to temporarily store variables that are shared during random repeats
     :return: Labeled lf_train, labeling function applier, label model
     """
     df_train, L_train = None, None
     df_dev, Y_dev, L_dev = None, None, None
+    tmp_train_path, tmp_dev_path = None, None
 
     # For random repeats try to load pickled variables from first run as they are shared
-    if tmp_id:
-        tmp_train_path = Path("/tmp/"+tmp_id+"role_train.pkl")
+    if tmp_path:
+        tmp_train_path = Path(tmp_path).joinpath("role_train.pkl")
         if tmp_train_path.exists():
             with open(tmp_train_path, 'rb') as pickled_train:
                 df_train, L_train = pickle.load(pickled_train)
         if lf_dev is not None:
-            tmp_dev_path = Path("/tmp/" + tmp_id + "role_dev.pkl")
+            tmp_dev_path = Path(tmp_path).joinpath("role_dev.pkl")
             if tmp_dev_path.exists():
                 with open(tmp_dev_path, 'rb') as pickled_dev:
                     df_dev, Y_dev, L_dev = pickle.load(pickled_dev)
@@ -470,22 +474,23 @@ def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
         df_train, _ = build_event_role_examples(lf_train)
         logging.info("Running Event Role Labeling Function Applier")
         L_train = applier.apply(df_train)
-        if tmp_id:
-            tmp_train_path = Path("/tmp/" + tmp_id + "role_train.pkl")
+        if tmp_path:
             with open(tmp_train_path, 'wb') as pickled_train:
                 pickle.dump((df_train, L_train), pickled_train)
     if lf_dev is not None and any(element is None for element in [df_dev, Y_dev, L_dev]):
         df_dev, Y_dev = build_event_role_examples(lf_dev)
         logging.info("Running Event Role Labeling Function Applier on dev set")
         L_dev = applier.apply(df_dev)
-        if lf_dev is not None:
-            tmp_dev_path = Path("/tmp/" + tmp_id + "role_dev.pkl")
+        if tmp_path:
             with open(tmp_dev_path, 'wb') as pickled_dev:
                 pickle.dump((df_dev, Y_dev, L_dev), pickled_dev)
 
     label_model = LabelModel(cardinality=11, verbose=True)
     logging.info("Fitting Label Model on the data and predicting role class probabilities")
-    label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=seed, Y_dev=Y_dev)
+    if seed:
+        label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=seed, Y_dev=Y_dev)
+    else:
+        label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, Y_dev=Y_dev)
 
     # Evaluate label model on development data
     if df_dev is not None and Y_dev is not None:
@@ -507,7 +512,7 @@ def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
         # Multiplies probabilities of abstains with zero so that the example is treated as padding in the end model
         merged_event_role_examples = merge_event_role_examples(
             df_train, utils.zero_out_abstains(event_role_probs, L_train))
-    return merged_event_role_examples, applier, label_model
+    return merged_event_role_examples
 
 
 def add_default_events(document):
@@ -518,26 +523,24 @@ def add_default_events(document):
 
 
 def build_training_data(lf_train: pd.DataFrame, save_path=None, seed: Optional[int] = None,
-                        lf_dev: pd.DataFrame = None, tmp_id=None) -> pd.DataFrame:
+                        lf_dev: pd.DataFrame = None, tmp_path=None) -> pd.DataFrame:
     """
     Merges event_trigger_examples and event_role examples to build training data.
     :param seed: Seed for use in label models (mu initialization)
     :param save_path: Where to save the dataframe as a jsonl
     :param lf_train: DataFrame with original data.
     :param lf_dev: DataFrame with gold labels, which can be used to estimate the class balance for triggers & roles
-    :param tmp_id: Id to temporarily store variables that are shared during random repeats
+    :param tmp_path: Path to temporarily store variables that are shared during random repeats
     :return: Original DataFrame updated with event triggers and event roles.
     """
     if 'event_triggers' not in lf_train and 'event_roles' not in lf_train:
         lf_train = lf_train.apply(add_default_events, axis=1)
 
     # Trigger labeling
-    trigger_probs_output = get_trigger_probs(lf_train=lf_train, lf_dev=lf_dev, seed=seed, tmp_id=tmp_id)
-    merged_event_trigger_examples, trigger_lf_applier, trigger_label_model = trigger_probs_output
+    merged_event_trigger_examples = get_trigger_probs(lf_train=lf_train, lf_dev=lf_dev, seed=seed, tmp_path=tmp_path)
 
     # Role labeling
-    role_probs_output = get_role_probs(lf_train=lf_train, lf_dev=lf_dev, seed=seed, tmp_id=tmp_id)
-    merged_event_role_examples, role_lf_applier, role_label_model = role_probs_output
+    merged_event_role_examples = get_role_probs(lf_train=lf_train, lf_dev=lf_dev, seed=seed, tmp_path=tmp_path)
 
     # Merge
     merged_examples: pd.DataFrame = utils.get_deep_copy(lf_train)
@@ -567,8 +570,6 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, seed: Optional[i
             os.makedirs(os.path.dirname(final_save_path), exist_ok=True)
             logging.info(f"Writing Snorkel Labeled data to {final_save_path}")
             merged_examples.to_json(final_save_path, orient='records', lines=True, force_ascii=False)
-            trigger_label_model.save(Path(save_path).joinpath("trigger_lm.pt"))
-            role_label_model.save(Path(save_path).joinpath("role_lm.pt"))
         except Exception as e:
             print(e)
     return merged_examples
@@ -592,13 +593,13 @@ def main(args):
         if seed is None:
             logging.error(f"A fixed seed {seed} defeats the purpose of random repeats.")
         logging.info(f"Running {random_repeats} runs")
-        tmp_id = utils.get_random_id()
+        tmp_path = save_path.joinpath("tmp_storage")
         for i in range(1, random_repeats+1):
             run_save_path = save_path.joinpath(f"run_{i}")
             logging.info(f"{i}. Run will save to: {run_save_path}")
             # We label the daystream data with Snorkel and use the train data from SD4M
             daystream_snorkeled = build_training_data(lf_train=loaded_data['daystream'], save_path=run_save_path,
-                                                      lf_dev=loaded_data['train'], seed=seed, tmp_id=tmp_id)
+                                                      lf_dev=loaded_data['train'], seed=seed, tmp_path=tmp_path)
 
             logging.info(f"Finished labeling {len(daystream_snorkeled)} documents.")
 
@@ -609,6 +610,9 @@ def main(args):
             merged_path = run_save_path.joinpath('snorkeled_gold_merge.jsonl')
             os.makedirs(os.path.dirname(merged_path), exist_ok=True)
             merged.to_json(merged_path, orient='records', lines=True, force_ascii=False)
+        # Clean up
+        if tmp_path.exists() and tmp_path.is_dir():
+            shutil.rmtree(tmp_path)
     else:
         if seed:
             logging.info(f"Using fixed seed {seed}")
