@@ -19,7 +19,7 @@ from wsee.utils import utils
 from wsee.data import convert
 from wsee import SD4M_RELATION_TYPES, ROLE_LABELS, NEGATIVE_TRIGGER_LABEL, NEGATIVE_ARGUMENT_LABEL
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 
 event_type_lf_map: Dict[int, Any] = {
     event_trigger_lfs.Accident: event_trigger_lfs.lf_accident_chained,
@@ -409,10 +409,7 @@ def get_trigger_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
 
     label_model = LabelModel(cardinality=8, verbose=True)
     logging.info("Fitting Label Model on the data and predicting trigger class probabilities")
-    if seed:
-        label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=seed, Y_dev=Y_dev)
-    else:
-        label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, Y_dev=Y_dev)
+    label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=seed, Y_dev=Y_dev)
 
     # Evaluate label model on development data
     if df_dev is not None and Y_dev is not None:
@@ -491,10 +488,7 @@ def get_role_probs(lf_train: pd.DataFrame, filter_abstains: bool = False,
 
     label_model = LabelModel(cardinality=11, verbose=True)
     logging.info("Fitting Label Model on the data and predicting role class probabilities")
-    if seed:
-        label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=seed, Y_dev=Y_dev)
-    else:
-        label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, Y_dev=Y_dev)
+    label_model.fit(L_train=L_train, n_epochs=5000, log_freq=500, seed=seed, Y_dev=Y_dev)
 
     # Evaluate label model on development data
     if df_dev is not None and Y_dev is not None:
@@ -600,10 +594,11 @@ def main(args):
             exit(-1)
         logging.info(f"Running {random_repeats} runs")
         tmp_path = save_path.joinpath("tmp_storage")
-        for i in range(1, random_repeats+1):
-            run_save_path = save_path.joinpath(f"run_{i}")
-            logging.info(f"{i}. Run will save to: {run_save_path}")
-            # We label the daystream data with Snorkel and use the train data from SD4M
+        for i in range(random_repeats):
+            run_save_path = save_path.joinpath(f"run_{i+1}")
+            seed = np.random.randint(1e6)
+            logging.info(f"{i+1}. Run with seed {seed} will save to: {run_save_path}")
+            # We label the daystream data with Snorkel and use the train data from SD4M to estimate the class balance
             daystream_snorkeled = build_training_data(lf_train=loaded_data['daystream'], save_path=run_save_path,
                                                       lf_dev=loaded_data['train'], seed=seed, tmp_path=tmp_path)
 
@@ -620,11 +615,14 @@ def main(args):
         if tmp_path.exists() and tmp_path.is_dir():
             shutil.rmtree(tmp_path)
     else:
+        # We label the daystream data with Snorkel and use the train data from SD4M to estimate the class balance
         if seed:
-            logging.info(f"Using fixed seed {seed}")
-        # We label the daystream data with Snorkel and use the train data from SD4M
-        daystream_snorkeled = build_training_data(lf_train=loaded_data['daystream'], save_path=save_path,
-                                                  lf_dev=loaded_data['train'], seed=seed)
+            logging.info(f"Using seed {seed}")
+            daystream_snorkeled = build_training_data(lf_train=loaded_data['daystream'], save_path=save_path,
+                                                      lf_dev=loaded_data['train'], seed=seed)
+        else:
+            daystream_snorkeled = build_training_data(lf_train=loaded_data['daystream'], save_path=save_path,
+                                                      lf_dev=loaded_data['train'])
 
         logging.info(f"Finished labeling {len(daystream_snorkeled)} documents.")
 
