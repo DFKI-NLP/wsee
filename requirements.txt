@@ -1,7 +1,9 @@
+snorkel==0.9.3
+allennlp==0.9.0
 somajo
 python-Levenshtein
 fuzzywuzzy
 fastavro
-snorkel==0.9.3
-jupyter
-ipykernel
+sklearn
+seaborn
+stanfordnlp

@@ -1,0 +1,1 @@
+from wsee.predictors.snorkel_predictor import SnorkelEventxPredictor

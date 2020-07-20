@@ -1,3 +1,8 @@
+from wsee.dataset_readers import *
+from wsee.models import *
+from wsee.predictors import *
+from wsee.utils import *
+
 NEGATIVE_TRIGGER_LABEL = 'O'
 NEGATIVE_ARGUMENT_LABEL = 'no_arg'
 

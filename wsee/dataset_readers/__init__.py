@@ -1,0 +1,1 @@
+from wsee.dataset_readers.snorkel_reader import SnorkelReader
