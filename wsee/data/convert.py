@@ -47,6 +47,10 @@ def main(args):
     logging.info(f"With settings: one_hot ({one_hot}), build_defaults ({build_defaults}), "
                  f"use_first_trigger ({use_first_trigger}), convert_event_cause ({convert_event_cause})")
 
+    convert_avros(input_path, build_defaults, one_hot, use_first_trigger, convert_event_cause)
+
+
+def convert_avros(input_path, build_defaults=True, one_hot=True, use_first_trigger=True, convert_event_cause=True):
     daystream = []
     for split in ['train', 'dev', 'test']:
         logging.info(f'Working on {split}-split')
@@ -110,7 +114,7 @@ def convert_doc(doc: Dict, doc_text: str = None, one_hot=False, build_defaults: 
         char_end = sentence['span']['end']
         sentence_spans.append({
             'start': start,
-            'end': end,
+            'end': end + 1,  # Generate exclusive token spans
             'char_start': char_start,
             'char_end': char_end
         })

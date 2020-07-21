@@ -909,6 +909,8 @@ def lf_somajo_separate_sentence(x):
 
 @labeling_function(pre=[])
 def lf_stanford_separate_sentence(x):
+    if len(x.sentence_spans) == 1:
+        return ABSTAIN
     for se_span in x.sentence_spans:
         if se_span['start'] <= min(x.trigger['start'], x.argument['start']) and \
                 se_span['end'] >= max(x.trigger['end'], x.argument['end']):

@@ -579,6 +579,52 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, seed: Optional[i
     return merged_examples
 
 
+def create_random_repeats_train_datasets(input_path, save_path, random_repeats=5):
+    loaded_data = load_data(input_path)
+    if random_repeats <= 0:
+        logging.error(f"{random_repeats} is not a valid choice. Choose value that is >= 1")
+        exit(-1)
+    logging.info(f"Running {random_repeats} runs")
+    tmp_path = save_path.joinpath("tmp_storage")
+    for i in range(1, random_repeats+1):
+        run_save_path = save_path.joinpath(f"run_{i}")
+        logging.info(f"{i}. Run will save to: {run_save_path}")
+        # We label the daystream data with Snorkel and use the train data from SD4M
+        daystream_snorkeled = build_training_data(lf_train=loaded_data['daystream'], save_path=run_save_path,
+                                                  lf_dev=loaded_data['train'], tmp_path=tmp_path)
+
+        logging.info(f"Finished labeling {len(daystream_snorkeled)} documents.")
+
+        # Export merge of daystream+sd4m train
+        logging.info(f"Exporting merge of snorkel labeled data and gold data.")
+        sd_train = loaded_data['train']
+        merged = pd.concat([daystream_snorkeled, sd_train])
+        merged_path = run_save_path.joinpath('snorkeled_gold_merge.jsonl')
+        os.makedirs(os.path.dirname(merged_path), exist_ok=True)
+        merged.to_json(merged_path, orient='records', lines=True, force_ascii=False)
+    # Clean up
+    if tmp_path.exists() and tmp_path.is_dir():
+        shutil.rmtree(tmp_path)
+
+
+def create_train_datasets(input_path, save_path, seed=None):
+    loaded_data = load_data(input_path)
+    if seed:
+        logging.info(f"Using fixed seed {seed}")
+    # We label the daystream data with Snorkel and use the train data from SD4M
+    daystream_snorkeled = build_training_data(lf_train=loaded_data['daystream'], save_path=save_path,
+                                              lf_dev=loaded_data['train'], seed=seed)
+
+    logging.info(f"Finished labeling {len(daystream_snorkeled)} documents.")
+
+    # Export merge of daystream+sd4m train
+    logging.info(f"Exporting merge of snorkel labeled data and gold data.")
+    sd_train = loaded_data['train']
+    merged = pd.concat([daystream_snorkeled, sd_train])
+    merged.to_json(save_path.joinpath('snorkeled_gold_merge.jsonl'),
+                   orient='records', lines=True, force_ascii=False)
+
+
 def main(args):
     input_path = Path(args.input_path)
     assert input_path.exists(), 'Input not found: %s'.format(args.input_path)
@@ -589,51 +635,12 @@ def main(args):
     seed: Optional[int] = args.seed
     random_repeats: Optional[int] = args.random_repeats
 
-    loaded_data = load_data(input_path)
-
     if random_repeats is not None:
-        if random_repeats <= 0:
-            logging.error(f"{random_repeats} is not a valid choice. Choose value that is >= 1")
-            exit(-1)
         if seed is not None:
-            logging.error(f"A fixed seed {seed} defeats the purpose of random repeats.")
-            exit(-1)
-        logging.info(f"Running {random_repeats} runs")
-        tmp_path = save_path.joinpath("tmp_storage")
-        for i in range(1, random_repeats+1):
-            run_save_path = save_path.joinpath(f"run_{i}")
-            logging.info(f"{i}. Run will save to: {run_save_path}")
-            # We label the daystream data with Snorkel and use the train data from SD4M
-            daystream_snorkeled = build_training_data(lf_train=loaded_data['daystream'], save_path=run_save_path,
-                                                      lf_dev=loaded_data['train'], seed=seed, tmp_path=tmp_path)
-
-            logging.info(f"Finished labeling {len(daystream_snorkeled)} documents.")
-
-            # Export merge of daystream+sd4m train
-            logging.info(f"Exporting merge of snorkel labeled data and gold data.")
-            sd_train = loaded_data['train']
-            merged = pd.concat([daystream_snorkeled, sd_train])
-            merged_path = run_save_path.joinpath('snorkeled_gold_merge.jsonl')
-            os.makedirs(os.path.dirname(merged_path), exist_ok=True)
-            merged.to_json(merged_path, orient='records', lines=True, force_ascii=False)
-        # Clean up
-        if tmp_path.exists() and tmp_path.is_dir():
-            shutil.rmtree(tmp_path)
+            logging.warning(f"Ignoring fixed seed {seed} for random repeats.")
+        create_random_repeats_train_datasets(input_path, save_path, random_repeats)
     else:
-        if seed:
-            logging.info(f"Using fixed seed {seed}")
-        # We label the daystream data with Snorkel and use the train data from SD4M
-        daystream_snorkeled = build_training_data(lf_train=loaded_data['daystream'], save_path=save_path,
-                                                  lf_dev=loaded_data['train'], seed=seed)
-
-        logging.info(f"Finished labeling {len(daystream_snorkeled)} documents.")
-
-        # Export merge of daystream+sd4m train
-        logging.info(f"Exporting merge of snorkel labeled data and gold data.")
-        sd_train = loaded_data['train']
-        merged = pd.concat([daystream_snorkeled, sd_train])
-        merged.to_json(save_path.joinpath('snorkeled_gold_merge.jsonl'),
-                       orient='records', lines=True, force_ascii=False)
+        create_train_datasets(input_path, save_path, seed)
 
 
 if __name__ == '__main__':
