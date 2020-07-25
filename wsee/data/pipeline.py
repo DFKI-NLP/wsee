@@ -44,9 +44,9 @@ event_type_location_type_map: Dict[int, List[str]] = {
 
 def get_trigger_list_lfs():
     trigger_list_lfs = [
-        event_trigger_lfs.lf_accident_context,
-        event_trigger_lfs.lf_accident_context_street,
-        event_trigger_lfs.lf_accident_context_no_cause_check,
+        event_trigger_lfs.lf_accident,
+        event_trigger_lfs.lf_accident_street,
+        event_trigger_lfs.lf_accident_no_cause_check,
         event_trigger_lfs.lf_canceledroute_cat,
         event_trigger_lfs.lf_canceledroute_replicated,
         event_trigger_lfs.lf_canceledstop_cat,
@@ -126,6 +126,18 @@ def parallelize_dataframe(df, func, n_cores=4):
     return df
 
 
+def preprocess_docs_for_triggers(doc):
+    entity_type_freqs = preprocessors.get_entity_type_freqs(doc)
+    somajo_doc = preprocessors.get_somajo_doc(doc)
+    doc['entity_type_freqs'] = entity_type_freqs
+    doc['somajo_doc'] = somajo_doc
+    return doc
+
+
+def preprocess_docs_for_triggers_applier(df):
+    return df.apply(lambda doc: preprocess_docs_for_triggers(doc), axis=1)
+
+
 def preprocess_docs_for_roles(doc):
     entity_type_freqs = preprocessors.get_entity_type_freqs(doc)
     somajo_doc = preprocessors.get_somajo_doc(doc)
@@ -186,10 +198,11 @@ def load_data(path, use_build_defaults=True):
     return output_dict
 
 
-def build_event_trigger_examples(dataframe):
+def build_event_trigger_examples(dataframe, n_cores=4):
     """
     Takes a dataframe containing one document per row with all its annotations
     (event triggers are of interest here) and creates one row for each event trigger.
+    :param n_cores: Number of cores to process dataframe in parallel.
     :param dataframe: Annotated documents.
     :return: DataFrame containing event trigger examples and NumPy array containing labels.
     """
@@ -199,12 +212,14 @@ def build_event_trigger_examples(dataframe):
     logging.info("Building event trigger examples")
     logging.info(f"DataFrame has {len(dataframe.index)} rows")
 
+    # 1. Preprocess docs (entity frequencies, sentence splitting)
+    dataframe = parallelize_dataframe(dataframe, preprocess_docs_for_triggers_applier, n_cores=n_cores)
+
+    # 2. Build trigger examples
     for index, row in tqdm(dataframe.iterrows()):
-        entity_type_freqs = preprocessors.get_entity_type_freqs(row)
         for event_trigger in row.event_triggers:
             trigger_row = row.copy()
             trigger_row['trigger'] = preprocessors.get_entity(event_trigger['id'], row.entities)
-            trigger_row['entity_type_freqs'] = entity_type_freqs
             event_trigger_rows.append(trigger_row)
             event_type_num = np.asarray(event_trigger['event_type_probs']).argmax()
             event_trigger_rows_y.append(event_type_num)
