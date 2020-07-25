@@ -314,6 +314,36 @@ def get_closest_entity(cand: DataPoint) -> Optional[Dict]:
 
 
 @preprocessor()
+def pre_closest_entity_same_sentence(cand: DataPoint) -> Optional[Dict]:
+    cand['closest_entity'] = get_closest_entity_same_sentence(cand)
+    return cand
+
+
+def get_closest_entity_same_sentence(cand: DataPoint) -> Optional[Dict]:
+    closest_entity: Optional[Dict] = None
+    min_distance: int = 10000
+    entities: List[Dict] = cand.entities
+    trigger: Dict[str, Any] = cand.trigger
+    somajo_dictionary: Dict[str, Any] = cand.somajo_doc
+    sentences: List[Dict[str, Any]] = somajo_dictionary['sentences']
+    trigger_sentence = {'char_start': 0, 'char_end': len(cand.text)}
+    for sentence in sentences:
+        if sentence['char_start'] <= trigger['char_start'] and sentence['char_end'] >= trigger['char_end']:
+            trigger_sentence['char_start'] = sentence['char_start']
+            trigger_sentence['char_end'] = sentence['char_end']
+    same_sentence_entities = [entity for entity in entities
+                              if entity['char_start'] >= trigger_sentence['char_start'] and
+                              entity['char_end'] <= trigger_sentence['char_end']]
+    for entity in same_sentence_entities:
+        if entity['id'] != trigger['id']:
+            distance: int = get_entity_distance(trigger, entity)
+            if distance < min_distance:
+                closest_entity = entity
+                min_distance = distance
+    return closest_entity
+
+
+@preprocessor()
 def pre_sentence_trigger_distances(cand: DataPoint) -> DataPoint:
     cand['sentence_trigger_distances']: Dict[str, int] = get_sentence_trigger_distances(cand)
     return cand

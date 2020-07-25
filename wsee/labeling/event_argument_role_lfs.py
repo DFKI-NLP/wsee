@@ -912,8 +912,8 @@ def lf_stanford_separate_sentence(x):
     if len(x.sentence_spans) == 1:
         return ABSTAIN
     for se_span in x.sentence_spans:
-        if se_span['start'] <= min(x.trigger['start'], x.argument['start']) and \
-                se_span['end'] >= max(x.trigger['end'], x.argument['end']):
+        if se_span['char_start'] <= min(x.trigger['char_start'], x.argument['char_start']) and \
+                se_span['char_end'] >= max(x.trigger['char_end'], x.argument['char_end']):
             return ABSTAIN
     return no_arg
 
