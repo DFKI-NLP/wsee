@@ -90,9 +90,9 @@ trafficjam_exact_keywords = [
 def lf_accident_chained(x):
     if any(accident_lf(x) == Accident for accident_lf in
            [
-               lf_accident_context,
-               lf_accident_context_street,
-               lf_accident_context_no_cause_check
+               lf_accident,
+               lf_accident_street,
+               lf_accident_no_cause_check
            ]):
         return Accident
     else:
@@ -100,7 +100,7 @@ def lf_accident_chained(x):
 
 
 @labeling_function(pre=[])
-def lf_accident_context(x):
+def lf_accident(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], accident_keywords)
@@ -116,7 +116,7 @@ def lf_accident_context(x):
 
 
 @labeling_function(pre=[])
-def lf_accident_context_street(x):
+def lf_accident_street(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], accident_keywords)
@@ -132,7 +132,7 @@ def lf_accident_context_street(x):
 
 
 @labeling_function(pre=[])
-def lf_accident_context_no_cause_check(x):
+def lf_accident_no_cause_check(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], accident_keywords)
@@ -314,7 +314,7 @@ def lf_delay_priorities(x):
         elif is_negated(trigger_left_tokens):
             return ABSTAIN
         elif x.entity_type_freqs['trigger'] > 1 and highest_lower_priority[1] >= 90:
-            # Check for other higher priority delay trigger: "Verspätung" vs. lower priority "Störung
+            # Check for other higher priority delay trigger: "Verspätung" vs. lower priority "Störung"
             higher_priority_delay = False
             for entity in x.entities:
                 if entity['entity_type'] == 'trigger' and entity['id'] != x.trigger['id']:
