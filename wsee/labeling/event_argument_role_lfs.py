@@ -90,6 +90,7 @@ def lf_location(x, same_sentence=True, nearest=False, check_event_type=True):
         return ABSTAIN
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     if has_location_preposition(trigger_right_tokens) and x.argument['start'] < x.trigger['start']:
+        # argument is not the location following that preposition: argument ... trigger preposition actual location
         return ABSTAIN
     if not check_event_type or x.arg_location_type_event_type_match:
         return location
@@ -969,6 +970,15 @@ def lf_overlapping(x):
 def lf_too_far_40(x):
     between_distance = x.between_distance
     if between_distance > 40:
+        return no_arg
+    else:
+        return ABSTAIN
+
+
+@labeling_function(pre=[])
+def lf_somajo_separate_sentence_or_too_far_40(x):
+    between_distance = x.between_distance
+    if x.separate_sentence or between_distance > 40:
         return no_arg
     else:
         return ABSTAIN

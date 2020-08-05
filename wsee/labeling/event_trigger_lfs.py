@@ -281,6 +281,23 @@ def lf_delay_cat(x):
     return ABSTAIN
 
 
+@labeling_function(pre=[pre_closest_entity_same_sentence])
+def lf_delay_duration_check(x):
+    if x['closest_entity'] and x['closest_entity']['entity_type'] == 'duration':
+        return Delay
+    else:
+        return ABSTAIN
+
+
+@labeling_function(pre=[pre_closest_entity_same_sentence])
+def lf_delay_duration_positional_check(x):
+    if x['closest_entity'] and x['closest_entity']['entity_type'] == 'duration' and \
+            x['closest_entity']['start'] < x['trigger']['start']:
+        return Delay
+    else:
+        return ABSTAIN
+
+
 @labeling_function(pre=[])
 def lf_delay_duration(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
@@ -470,6 +487,23 @@ def lf_trafficjam_cat(x):
         else:
             return TrafficJam
     return ABSTAIN
+
+
+@labeling_function(pre=[pre_closest_entity_same_sentence])
+def lf_trafficjam_distance_check(x):
+    if x['closest_entity'] and x['closest_entity']['entity_type'] == 'distance':
+        return TrafficJam
+    else:
+        return ABSTAIN
+
+
+@labeling_function(pre=[pre_closest_entity_same_sentence])
+def lf_trafficjam_distance_positional_check(x):
+    if x['closest_entity'] and x['closest_entity']['entity_type'] == 'distance' and \
+            x['closest_entity']['start'] < x['trigger']['start']:
+        return TrafficJam
+    else:
+        return ABSTAIN
 
 
 @labeling_function(pre=[])
