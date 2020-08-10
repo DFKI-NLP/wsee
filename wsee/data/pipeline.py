@@ -683,7 +683,7 @@ def main(args):
     use_majority_label_voter = args.use_majority_label_voter
 
     if use_majority_label_voter:
-        logger.info("Using MajorityVoterLabeler to generate probabilistic labels")
+        logger.info("Using MajorityLabelVoter to generate probabilistic labels")
     else:
         logger.info("Using LabelModel to generate probabilistic labels")
 
@@ -691,7 +691,7 @@ def main(args):
         if seed is not None:
             logger.warning(f"Ignoring fixed seed {seed} for random repeats.")
         if use_majority_label_voter:
-            logger.warning(F"Not using MajorityLabelVoter for random repeats.")
+            logger.warning(f"Not using MajorityLabelVoter for random repeats.")
         create_random_repeats_train_datasets(input_path, save_path, random_repeats)
     else:
         create_train_datasets(input_path, save_path, seed, use_majority_label_voter)

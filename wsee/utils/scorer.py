@@ -2,6 +2,7 @@ import copy
 import pandas as pd
 import numpy as np
 from typing import Tuple, Dict
+from sklearn import metrics as skmetrics
 
 
 class Result:
@@ -179,3 +180,49 @@ def score_files(pred_file_path, gold_file_path, allow_subsumption=False, keep_ev
     for event_type, result in results.items():
         formatted_results = '\tP={:.3f}\tR={:.3f}\tF1={:.3f}\n'.format(result.precision(), result.recall(), result.f1())
         print(f'{event_type}: {formatted_results}')
+
+
+def score_model(
+        model,
+        L: np.ndarray,
+        Y: np.ndarray,
+        tie_break_policy: str = "random",
+        labels=None):
+    """Calculate scores from multiple metrics.
+
+    Policies to break ties include:
+        "abstain": return an abstain vote (-1)
+        "true-random": randomly choose among the tied options
+        "random": randomly choose among tied option using deterministic hash
+
+    """
+    Y_pred, Y_prob = model.predict(
+        L, return_probs=True, tie_break_policy=tie_break_policy
+    )
+
+    if tie_break_policy == "abstain":
+        non_abstains = Y_pred != -1
+        Y_filtered = Y[non_abstains]
+        Y_pred_filtered = Y_pred[non_abstains]
+    else:
+        Y_filtered = Y
+        Y_pred_filtered = Y_pred
+
+    micro_avg = skmetrics.precision_recall_fscore_support(Y_filtered, Y_pred_filtered,
+                                                          labels=labels, average="micro")[:-1]
+    macro_avg = skmetrics.precision_recall_fscore_support(Y_filtered, Y_pred_filtered,
+                                                          labels=labels, average="macro")[:-1]
+    metrics = ["precision", "recall", "f1"]
+    results = [{'Metric': metric, 'Micro Average': micro_avg_metric, 'Macro Average': macro_avg_metric}
+               for metric, micro_avg_metric, macro_avg_metric in zip(metrics, micro_avg, macro_avg)]
+    accuracy = skmetrics.accuracy_score(Y_filtered, Y_pred_filtered)
+    results.append({'Metric': 'accuracy', 'Micro Average': accuracy, 'Macro Average': accuracy})
+
+    if tie_break_policy != "abstain":
+        # we can only calculate coverage if the tie_break_policy is set to "abstain"
+        Y_pred, Y_prob = model.predict(
+            L, return_probs=True, tie_break_policy="abstain"
+        )
+    coverage = np.sum(Y_pred != -1) / len(Y_pred)
+    results.append({'Metric': 'coverage', 'Micro Average': coverage, 'Macro Average': coverage})
+    return pd.DataFrame(results)
