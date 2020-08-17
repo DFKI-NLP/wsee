@@ -650,6 +650,25 @@ def create_random_repeats_train_datasets(input_path, save_path, random_repeats=5
         shutil.rmtree(tmp_path)
 
 
+def create_increasingly_bigger_train_datasets(input_path, save_path, sample_repetitions=5):
+    loaded_data = load_data(input_path)
+    if sample_repetitions <= 0:
+        logger.error(f"{sample_repetitions} is not a valid choice. Choose value that is >= 1")
+        exit(-1)
+    logger.info(f"Sampling from the data with {sample_repetitions} repetitions to create increasingly bigger training"
+                f"data sets with probabilistic labels.")
+    for sample_size in range(50, 101, 10):
+        daystream_sample = loaded_data['daystream'].sample(frac=sample_size/100)
+        sample_save_path = save_path.joinpath(f"Daystream{sample_size}")
+        for i in range(1, sample_repetitions + 1):
+            run_save_path = sample_save_path.joinpath(f"run_{i}")
+            # We label the daystream data with Snorkel and use the train data from SD4M
+            daystream_snorkeled = build_training_data(lf_train=daystream_sample, save_path=run_save_path,
+                                                      lf_dev=loaded_data['train'])
+
+            logger.info(f"Finished labeling {len(daystream_snorkeled)} documents.")
+
+
 def create_train_datasets(input_path, save_path, seed=None, use_majority_label_voter=False):
     loaded_data = load_data(input_path)
 
