@@ -26,11 +26,11 @@ logger.setLevel(level=logging.INFO)
 
 event_type_lf_map: Dict[int, Any] = {
     event_trigger_lfs.Accident: event_trigger_lfs.lf_accident_chained,
-    event_trigger_lfs.CanceledRoute: event_trigger_lfs.lf_canceledroute_cat,
-    event_trigger_lfs.CanceledStop: event_trigger_lfs.lf_canceledstop_cat,
+    event_trigger_lfs.CanceledRoute: event_trigger_lfs.lf_canceledroute_keywords,
+    event_trigger_lfs.CanceledStop: event_trigger_lfs.lf_canceledstop_keywords,
     event_trigger_lfs.Delay: event_trigger_lfs.lf_delay_chained,
     event_trigger_lfs.Obstruction: event_trigger_lfs.lf_obstruction_chained,
-    event_trigger_lfs.RailReplacementService: event_trigger_lfs.lf_railreplacementservice_cat,
+    event_trigger_lfs.RailReplacementService: event_trigger_lfs.lf_railreplacementservice_keywords,
     event_trigger_lfs.TrafficJam: event_trigger_lfs.lf_trafficjam_chained
 }
 
@@ -47,29 +47,29 @@ event_type_location_type_map: Dict[int, List[str]] = {
 
 def get_trigger_list_lfs():
     trigger_list_lfs = [
-        event_trigger_lfs.lf_accident,
-        event_trigger_lfs.lf_accident_street,
-        event_trigger_lfs.lf_accident_no_cause_check,
-        event_trigger_lfs.lf_canceledroute_cat,
+        event_trigger_lfs.lf_accident_keywords,
+        event_trigger_lfs.lf_accident_keywords_location_street,
+        event_trigger_lfs.lf_accident_keywords_no_cause_check,
+        event_trigger_lfs.lf_canceledroute_keywords,
         event_trigger_lfs.lf_canceledroute_replicated,
-        event_trigger_lfs.lf_canceledstop_cat,
+        event_trigger_lfs.lf_canceledstop_keywords,
         event_trigger_lfs.lf_canceledstop_replicated,
-        event_trigger_lfs.lf_delay_cat,
+        event_trigger_lfs.lf_delay_keywords,
         event_trigger_lfs.lf_delay_duration_positional_check,
-        event_trigger_lfs.lf_delay_priorities,
-        event_trigger_lfs.lf_delay_duration,
-        event_trigger_lfs.lf_obstruction_cat,
-        event_trigger_lfs.lf_obstruction_street,
-        event_trigger_lfs.lf_obstruction_priorities,
-        event_trigger_lfs.lf_railreplacementservice_cat,
+        event_trigger_lfs.lf_delay_keywords_priorities,
+        event_trigger_lfs.lf_delay_keywords_duration,
+        event_trigger_lfs.lf_obstruction_keywords,
+        event_trigger_lfs.lf_obstruction_keywords_street,
+        event_trigger_lfs.lf_obstruction_keywords_priorities,
+        event_trigger_lfs.lf_railreplacementservice_keywords,
         event_trigger_lfs.lf_railreplacementservice_replicated,
-        event_trigger_lfs.lf_trafficjam_cat,
+        event_trigger_lfs.lf_trafficjam_keywords,
         event_trigger_lfs.lf_trafficjam_distance_positional_check,
-        event_trigger_lfs.lf_trafficjam_street,
-        event_trigger_lfs.lf_trafficjam_order,
+        event_trigger_lfs.lf_trafficjam_keywords_street,
+        event_trigger_lfs.lf_trafficjam_keywords_order,
         event_trigger_lfs.lf_negative,
         event_trigger_lfs.lf_cause_negative,
-        event_trigger_lfs.lf_obstruction_negative
+        event_trigger_lfs.lf_obstruction_keywords_negative
     ]
     return trigger_list_lfs
 

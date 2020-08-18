@@ -86,7 +86,7 @@ def lf_location(x, same_sentence=True, nearest=False, check_event_type=True):
         all_trigger_distances = get_all_trigger_distances(x)
         if not is_nearest_trigger(between_distance, all_trigger_distances):
             return ABSTAIN
-    if event_trigger_lfs.lf_canceledstop_cat(x) == event_trigger_lfs.CanceledStop and between_distance > 2:
+    if event_trigger_lfs.lf_canceledstop_keywords(x) == event_trigger_lfs.CanceledStop and between_distance > 2:
         return ABSTAIN
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     if has_location_preposition(trigger_right_tokens) and x.argument['start'] < x.trigger['start']:
@@ -364,8 +364,8 @@ def lf_delay_preceding_arg(x):
                 return ABSTAIN
             if 'früher' in argument_right_tokens[:2]:
                 return ABSTAIN
-            if event_trigger_lfs.lf_delay_cat(x) == event_trigger_lfs.Delay or \
-                    event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam:
+            if event_trigger_lfs.lf_delay_keywords(x) == event_trigger_lfs.Delay or \
+                    event_trigger_lfs.lf_trafficjam_keywords(x) == event_trigger_lfs.TrafficJam:
                 if x.between_distance < 1 and x.argument['start'] < x.trigger['start']:
                     return delay
                 else:
@@ -382,8 +382,8 @@ def lf_delay_preceding_trigger(x):
             if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
                     (x.separate_sentence and 'Zeitverlust' not in argument_left_tokens[-4:]):
                 return ABSTAIN
-            if event_trigger_lfs.lf_delay_cat(x) == event_trigger_lfs.Delay or \
-                    event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam:
+            if event_trigger_lfs.lf_delay_keywords(x) == event_trigger_lfs.Delay or \
+                    event_trigger_lfs.lf_trafficjam_keywords(x) == event_trigger_lfs.TrafficJam:
                 if x.between_distance <= 4 and x.trigger['start'] < x.argument['start'] and no_entity_in_between(x):
                     # chose 4 as maximum distance because of: "Verspätung von bis zu ca. 10 Min."
                     return delay
@@ -475,7 +475,7 @@ def lf_start_location(x, preceding_arg=False, nearest=False):
         argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
         argument_right_ner = get_windowed_right_ner(x.argument, x.ner_tags)
         if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
-                event_trigger_lfs.lf_canceledstop_cat(x) == event_trigger_lfs.CanceledStop:
+                event_trigger_lfs.lf_canceledstop_keywords(x) == event_trigger_lfs.CanceledStop:
             return ABSTAIN
         if x.separate_sentence or x.not_an_event:
             return ABSTAIN
@@ -535,7 +535,7 @@ def lf_end_location(x, preceding_arg=False, nearest=False):
         argument_left_tokens = get_windowed_left_tokens(x.argument, x.tokens)
         argument_left_ner = get_windowed_left_ner(x.argument, x.ner_tags)
         if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or x.separate_sentence or x.not_an_event or \
-                event_trigger_lfs.lf_canceledstop_cat(x) != ABSTAIN:
+                event_trigger_lfs.lf_canceledstop_keywords(x) != ABSTAIN:
             return ABSTAIN
         if nearest:
             between_distance = x.between_distance
@@ -785,8 +785,8 @@ def lf_cause_order(x):
                     (argument_right_tokens and argument_right_tokens[0].lower() in ['erzeugt', 'erzeugen'])):
                 return cause
             elif between_distance < 5 and \
-                    (event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam or
-                     event_trigger_lfs.lf_obstruction_cat(x) == event_trigger_lfs.Obstruction):
+                    (event_trigger_lfs.lf_trafficjam_keywords(x) == event_trigger_lfs.TrafficJam or
+                     event_trigger_lfs.lf_obstruction_keywords(x) == event_trigger_lfs.Obstruction):
                 # Accidents are often causes for obstructions/ traffic jams
                 highest = process.extractOne(x.argument['text'], event_trigger_lfs.accident_keywords)
                 if highest[1] >= 90:
@@ -812,7 +812,7 @@ def lf_distance_type(x):
             if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
                     x.separate_sentence:
                 return ABSTAIN
-            elif event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam:
+            elif event_trigger_lfs.lf_trafficjam_keywords(x) == event_trigger_lfs.TrafficJam:
                 return jam_length
     return ABSTAIN
 
@@ -830,7 +830,7 @@ def lf_distance_nearest(x):
             elif is_nearest_trigger(between_distance, sentence_trigger_distances) and \
                     entity_trigger_distances[arg_entity_type] and \
                     between_distance <= min(entity_trigger_distances[arg_entity_type]) and \
-                    event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam:
+                    event_trigger_lfs.lf_trafficjam_keywords(x) == event_trigger_lfs.TrafficJam:
                 return jam_length
     return ABSTAIN
 
@@ -843,7 +843,7 @@ def lf_distance_order(x):
             if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
                     x.separate_sentence:
                 return ABSTAIN
-            elif event_trigger_lfs.lf_trafficjam_cat(x) == event_trigger_lfs.TrafficJam and \
+            elif event_trigger_lfs.lf_trafficjam_keywords(x) == event_trigger_lfs.TrafficJam and \
                     x.argument['start'] < x.trigger['start'] and x.between_distance < 2:
                 return jam_length
     return ABSTAIN
@@ -857,7 +857,7 @@ def lf_route_type(x):
         if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
                 x.separate_sentence:
             return ABSTAIN
-        elif event_trigger_lfs.lf_canceledstop_cat(x) == event_trigger_lfs.CanceledStop:
+        elif event_trigger_lfs.lf_canceledstop_keywords(x) == event_trigger_lfs.CanceledStop:
             return route
     return ABSTAIN
 
@@ -869,7 +869,7 @@ def lf_route_type_order(x):
         if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
                 x.separate_sentence:
             return ABSTAIN
-        if event_trigger_lfs.lf_canceledstop_cat(x) == event_trigger_lfs.CanceledStop and \
+        if event_trigger_lfs.lf_canceledstop_keywords(x) == event_trigger_lfs.CanceledStop and \
                 x.argument['start'] < x.trigger['start']:
             return route
     return ABSTAIN
@@ -882,7 +882,7 @@ def lf_route_type_order_between_check(x):
         if lf_too_far_40(x) == no_arg or x.is_multiple_same_event_type or \
                 x.separate_sentence:
             return ABSTAIN
-        elif event_trigger_lfs.lf_canceledstop_cat(x) == event_trigger_lfs.CanceledStop and \
+        elif event_trigger_lfs.lf_canceledstop_keywords(x) == event_trigger_lfs.CanceledStop and \
                 x.argument['start'] < x.trigger['start']:
             between_text: str = get_between_text(x)
             if x.argument['text'] not in between_text:

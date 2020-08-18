@@ -90,9 +90,9 @@ trafficjam_exact_keywords = [
 def lf_accident_chained(x):
     if any(accident_lf(x) == Accident for accident_lf in
            [
-               lf_accident,
-               lf_accident_street,
-               lf_accident_no_cause_check
+               lf_accident_keywords,
+               lf_accident_keywords_location_street,
+               lf_accident_keywords_no_cause_check
            ]):
         return Accident
     else:
@@ -100,7 +100,7 @@ def lf_accident_chained(x):
 
 
 @labeling_function(pre=[])
-def lf_accident(x):
+def lf_accident_keywords(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], accident_keywords)
@@ -116,7 +116,7 @@ def lf_accident(x):
 
 
 @labeling_function(pre=[])
-def lf_accident_street(x):
+def lf_accident_keywords_location_street(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], accident_keywords)
@@ -132,7 +132,7 @@ def lf_accident_street(x):
 
 
 @labeling_function(pre=[])
-def lf_accident_no_cause_check(x):
+def lf_accident_keywords_no_cause_check(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], accident_keywords)
@@ -195,7 +195,7 @@ def check_in_parentheses(trigger_text, left_tokens=None, right_tokens=None):
 
 
 @labeling_function(pre=[])
-def lf_canceledroute_cat(x):
+def lf_canceledroute_keywords(x):
     """
     Checks for canceled route keywords.
     :param x:
@@ -218,11 +218,11 @@ def lf_canceledroute_replicated(x):
     :param x:
     :return:
     """
-    return lf_canceledroute_cat(x)
+    return lf_canceledroute_keywords(x)
 
 
 @labeling_function(pre=[])
-def lf_canceledstop_cat(x):
+def lf_canceledstop_keywords(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], canceledstop_keywords)
     highest_exact = process.extractOne(x.trigger['text'], canceledstop_exact_keywords)
@@ -239,7 +239,7 @@ def lf_canceledstop_replicated(x):
     :param x:
     :return:
     """
-    return lf_canceledstop_cat(x)
+    return lf_canceledstop_keywords(x)
 
 
 def check_route_keywords(tokens):
@@ -254,9 +254,9 @@ def check_route_keywords(tokens):
 def lf_delay_chained(x):
     if any(delay_lf(x) == Delay for delay_lf in
            [
-               lf_delay_cat,
-               lf_delay_duration,
-               lf_delay_priorities
+               lf_delay_keywords,
+               lf_delay_keywords_duration,
+               lf_delay_keywords_priorities
            ]):
         return Delay
     else:
@@ -264,7 +264,7 @@ def lf_delay_chained(x):
 
 
 @labeling_function(pre=[])
-def lf_delay_cat(x):
+def lf_delay_keywords(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], delay_keywords)
@@ -299,7 +299,7 @@ def lf_delay_duration_positional_check(x):
 
 
 @labeling_function(pre=[])
-def lf_delay_duration(x):
+def lf_delay_keywords_duration(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], delay_keywords)
@@ -317,7 +317,7 @@ def lf_delay_duration(x):
 
 
 @labeling_function(pre=[])
-def lf_delay_priorities(x):
+def lf_delay_keywords_priorities(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], delay_keywords)
@@ -356,9 +356,9 @@ def is_negated(trigger_left_tokens):
 def lf_obstruction_chained(x):
     if any(obstruction_lf(x) == Obstruction for obstruction_lf in
            [
-               lf_obstruction_cat,
-               lf_obstruction_street,
-               lf_obstruction_priorities
+               lf_obstruction_keywords,
+               lf_obstruction_keywords_street,
+               lf_obstruction_keywords_priorities
            ]):
         return Obstruction
     else:
@@ -366,7 +366,7 @@ def lf_obstruction_chained(x):
 
 
 @labeling_function(pre=[])
-def lf_obstruction_cat(x):
+def lf_obstruction_keywords(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], obstruction_keywords)
@@ -383,7 +383,7 @@ def lf_obstruction_cat(x):
 
 
 @labeling_function(pre=[])
-def lf_obstruction_street(x):
+def lf_obstruction_keywords_street(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], obstruction_keywords)
@@ -401,7 +401,7 @@ def lf_obstruction_street(x):
 
 
 @labeling_function(pre=[])
-def lf_obstruction_priorities(x):
+def lf_obstruction_keywords_priorities(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], obstruction_keywords)
@@ -431,7 +431,7 @@ def lf_obstruction_priorities(x):
 
 
 @labeling_function(pre=[])
-def lf_obstruction_negative(x):
+def lf_obstruction_keywords_negative(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], obstruction_keywords)
     highest_lower_priority = process.extractOne(x.trigger['text'], obstruction_lower_priority_keywords)
@@ -442,7 +442,7 @@ def lf_obstruction_negative(x):
 
 
 @labeling_function(pre=[])
-def lf_railreplacementservice_cat(x):
+def lf_railreplacementservice_keywords(x):
     highest = process.extractOne(x.trigger['text'], railreplacementservice_keywords)
     highest_exact = process.extractOne(x.trigger['text'], railreplacementservice_exact_keywords)
     if (highest[1] >= 90 or highest_exact[1] > 90) and 'location_route' in x.entity_type_freqs:
@@ -457,16 +457,16 @@ def lf_railreplacementservice_replicated(x):
     :param x:
     :return:
     """
-    return lf_railreplacementservice_cat(x)
+    return lf_railreplacementservice_keywords(x)
 
 
 @labeling_function(pre=[])
 def lf_trafficjam_chained(x):
     if any(trafficjam_lf(x) == TrafficJam for trafficjam_lf in
            [
-               lf_trafficjam_cat,
-               lf_trafficjam_street,
-               lf_trafficjam_order
+               lf_trafficjam_keywords,
+               lf_trafficjam_keywords_street,
+               lf_trafficjam_keywords_order
            ]):
         return TrafficJam
     else:
@@ -474,7 +474,7 @@ def lf_trafficjam_chained(x):
 
 
 @labeling_function(pre=[])
-def lf_trafficjam_cat(x):
+def lf_trafficjam_keywords(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], trafficjam_keywords)
@@ -507,7 +507,7 @@ def lf_trafficjam_distance_positional_check(x):
 
 
 @labeling_function(pre=[])
-def lf_trafficjam_street(x):
+def lf_trafficjam_keywords_street(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], trafficjam_keywords)
@@ -523,7 +523,7 @@ def lf_trafficjam_street(x):
 
 
 @labeling_function(pre=[])
-def lf_trafficjam_order(x):
+def lf_trafficjam_keywords_order(x):
     trigger_left_tokens = get_windowed_left_tokens(x.trigger, x.tokens)
     trigger_right_tokens = get_windowed_right_tokens(x.trigger, x.tokens)
     highest = process.extractOne(x.trigger['text'], trafficjam_keywords)
@@ -561,11 +561,11 @@ def lf_negative(x):
     """
     lfs = [
         lf_accident_chained,
-        lf_canceledroute_cat,
-        lf_canceledstop_cat,
+        lf_canceledroute_keywords,
+        lf_canceledstop_keywords,
         lf_delay_chained,
         lf_obstruction_chained,
-        lf_railreplacementservice_cat,
+        lf_railreplacementservice_keywords,
         lf_trafficjam_chained
     ]
     for lf in lfs:
