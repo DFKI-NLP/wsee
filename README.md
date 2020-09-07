@@ -10,6 +10,7 @@ pip install -r requirements.txt
 We have created jupyter notebooks for all the experiments.
 The [Data preparation](notebooks/data_preparation.ipynb) notebook guides you through downloading the corpus data, preparing it for the different experiments.
 We recommend that you run all the commands in the [Data preparation](notebooks/data_preparation.ipynb) notebook before trying the other notebooks.
+Alternatively you can download all the preprocessed data from [https://cloud.dfki.de/owncloud/index.php/s/ykyWcJyHfAExLci](https://cloud.dfki.de/owncloud/index.php/s/ykyWcJyHfAExLci)
 
 ## Experiments
 The following notebooks contain different experiments that we conducted as part of the labeling function development.
