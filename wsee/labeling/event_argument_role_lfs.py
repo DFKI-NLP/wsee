@@ -1,4 +1,6 @@
 from fuzzywuzzy import process
+import os
+from pathlib import Path
 from snorkel.labeling import labeling_function
 
 from wsee.labeling import event_trigger_lfs
@@ -33,9 +35,10 @@ labels = {
     'no_arg': 10
 }
 
-original_rules = parse_pattern_file('/Users/phuc/develop/python/wsee/data/event-patterns-annotated-britta-olli.txt')
-general_location_rules = parse_pattern_file('/Users/phuc/develop/python/wsee/data/event-patterns-phuc.txt')
-traffic_event_causes = utils.parse_gaz_file('/Users/phuc/develop/python/wsee/data/traffic_event_causes.gaz')
+ROOT_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
+original_rules = parse_pattern_file(ROOT_DIR.joinpath('event-patterns-annotated-britta-olli.txt'))
+general_location_rules = parse_pattern_file(ROOT_DIR.joinpath('event-patterns-phuc.txt'))
+traffic_event_causes = utils.parse_gaz_file(ROOT_DIR.joinpath('traffic_event_causes.gaz'))
 
 
 # utility function

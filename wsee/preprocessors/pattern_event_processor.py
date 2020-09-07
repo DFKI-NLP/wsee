@@ -58,7 +58,7 @@ def parse_pattern_file(pattern_file):
     :return: List of ConverterRules.
     """
     # first check if we have pickled the rules before
-    pickled_pattern_file = Path(pattern_file + '.pkl')
+    pickled_pattern_file = Path(str(pattern_file) + '.pkl')
 
     if pickled_pattern_file.exists():
         with open(pickled_pattern_file, 'rb') as pickled_rules:

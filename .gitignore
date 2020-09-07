@@ -127,3 +127,5 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+/wsee/labeling/event-patterns-annotated-britta-olli.txt.pkl
+/wsee/labeling/event-patterns-phuc.txt.pkl
