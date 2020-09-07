@@ -613,7 +613,10 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, seed: Optional[i
 
     if save_path:
         try:
-            final_save_path = Path(save_path).joinpath("daystream_snorkeled.jsonl")
+            if use_majority_label_voter:
+                final_save_path = Path(save_path).joinpath("daystream_mlv_snorkeled.jsonl")
+            else:
+                final_save_path = Path(save_path).joinpath("daystream_snorkeled.jsonl")
             os.makedirs(os.path.dirname(final_save_path), exist_ok=True)
             logger.info(f"Writing Snorkel Labeled data to {final_save_path}")
             merged_examples.to_json(final_save_path, orient='records', lines=True, force_ascii=False)
@@ -622,7 +625,7 @@ def build_training_data(lf_train: pd.DataFrame, save_path=None, seed: Optional[i
     return merged_examples
 
 
-def create_random_repeats_train_datasets(input_path, save_path, random_repeats=5):
+def create_random_repeats_train_datasets(input_path, save_path, random_repeats=5, create_merged_version=True):
     loaded_data = load_data(input_path)
     if random_repeats <= 0:
         logger.error(f"{random_repeats} is not a valid choice. Choose value that is >= 1")
@@ -637,14 +640,14 @@ def create_random_repeats_train_datasets(input_path, save_path, random_repeats=5
                                                   lf_dev=loaded_data['train'], tmp_path=tmp_path)
 
         logger.info(f"Finished labeling {len(daystream_snorkeled)} documents.")
-
-        # Export merge of daystream+sd4m train
-        logger.info(f"Exporting merge of snorkel labeled data and gold data.")
-        sd_train = loaded_data['train']
-        merged = pd.concat([daystream_snorkeled, sd_train])
-        merged_path = run_save_path.joinpath('snorkeled_gold_merge.jsonl')
-        os.makedirs(os.path.dirname(merged_path), exist_ok=True)
-        merged.to_json(merged_path, orient='records', lines=True, force_ascii=False)
+        if create_merged_version:
+            # Export merge of daystream+sd4m train
+            logger.info(f"Exporting merge of snorkel labeled data and gold data.")
+            sd_train = loaded_data['train']
+            merged = pd.concat([daystream_snorkeled, sd_train])
+            merged_path = run_save_path.joinpath('snorkeled_gold_merge.jsonl')
+            os.makedirs(os.path.dirname(merged_path), exist_ok=True)
+            merged.to_json(merged_path, orient='records', lines=True, force_ascii=False)
     # Clean up
     if tmp_path.exists() and tmp_path.is_dir():
         shutil.rmtree(tmp_path)
@@ -669,7 +672,7 @@ def create_increasingly_bigger_train_datasets(input_path, save_path, sample_repe
             logger.info(f"Finished labeling {len(daystream_snorkeled)} documents.")
 
 
-def create_train_datasets(input_path, save_path, seed=None, use_majority_label_voter=False):
+def create_train_datasets(input_path, save_path, seed=None, use_majority_label_voter=False, create_merged_version=True):
     loaded_data = load_data(input_path)
 
     if seed:
@@ -680,13 +683,13 @@ def create_train_datasets(input_path, save_path, seed=None, use_majority_label_v
                                               use_majority_label_voter=use_majority_label_voter)
 
     logger.info(f"Finished labeling {len(daystream_snorkeled)} documents.")
-
-    # Export merge of daystream+sd4m train
-    logger.info(f"Exporting merge of snorkel labeled data and gold data.")
-    sd_train = loaded_data['train']
-    merged = pd.concat([daystream_snorkeled, sd_train])
-    merged.to_json(save_path.joinpath('snorkeled_gold_merge.jsonl'),
-                   orient='records', lines=True, force_ascii=False)
+    if create_merged_version:
+        # Export merge of daystream+sd4m train
+        logger.info(f"Exporting merge of snorkel labeled data and gold data.")
+        sd_train = loaded_data['train']
+        merged = pd.concat([daystream_snorkeled, sd_train])
+        merged.to_json(save_path.joinpath('snorkeled_gold_merge.jsonl'),
+                       orient='records', lines=True, force_ascii=False)
 
 
 def main(args):
