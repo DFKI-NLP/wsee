@@ -3,5 +3,9 @@ python-Levenshtein
 fuzzywuzzy
 fastavro
 snorkel==0.9.3
+spacy
+stanfordnlp==0.2.0
 jupyter
 ipykernel
+python-snappy
+matplotlib

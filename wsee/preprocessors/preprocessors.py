@@ -3,6 +3,8 @@ import logging
 import numpy as np
 
 from typing import Dict, List, Optional, Any, Tuple
+
+import spacy
 from somajo import SoMaJo
 from somajo.token import Token
 from snorkel.preprocess import preprocessor
@@ -20,6 +22,12 @@ def load_somajo_model():
     global nlp_somajo
     if nlp_somajo is None:
         nlp_somajo = SoMaJo("de_CMC", split_camel_case=True)
+
+
+def load_spacy_model():
+    global nlp_spacy
+    if nlp_spacy is None:
+        nlp_spacy = spacy.load('de_core_news_md')
 
 
 def get_entity_idx(entity_id: str, entities: List[Dict[str, Any]]) -> int:
@@ -499,6 +507,34 @@ def get_mixed_ner(cand: DataPoint) -> (str, List[Tuple[int, int]]):
         offset = match_end
     mixed_ner += cand.text[offset:]
     return mixed_ner, mixed_ner_spans
+
+
+def get_spacy_doc_tokens(doc):
+    return [token.text for token in doc]
+
+
+def get_spacy_doc_sentences(doc):
+    return [s.text for s in doc.sents]
+
+
+def get_spacy_doc(cand: DataPoint):
+    load_spacy_model()
+    spacy_doc = nlp_spacy(cand.text)
+    doc = {
+        'doc': spacy_doc,
+        'tokens': get_spacy_doc_tokens(spacy_doc),
+        'sentences': get_spacy_doc_sentences(spacy_doc),  # preserves sentence texts
+        'trigger_text': nlp_spacy(get_entity(cand.trigger['id'], cand.entities)['text']),
+    }
+    if 'argument_id' in cand:
+        doc['argument_text'] = get_entity(cand.argument['id'], cand.entities)['text']
+    return doc
+
+
+@preprocessor()
+def pre_spacy_doc(cand: DataPoint) -> DataPoint:
+    cand['spacy_doc'] = get_spacy_doc(cand)
+    return cand
 
 
 def get_somajo_doc_tokens(doc: List[List[Token]]) -> List[str]:

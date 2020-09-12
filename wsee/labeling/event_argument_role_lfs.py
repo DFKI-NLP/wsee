@@ -922,6 +922,25 @@ def lf_stanford_separate_sentence(x):
     return no_arg
 
 
+@labeling_function(pre=[pre_spacy_doc])
+def lf_spacy_separate_sentence(x):
+    # proof of concept that makes use of spaCy sentence splitter parsing feature; need proper mappings from
+    # entities to sentences in preprocessor
+    # see: https://github.com/explosion/spaCy/blob/master/examples/information_extraction/entity_relations.py
+    same_sentence = False
+    for sentence in x.spacy_doc['sentences']:
+        # TODO use check_spans from preprocessors to make sure
+        # edge case: two very similar sentences that both contain trigger text and arg text
+
+        if x.spacy_doc['trigger'] in sentence and x.spacy_doc['argument'] in sentence:
+            same_sentence = True
+            break
+    if same_sentence:
+        return ABSTAIN
+    else:
+        return no_arg
+
+
 @labeling_function(pre=[])
 def lf_not_nearest_event(x):
     between_distance = x.between_distance
