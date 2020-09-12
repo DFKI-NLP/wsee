@@ -10,11 +10,15 @@ pip install -r requirements.txt
 We have created jupyter notebooks for all the experiments.
 The [Data preparation](notebooks/data_preparation.ipynb) notebook guides you through downloading the corpus data, preparing it for the different experiments.
 We recommend that you run all the commands in the [Data preparation](notebooks/data_preparation.ipynb) notebook before trying the other notebooks.
-Alternatively you can download all the preprocessed data from [https://cloud.dfki.de/owncloud/index.php/s/ykyWcJyHfAExLci](https://cloud.dfki.de/owncloud/index.php/s/ykyWcJyHfAExLci)
+
+We used data provided by the German Research Center for Artificial Intelligence (DFKI).
+The labeled data portion stems from the [DFKI SmartData Corpus](https://github.com/DFKI-NLP/smartdata-corpus) and is released as CC-BY 4.0. The accompanying paper:
+
+_A German Corpus for Fine-Grained Named Entity Recognition and Relation Extraction of Traffic and Industry Events. Martin Schiersch, Veselina Mironova, Maximilian Schmitt, Philippe Thomas, Aleksandra Gabryszak, Leonhard Hennig. Proceedings of LREC, 2018._ [(bib)](paper.bib) [(pdf)](https://www.dfki.de/fileadmin/user_upload/import/9427_lrec_smartdata_corpus.pdf)
 
 ## Experiments
 The following notebooks contain different experiments that we conducted as part of the labeling function development.
-- [Sentence splitting experiments](notebooks/ssplit_experiments.ipynb): Here we compare different sentence splitters. We compare spaCy, stanfordnlp, stanza and somajo on selected examples and then compare the original sentence splitting with stanfordnlp in the corpus with somajo on the SD4M training data.
+- [Sentence splitting experiments](notebooks/ssplit_experiments.ipynb): Here we compare different sentence splitters. We compare spaCy, stanfordnlp and somajo on selected examples and then compare the original sentence splitting with stanfordnlp in the corpus with somajo on the SD4M training data.
 - [Trigger labeling experiments](notebooks/trigger_experiments.ipynb): Here we compare different strategies for trigger labeling functions.
 - [Role labeling experiments](notebooks/role_experiments.ipynb): Here we compare different strategies for role labeling functions.
 
